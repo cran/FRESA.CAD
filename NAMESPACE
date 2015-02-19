@@ -1,2 +1,9 @@
+useDynLib(FRESA.CAD)
 exportPattern("^[[:alpha:]]+")
-import(Hmisc,pROC,stringr,miscTools,survival)
+import(stringr,miscTools,Hmisc,pROC)
+importFrom(Rcpp, evalCpp)
+S3method(plot, bootstrapValidation)
+S3method(plot, bootstrapValidationNeRI)
+S3method(summary, bootstrapValidation)
+S3method(update, uniRankVar)
+

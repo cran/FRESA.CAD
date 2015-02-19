@@ -1,195 +1,274 @@
 \name{crossValidationFeatureSelection}
 \alias{crossValidationFeatureSelection}
-%- Also NEED an '\alias' for EACH other topic documented here.
-\title{
-IDI-based selection of a linear classification (Logistic or COX) model from a set of candidate variables.  
-%%  ~~function to do ... ~~
-}
+\title{IDI/NRI-based selection of a linear, logistic, or Cox proportional hazards regression model from a set of candidate variables}
 \description{
-This function preform the cross-validation analysis of the IDI based feature selection algorithm.
-Internally is composed of a IDI selection, followed by an update procedure and finalized by a bootstrapping backwards elimination procedure.
-The number of cross-validation folds in given by the size of the training set. The user can control how many steps the training and testing procedure will be repeated.
-%%  ~~ A concise (1-5 lines) description of what the function does. ~~
+	This function performs a cross-validation analysis of a feature selection algorithm based on the integrated discrimination improvement (IDI) or the net reclassification improvement (NRI) to return a predictive model.
+	It is composed of an IDI/NRI-based feature selection followed by an update procedure, ending with a bootstrapping backwards feature elimination.
+	The user can control how many train and blind test sets will be evaluated.
 }
-
 \usage{
-crossValidationFeatureSelection(size=10,
-fraction=1.0,
-pvalue=0.05,
-loops=100,
-covariates="1",
-Outcome,
-variableList,
-dataframe,
-maxTrainModelSize=10,
-type=c("LM","LOGIT","COX"),
-timeOutcome="Time",
-selectionType=c("zIDI","zNRI"),
-loop.threshold=10,
-startOffset=0,
-backBootLoops=25,
-trainFraction=0.67,
-trainRepetition=9,
-elimination.pValue=0.05,
-CVfolds=10,
-bootEstimations=25,
-interaction=c(1,1),
-nk = 0
-)
-
+	crossValidationFeatureSelection(size = 10,
+	                                fraction = 1.0,
+	                                pvalue = 0.05,
+	                                loops = 100,
+	                                covariates = "1",
+	                                Outcome,
+	                                timeOutcome = "Time",
+	                                variableList,
+	                                data,
+	                                maxTrainModelSize = 10,
+	                                type = c("LM", "LOGIT", "COX"),
+	                                selectionType = c("zIDI", "zNRI"),
+	                                loop.threshold = 10,
+	                                startOffset = 0,
+	                                elimination.bootstrap.steps = 25,
+	                                trainFraction = 0.67,
+	                                trainRepetition = 9,
+	                                elimination.pValue = 0.05,
+	                                CVfolds = 10,
+	                                bootstrap.steps = 25,
+	                                interaction = c(1, 1),
+	                                nk = 0,
+	                                unirank = NULL,
+	                                print=TRUE,
+	                                plots=TRUE)
 }
-%- maybe also 'usage' for other objects documented here.
 \arguments{
-  \item{size}{
-  The number of candidate variables to be tested.
-
-}
-  \item{fraction}{
-  The fraction of samples used at the training and the independent testing .
-
-}
-  \item{pvalue}{
-  The threshold used to insert a variable in the model. the p value of the N(z.IDI,0,1) has to be lower that pvalue in order to be included in the model.
-
-}
-  \item{loops}{
-  THe number of bootstraps 
-
-}
-  \item{covariates}{
-  A string of variables that always will be included in the models
-
-}
-  \item{Outcome}{
-  The variable that indicates the outcome
-
-}
-  \item{variableList}{
-  The candidate variables to be tested. They usualy are the output of a univariate ranking procedure
-
-}
-  \item{dataframe}{
-  The data
-
-}
-  \item{maxTrainModelSize}{
-  A threshold for the maximum size of models to be tested
-
-}
-  \item{type}{
-  The type of fitting (LOGIT,LM, COX): LOGIT: Logistic, LM: Lineal, Or COX
-
-}
-  \item{timeOutcome}{
-  The name of the time to event variable for COX fitting.
-
-}
-  \item{selectionType}{
-  Selection criteria for feature inclusion: zIDI or zIRI
-  }
-  \item{loop.threshold}{
-  After loop.threshold cycles no more variables will be added to the frequency histogram. After that point only variables with at least one count will be candidates for the feature selection procedure
+	\item{size}{
+		The number of candidate variables to be tested (the first \code{size} variables from \code{variableList})
 	}
-  \item{startOffset}{
-  Only terms whose index in greater than startOffset can be removed by the backwards elimination procedure
-  }
-  \item{backBootLoops}{
-  The number of bootstraps to be used in the backwards elimination procedure
-  }
-  \item{trainFraction}{
-  the fraction of subjects that will be used in each training step of the cross validation fold
-  }
-  \item{trainRepetition}{
-  the number of cross validation steps. For a complete cross validation it should be at least equal to 1/crossFraction
-  }
-  \item{elimination.pValue}{
-  the maximum term IDI p.value allowed in the formula.
-  }
-  \item{CVfolds}{
-  the number of folds for the final CV of generated models.
-  }
-  \item{bootEstimations}{
-  number of bootstrap to be used to estimate each model coefficients 95% CI. 
-  }
-  \item{interaction}{
-  the order of the factors. Default = 1. Max =2. If set to 2, it will search for pair-wise feature interactions.
+	\item{fraction}{
+		The fraction of data (sampled with replacement) to be used as train
+	}
+	\item{pvalue}{
+		The maximum \emph{p}-value, associated to either IDI or NRI, allowed for a term in the model
+	}
+	\item{loops}{
+		The number of bootstrap loops
+	}
+	\item{covariates}{
+		A string of the type "1 + var1 + var2" that defines which variables will always be included in the models (as covariates)
+	}
+	\item{Outcome}{
+		The name of the column in \code{data} that stores the variable to be predicted by the model
+	}
+	\item{timeOutcome}{
+		The name of the column in \code{data} that stores the time to event (needed only for a Cox proportional hazards regression model fitting)
+	}
+	\item{variableList}{
+		A data frame with two columns. The first one must have the names of the candidate variables and the other one the description of such variables
+	}
+	\item{data}{
+		A data frame where all variables are stored in different columns
+	}
+	\item{maxTrainModelSize}{
+		Maximum number of terms that can be included in the model
+	}
+	\item{type}{
+		Fit type: Logistic ("LOGIT"), linear ("LM"), or Cox proportional hazards ("COX")
+	}
+	\item{selectionType}{
+		The type of index to be evaluated by the \code{improveProb} function (\code{Hmisc} package): \emph{z}-score of IDI or of NRI
+	}
+	\item{loop.threshold}{
+		After \code{loop.threshold} cycles, only variables that have already been selected in previous cycles will be candidates to be selected in posterior cycles
+	}
+	\item{startOffset}{
+		Only terms whose position in the model is larger than the \code{startOffset} are candidates to be removed
+	}
+	\item{elimination.bootstrap.steps}{
+		The number of bootstrap loops for the backwards elimination procedure
+	}
+	\item{trainFraction}{
+		The fraction of data (sampled with replacement) to be used as train for the cross-validation procedure
+	}
+	\item{trainRepetition}{
+		The number of cross-validation folds (it should be at least equal to \eqn{1/}\code{trainFraction} for a complete cross-validation)
+	}
+	\item{elimination.pValue}{
+		The maximum \emph{p}-value, associated to either IDI or NRI, allowed for a term in the model by the backward elimination procedure
+	}
+	\item{CVfolds}{
+		The number of folds for the final cross-validation.
+	}
+	\item{bootstrap.steps}{
+		The number of bootstrap loops for the confidence intervals estimation
+	}
+	\item{interaction}{
+		A vector of size two. The terms are used by the search and update procedures, respectively.	Set to either 1 for first order models, or to 2 for second order models
+	}
+	\item{nk}{
+		The number of neighbors used to generate a \emph{k}-nearest neighbors (KNN) classification. If zero, \emph{k} is set to the square root of the number of cases. If less than zero, it will not perform the KNN classification
+	}
+	\item{unirank}{
+		A list with the results yielded by the \code{uniRankVar} function, required only if the rank needs to be updated during the cross-validation procedure
+	}
+	\item{print}{
+		Logical. If \code{TRUE}, information will be displayed
+	}
+	\item{plots}{
+		Logical. If \code{TRUE}, plots are displayed
+	}
 }
-  \item{nk}{
-  the number of neighbours for a KNN classification. 
-}
-
-}
-
 \details{
-This function for the cross-validation (CV) of the feature selection procedure will produce a set data and plots that can be used to inspect the degree of over-fitting or model shrinkage
-present on the selected models. For each generated model bootstrapped data, CV data, and, if possible, retrain data. At each cycle the bootstrapped model will generate a training ROC 
-and a test ROC of the final model. At the end of the CV of the selection procedure, a set of three plots may be produced. The first plot will contain the ROC for each blind test.
-A second possible plot will contain the ROC plots of each model train and tested in the blind fold. The final plot will have the train ROC plot generated with all the data. The 
-ROC plot of the bootstrapped blind test, the ROC plot of the CV test, along of a set of plots of the CV of each model. Finally, this last plot will contain the ROC analysis of the 
-mean test data, along the coherence ROC plot. These set of plots may be used to get an overall view of the expected model shrinkage.
-Along with the plots the function will be providing the overall performance of the system( Accuracy, sensitivity and specificity). The function also produces a report of the expected
-performance of a KNN algorithm trained with the selected features of the model. The KNN test prediction are compared to the predictions generated by the linear models.  
+	This function produces a set of data and plots that can be used to inspect the degree of over-fitting or shrinkage of a model.
+	It uses bootstrapped data, cross-validation data, and, if possible, retrain data.
+	During each cycle, a train and a test ROC will be generated using bootstrapped data.
+	At the end of the cross-validation feature selection procedure, a set of three plots may be produced depending on the specifications of the analysis.
+	The first plot shows the ROC for each cross-validation blind test.
+	The second plot, if enough samples are given, shows the ROC of each model trained and tested in the blind test partition.
+	The final plot shows ROC curves generated with the train, the bootstrapped blind test, and the cross-validation test data.
+	Additionally, this plot will also contain the ROC of the cross-validation mean test data, and of the cross-validation coherence.
+	These set of plots may be used to get an overall perspective of the expected model shrinkage.
+	Along with the plots, the function provides the overall performance of the system (accuracy, sensitivity, and specificity).
+	The function also produces a report of the expected performance of a KNN algorithm trained with the selected features of the model, and an elastic net algorithm.
+	The test predictions obtained with these algorithms can then be compared to the predictions generated by the logistic, linear, or Cox proportional hazards regression model.
 }
-
 \value{
-
-%%  If it is a LIST, use
-  \item{formula.list}{A vector with the formulas found at each cycle of the cross-validation procedure}
-  \item{Models.testPrediction}{A data frame with the results of the blind test for each model: The unbiased expectation of the model when faced with new data}
-  \item{FullModel.testPrediction}{A data frame with the result of the cross-validation procedure of the model found using all available data}
-  \item{Models.CVtestPredictions}{The data frame of the last CV test predictions. This should model the FullModel CV blind test}
-  \item{TestRetrained.blindPredictions}{If enough samples present in the fold set, this data frame will have the data the get a reliable estimation of the model performance retrained on an independent set of data}
-  \item{FullModel.bootstrapped}{The bootstrapped object of the model trained using all available information}
-  \item{LastTrainedModel.bootstrapped}{The bootstrapped object of the last trained model}
-  \item{Test.accuracy}{The expected blind accuracy of the trained model}
-  \item{Test.sensitivity}{The expected blind sensitivity of the trained model }
-  \item{Test.specificity}{The expected blind specificity of the trained model }
-  \item{Train.correlationsToFull}{The degree of correlation between each model and the full model on the training data sets}
-  \item{Blind.correlationsToFull}{The degree of correlation between each model and the full model on the test folds}
-  \item{FullModelAtFoldAccuracies}{The test accuracy for the full model at each CV fold}
-  \item{FullModelAtFoldSpecificties}{The test specificity for the full model at each CV fold}
-  \item{FullModelAtFoldSensitivities}{The test sensitivity for the full model at each CV fold}
-  \item{AtCVFoldModelBlindAccuracies}{Blind Accuracy of the selection procedure}
-  \item{AtCVFoldModelBlindSpecificities}{Blind Specificity of the selection procedure}
-  \item{AtCVFoldModelBlindSensitivities}{Blind Sensitivity of the selection procedure}
-  \item{CVROCSensitivities}{The mean of the ROC sensitivities at the given specificities \cr
-  of: [0.95,0.90,0.80,0.70,0.60,0.50,0.40,0.30,0.20,0.10,0.05]}
-  \item{Models.CVblindMeanSensitivites}{The mean ROC sensitivities of the blind folds at specificities \cr
-  of: [0.95,0.90,0.80,0.70,0.60,0.50,0.40,0.30,0.20,0.10,0.05]}
-  \item{varFullSelection}{The model returned by the ReclassificationFRESA.Model using all available data}
-  \item{Models.testSensitivities }{Each ROC test sensitivities at the given specificities \cr
-  of: [0.95,0.90,0.80,0.70,0.60,0.50,0.40,0.30,0.20,0.10,0.05]}
-  \item{FullKNN.testPrediction}{The predicted outcome by the KNN procedure at each fold using the features of the full model}
-  \item{KNN.testPrediction}{The predicted outcome by the KNN procedure at each fold using the fold model}
-	\item{fullenet}{The elastic-net cross-validation object}
-	\item{enet.testPredictions}{The elastic-net fold predictions}
-	\item{enetVariables}{The elastic-net variables}
-  
-%% ...
+	\item{formula.list}{
+		A list containing objects of class \code{formula} with the formulas used to fit the models found at each cycle
+	}
+	\item{Models.testPrediction}{
+		A data frame with the blind test set predictions made at each fold of the cross validation, where the models used to generate such predictions (\code{formula.list}) were generated via a feature selection process which included only the train set.
+		It also includes a column with the \code{Outcome} of each prediction, and a column with the number of the fold at which the prediction was made.
+	}
+	\item{FullModel.testPrediction}{
+		A data frame similar to \code{Models.testPrediction}, but where the model used to generate the predictions was the full model, generated via a feature selection process which included all data.
+	}
+	\item{TestRetrained.blindPredictions}{
+		A data frame similar to \code{Models.testPrediction}, but where the models were retrained on an independent set of data (only if enough samples are given at each fold)
+	}
+	\item{LastTrainedModel.bootstrapped}{
+		An object of class \code{bootstrapValidation} containing the results of the bootstrap validation in the last trained model
+	}
+	\item{Test.accuracy}{
+		The global blind test accuracy of the cross-validation procedure
+	}
+	\item{Test.sensitivity}{
+		The global blind test sensitivity of the cross-validation procedure
+	}
+	\item{Test.specificity}{
+		The global blind test specificity of the cross-validation procedure
+	}
+	\item{Train.correlationsToFull}{
+		The Spearman \eqn{\rho} rank correlation coefficient between the predictions made with each model from \code{formula.list} and the full model in the train set
+	}
+	\item{Blind.correlationsToFull}{
+		The Spearman \eqn{\rho} rank correlation coefficient between the predictions made with each model from \code{formula.list} and the full model in the test set
+	}
+	\item{FullModelAtFoldAccuracies}{
+		The blind test accuracy for the full model at each cross-validation fold
+	}
+	\item{FullModelAtFoldSpecificties}{
+		The blind test specificity for the full model at each cross-validation fold
+	}
+	\item{FullModelAtFoldSensitivities}{
+		The blind test sensitivity for the full model at each cross-validation fold
+	}
+	\item{AtCVFoldModelBlindAccuracies}{
+		The blind test accuracy for the full model at each final cross-validation fold
+	}
+	\item{AtCVFoldModelBlindSpecificities}{
+		The blind test specificity for the full model at each final cross-validation fold
+	}
+	\item{AtCVFoldModelBlindSensitivities}{
+		The blind test sensitivity for the full model at each final cross-validation fold
+	}
+	\item{Models.CVblindMeanSensitivites}{
+		The mean ROC sensitivities at certain specificities for all test final cross-validation folds (i.e. 1.00, 0.95, 0.90, 0.80, 0.70, 0.60, 0.50, 0.40, 0.30, 0.20, 0.10, 0.05, and 0.00)
+	}
+	\item{varIDISelection}{
+		A list containing the values returned by \code{ReclassificationFRESA.Model} using all data
+	}
+	\item{updateIDISelection}{
+		A list containing the values returned by \code{updateModel} using all data and the model from \code{varIDISelection}
+	}
+	\item{backIDIElimination}{
+		A list containing the values returned by \code{bootstrapVarElimination} using all data and the model from \code{updateIDISelection}
+	}
+	\item{FullModel.bootstrapped}{
+		An object of class \code{bootstrapValidation} containing the results of the bootstrap validation in the full model
+	}
+	\item{Models.testSensitivities }{
+		A matrix with the mean ROC sensitivities at certain specificities for each train and all test cross-validation folds using the cross-validation models (i.e. 0.95, 0.90, 0.80, 0.70, 0.60, 0.50, 0.40, 0.30, 0.20, 0.10, and 0.05)
+	}
+	\item{FullKNN.testPrediction}{
+		A data frame similar to \code{Models.testPrediction}, but where a KNN classifier with the same features as the full model was used to generate the predictions
+	}
+	\item{KNN.testPrediction}{
+		A data frame similar to \code{Models.testPrediction}, but where KNN classifiers with the same features as the cross-validation models were used to generate the predictions at each cross-validation fold
+	}
+	\item{fullenet}{
+		An object of class \code{cv.glmnet} containing the results of an elastic net cross-validation fit
+	}
+	\item{enet.testPredictions}{
+		A data frame similar to \code{Models.testPrediction}, but where the predictions were made by the elastic net model
+	}
+	\item{enetVariables}{
+		A list with the elastic net full model and the models found at each cross-validation fold
+	}
 }
-
-%%\references{
-%% ~put references to the literature/web site here ~
-%%}
-
-\author{
-Jose G. Tamez-Pena
-
+\references{Pencina, M. J., D'Agostino, R. B., & Vasan, R. S. (2008). Evaluating the added predictive ability of a new marker: from area under the ROC curve to reclassification and beyond. \emph{Statistics in medicine} \bold{27}(2), 157-172.}
+\author{Jose G. Tamez-Pena and Antonio Martinez-Torteya}
+\seealso{\code{\link{crossValidationNeRIFeatureSelection},
+				 \link{ReclassificationFRESA.Model},
+				 \link{NeRIBasedFRESA.Model}}}
+\examples{
+	\dontrun{
+	# Start the graphics device driver to save all plots in a pdf format
+	pdf(file = "Example.pdf")
+	# Get the stage C prostate cancer data from the rpart package
+	library(rpart)
+	data(stagec)
+	# Split the stages into several columns
+	dataCancer <- cbind(stagec[,c(1:3,5:6)],
+	                    gleason4 = 1*(stagec[,7] == 4),
+	                    gleason5 = 1*(stagec[,7] == 5),
+	                    gleason6 = 1*(stagec[,7] == 6),
+	                    gleason7 = 1*(stagec[,7] == 7),
+	                    gleason8 = 1*(stagec[,7] == 8),
+	                    gleason910 = 1*(stagec[,7] >= 9),
+	                    eet = 1*(stagec[,4] == 2),
+	                    diploid = 1*(stagec[,8] == "diploid"),
+	                    tetraploid = 1*(stagec[,8] == "tetraploid"),
+	                    notAneuploid = 1-1*(stagec[,8] == "aneuploid"))
+	# Remove the incomplete cases
+	dataCancer <- dataCancer[complete.cases(dataCancer),]
+	# Load a pre-stablished data frame with the names and descriptions of all variables
+	data(cancerVarNames)
+	# Rank the variables:
+	# - Analyzing the raw data
+	# - According to the zIDI
+	rankedDataCancer <- univariateRankVariables(variableList = cancerVarNames,
+	                                           formula = "Surv(pgtime, pgstat) ~ 1",
+	                                           Outcome = "pgstat",
+	                                           data = dataCancer, 
+	                                           categorizationType = "Raw", 
+	                                           type = "COX", 
+	                                           rankingTest = "zIDI",
+	                                           description = "Description")
+	# Get a Cox proportional hazards model using:
+	# - The top 7 ranked variables
+	# - 10 bootstrap loops in the feature selection procedure
+	# - The zIDI as the feature inclusion criterion
+	# - 5 bootstrap loops in the backward elimination procedure
+	# - A 5-fold cross-validation in the feature selection, 
+	#           update, and backward elimination procedures
+	# - A 10-fold cross-validation in the model validation procedure
+	# - First order interactions in the update procedure
+	cancerModel <- crossValidationFeatureSelection(size = 7,
+	                                               loops = 10,
+	                                               Outcome = "pgstat",
+	                                               timeOutcome = "pgtime",
+	                                               variableList = rankedDataCancer,
+	                                               data = dataCancer,
+	                                               type = "COX",
+	                                               selectionType = "zIDI",
+	                                               elimination.bootstrap.steps = 5,
+	                                               trainRepetition = 5,
+	                                               CVfolds = 10,
+	                                               interaction = c(1,2))
+	# Shut down the graphics device driver
+	dev.off()}
 }
-
-%%\note{
-%%  ~~further notes~~
-%%}
-
-%% ~Make other sections like Warning with \section{Warning }{....} ~
-
-%%\seealso{
-%% ~~objects to See Also as \code{\link{help}}, ~~~
-%%}
-
-%%\examples{
-%%
-%%}
-% Add one or more standard keywords, see file 'KEYWORDS' in the
-% R documentation directory.
 \keyword{Model_Generation}

@@ -1,5 +1,5 @@
 residualForNeRIs <-
-function (object,newdata,outcome,eta=0.05) 
+function (object,testData,Outcome,eta=0.05) 
 {
 #Set eta to zero to get prediction residuals for cox models. eta to 1 get the Martingale residuals
 	classlen=length(class(object))
@@ -10,40 +10,51 @@ function (object,newdata,outcome,eta=0.05)
 		{
 			if (classlen==1)
 			{
-				lpp <- 1.0/(1.0+exp(-predict(object,newdata=newdata,type = 'lp',na.action=na.omit)));
+				lpp <- 1.0/(1.0+exp(-predict(object,testData,'lp',na.action=na.omit)));
 				s <- is.na(lpp);
 				if (any(s)) 
 				{
-					lpp[s] = 10; # set to a large residual
+					lpp[s] = 1.0e10; # set to a large residual
 				}
-				lppres <- lpp - newdata[,outcome];
-				matingale <- newdata[,outcome]-predict(object,newdata=newdata,type = 'expected',na.action=na.omit);
+				lppres <- lpp - testData[,Outcome];
+				matingale <- testData[,Outcome]-predict(object,testData,'expected',na.action=na.omit);
 				s <- is.na(matingale);
 				if (any(s))
 				{
-					matingale[s] = 100; # set to a large residual
+					matingale[s] = 1.0e10; # set to a large residual
 				}
 				out <- (1-eta)*lppres - eta*matingale;			
 			}
 			else
 			{
-				out <- (1 - 2*newdata[,outcome]);
+				out <- (1 - 2*testData[,Outcome]);
 			}
 		},
 		lm =
 		{
-			out <- predictForFresa(object,newdata=newdata,type = 'linear') - newdata[,outcome];
+			out <- predictForFresa(object,testData,'linear') - testData[,Outcome];
+		},
+		fi =
+		{
+			if (object$type == "LM")
+			{
+				out <- predictForFresa(object,testData,'linear') - testData[,Outcome];
+			}
+			else
+			{
+				out <- predictForFresa(object,testData,'prob') - testData[,Outcome];
+			}
 		},
 		{
 			if (object$family[1] == "binomial")
 			{
-				out <- predictForFresa(object,newdata=newdata,type = 'prob') - newdata[,outcome];
+				out <- predictForFresa(object,testData,'prob') - testData[,Outcome];
 			}
 			else
 			{
-				out <- predictForFresa(object,newdata=newdata,type = 'linear') - newdata[,outcome];
+				out <- predictForFresa(object,testData,'linear') - testData[,Outcome];
 			}
-#			out <- predict(object,newdata=newdata,type='response',na.action=na.omit) - newdata[,outcome];
+#			out <- predict(object,testData,'response',na.action=na.omit) - testData[,Outcome];
 		}
 	)	
 	s <- is.na(out);

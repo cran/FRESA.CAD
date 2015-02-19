@@ -1,11 +1,11 @@
 medianPredict <-
-function (formulaList,traindata,newdata=NULL, predictType = c("prob", "linear"),modelType = c("LOGIT", "LM","COX"),Outcome="CLASS",k=0,...) 
+function (formulaList,trainData,testData=NULL, predictType = c("prob", "linear"),type = c("LOGIT", "LM","COX"),Outcome="CLASS",nk=0,...) 
 {
 
-	if (k >= 0)
+	if (nk >= 0)
 	{
-		casesample = subset(traindata,get(Outcome)  == 1);
-		controlsample = subset(traindata,get(Outcome) == 0);
+		casesample = subset(trainData,get(Outcome)  == 1);
+		controlsample = subset(trainData,get(Outcome) == 0);
 		
 		minTrainSamples <- min(nrow(casesample),nrow(controlsample));
 		
@@ -13,21 +13,21 @@ function (formulaList,traindata,newdata=NULL, predictType = c("prob", "linear"),
 	}
 
 
-	if (k==0)
+	if (nk==0)
 	{
-		k = 2*as.integer(sqrt(minTrainSamples/2)) + 1;
+		nk = 2*as.integer(sqrt(minTrainSamples/2)) + 1;
 	}
-	if (is.null(newdata))
+	if (is.null(testData))
 	{
-		newdata <- traindata
+		testData <- trainData
 	}
 
-	ftmp <- formula(formulaList[1])
-	bestmodel <- modelFitting(ftmp,traindata,modelType)	
-	out <- predictForFresa(bestmodel,newdata,predictType);
-	if (k>0)
+	ftmp <- formula(formulaList[[1]])
+	bestmodel <- modelFitting(ftmp,trainData,type)	
+	out <- predictForFresa(bestmodel,testData,predictType);
+	if (nk>=0)
 	{
-		outKNN <- getKNNpredictionFromFormula(ftmp,KnnTrainSet,newdata,outcome=Outcome,k)$binProb
+		outKNN <- getKNNpredictionFromFormula(ftmp,KnnTrainSet,testData,Outcome=Outcome,nk)$binProb
 	}
 	else
 	{
@@ -37,21 +37,19 @@ function (formulaList,traindata,newdata=NULL, predictType = c("prob", "linear"),
 	
 	for (i in 2:length(formulaList))
 	{
-		ftmp <- formula(formulaList[i]);
-		out <- cbind(out,predictForFresa(modelFitting(ftmp,traindata,modelType),newdata,predictType,...));
-		if (k>0) 
+		ftmp <- formula(formulaList[[i]]);
+		out <- cbind(out,predictForFresa(modelFitting(ftmp,trainData,type),testData,predictType,...));
+		if (nk>=0) 
 		{
-			outKNN <- cbind(outKNN,getKNNpredictionFromFormula(ftmp,KnnTrainSet,newdata,outcome=Outcome,k)$binProb);
+			outKNN <- cbind(outKNN,getKNNpredictionFromFormula(ftmp,KnnTrainSet,testData,Outcome=Outcome,nk)$binProb);
 		}
 	}
 	medianout <- rowMedians(out);
-	if (k>0) 
+	if (nk>=0) 
 	{
 		medianKNN <- rowMedians(outKNN);
 	}
-	result <- list(modelPredict=medianout,
-	KNN.Predict=medianKNN,predictions=out,KNNpredictions=outKNN)
+	result <- list(medianPredict=medianout,
+	medianKNNPredict=medianKNN,predictions=out,KNNpredictions=outKNN)
     return (result)
 }
-
-

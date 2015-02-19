@@ -1,82 +1,117 @@
 \name{improvedResiduals}
 \alias{improvedResiduals}
-%- Also NEED an '\alias' for EACH other topic documented here.
-\title{
-Estimates the significance of the reduction of predicted residuals
-%%  ~~function to do ... ~~
-}
+\title{Estimate the significance of the reduction of predicted residuals}
 \description{
-Given a set of two residuals (new vs. old), this function will test the hypothesis that the new residuals are better than the old residuals.
-Four p-values are provided: Paired t-test, Wilcoxon signed rank test, The binomial sing-test and the F test
-The proportion of subjects that improved their residuals, the proportion that worsen their residuals and the net residual improvement will be returned
-%%  ~~ A concise (1-5 lines) description of what the function does. ~~
+	This function will test the hypothesis that, given a set of two residuals (new vs. old), the new ones are better than the old ones as measured with non-parametric tests.
+	Four \emph{p}-values are provided: one for the binomial sign test, one for the paired Wilcoxon rank-sum test, one for the paired \emph{t}-test, and one for the \code{F}-test.
+	The proportion of subjects that improved their residuals, the proportion that worsen their residuals, and the net residual improvement (NeRI) will be returned.
 }
 \usage{
-improvedResiduals(oldResiduals,newResiduals,
-testType=c("Binomial","Wilcox","tStudent","Ftest"))
+	improvedResiduals(oldResiduals,
+	                  newResiduals,
+	                  testType = c("Binomial", "Wilcox", "tStudent", "Ftest"))
 }
-%- maybe also 'usage' for other objects documented here.
 \arguments{
-  \item{oldResiduals}{
-  the residuals of the original model
-}
-  \item{newResiduals}{
-  the residuals of the new model
-}
-  \item{testType}{
-  The test to be used to provide the final p.value.
-}
-
+	\item{oldResiduals}{
+		A vector with the residuals of the original model
+	}
+	\item{newResiduals}{
+		A vector with the residuals of the new model
+	}
+	\item{testType}{
+		Type of non-parametric test to be evaluated: Binomial test ("Binomial"), Wilcoxon rank-sum test ("Wilcox"), Student's \emph{t}-test ("tStudent"), or \emph{F}-test ("Ftest")
+	}
 }
 \details{
-This function can be used to test the hypothesis that the new residuals are "better" than the old residuals.
-Four type of tests are provided.
-The paired t-test compares the absolute value of the residuals. 
-The paired wilcox test compares the absolute value of residuals
-The sign test test if the number of subjects that improve residuals is greater than the number of subjects that worsen residuals
-The F test is the standard test for testing that the residual variance is better in the new residuals.
-The proportion of subjects that improved residuals,and the ones that worst residuals is returned.
-The net proportion of improvement in residuals is returned.
-%%  ~~ If necessary, more details than the description above ~~
+	This function will test the hypothesis that the new residuals are "better" than the old residuals.
+	To test this hypothesis, four types of tests are performed:
+	\enumerate{
+		\item The paired \emph{t}-test, which compares the absolute value of the residuals
+		\item The paired Wilcoxon rank-sum test, which compares the absolute value of residuals
+		\item The binomial sign test, which evaluates whether the number of subjects with improved residuals is greater than the number of subjects with worsened residuals
+		\item The \emph{F}-test, which is the standard test for evaluating whether the residual variance is "better" in the new residuals.
+	}
+	The proportions of subjects that improved and worsen their residuals are returned, and so is the NeRI.
 }
 \value{
-
-%%  If it is a LIST, use
-  \item{p1}{Proportion of subjects that improved their residuals}
-  \item{p2}{Proportion of subjects that worsen their residuals}
-  \item{NeRI}{The net improvement (p1-p2)}
-  \item{binom.pValue}{The p value associated with a significant improvement in residuals}
-  \item{wilcox.pValue}{The single sided p value of the wilcox test comparing the absolute value of the new vs. old residuals}
-  \item{t.test.pValue}{The single sided p value of the t-test comparing the absolute value of the new vs. old residuals}
-  \item{F.test.pValue}{The single sided p value of the F-test comparing the residual variances}
-  \item{p.Value}{The one tail p value of the specified test}
-%% ...
+	\item{p1}{
+		Proportion of subjects that improved their residuals to the total number of subjects
+	}
+	\item{p2}{
+		Proportion of subjects that worsen their residuals to the total number of subjects
+	}
+	\item{NeRI}{
+		The net residual improvement (\code{p1}-\code{p2})
+	}
+	\item{p.value}{
+		The one tail \emph{p}-value of the test specified in \emph{testType}
+	}
+	\item{BinP.value}{
+		The \emph{p}-value associated with a significant improvement in residuals
+	}
+	\item{WilcoxP.value}{
+		The single sided \emph{p}-value of the Wilcoxon rank-sum test comparing the absolute values of the new and old residuals
+	}
+	\item{tP.value}{
+		The single sided \emph{p}-value of the paired t-test comparing the absolute values of the new and old residuals
+	}
+	\item{FP.value}{
+		The single sided \emph{p}-value of the F-test comparing the residual variances of the new and old residuals
+	}
 }
-
-%%\references{
-%% ~put references to the literature/web site here ~
-%%}
-
-\author{
-Jose G. Tamez-Pena
-
+\author{Jose G. Tamez-Pena and Antonio Martinez-Torteya}
+\examples{
+	\dontrun{
+	# Start the graphics device driver to save all plots in a pdf format
+	pdf(file = "Example.pdf")
+	# Get the stage C prostate cancer data from the rpart package
+	library(rpart)
+	data(stagec)
+	# Split the stages into several columns
+	dataCancer <- cbind(stagec[,c(1:3,5:6)],
+	                    gleason4 = 1*(stagec[,7] == 4),
+	                    gleason5 = 1*(stagec[,7] == 5),
+	                    gleason6 = 1*(stagec[,7] == 6),
+	                    gleason7 = 1*(stagec[,7] == 7),
+	                    gleason8 = 1*(stagec[,7] == 8),
+	                    gleason910 = 1*(stagec[,7] >= 9),
+	                    eet = 1*(stagec[,4] == 2),
+	                    diploid = 1*(stagec[,8] == "diploid"),
+	                    tetraploid = 1*(stagec[,8] == "tetraploid"),
+	                    notAneuploid = 1-1*(stagec[,8] == "aneuploid"))
+	# Remove the incomplete cases
+	dataCancer <- dataCancer[complete.cases(dataCancer),]
+	# Load a pre-stablished data frame with the names and descriptions of all variables
+	data(cancerVarNames)
+	# Get a Cox proportional hazards model using:
+	# - 10 bootstrap loops
+	# - All variables except for age
+	# - The Wilcoxon rank-sum test as the feature inclusion criterion
+	cancerModel <- NeRIBasedFRESA.Model(loops = 10,
+	                                    Outcome = "pgstat",
+	                                    variableList = cancerVarNames[-1,],
+	                                    data = dataCancer,
+	                                    type = "COX",
+	                                    testType= "Wilcox",
+	                                    timeOutcome = "pgtime")
+	# Add age to the formula of the obtained model
+	frm <- format(cancerModel$formula)
+	frm[length(frm)] <- paste(frm[length(frm)], "+ age")
+	# Fit the new formula to the same data
+	cancerModelAge <- modelFitting(formula(frm), dataCancer, "COX")
+	# Get the residuals of the original model
+	cancerModelRes <- residualForNeRIs(object = cancerModel$final.model,
+	                                   testData = dataCancer,
+	                                   Outcome = "pgstat")
+	# Get the residuals of the model with the added term
+	cancerModelAgeRes <- residualForNeRIs(object = cancerModelAge,
+	                                      testData = dataCancer,
+	                                      Outcome = "pgstat")
+	# Estimate the significance of the NeRI when adding age to the model
+	NeRI <- improvedResiduals(oldResiduals = cancerModelRes,
+	                          newResiduals = cancerModelAgeRes,
+	                          testType = "Wilcox")
+	# Shut down the graphics device driver
+	dev.off()}
 }
-
-%%\note{
-%%  ~~further notes~~
-%%}
-
-%% ~Make other sections like Warning with \section{Warning }{....} ~
-
-%%\seealso{
-%% ~~objects to See Also as \code{\link{help}}, ~~~
-%%}
-
-%%\examples{
-%%
-%%
-%%}
-
-% Add one or more standard keywords, see file 'KEYWORDS' in the
-% R documentation directory.
-\keyword{Model_Generation}
+\keyword{Model_Inspection}

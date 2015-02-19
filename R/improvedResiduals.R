@@ -72,9 +72,9 @@ function (oldResiduals,newResiduals,testType=c("Binomial","Wilcox","tStudent","F
 	p2=p2,
 	NeRI=improved,
 	p.value = pvalue,
-	binom.pValue = pbin,
-	wilcox.pValue = pwil,
-	t.test.pValue = ptstu,
-	F.test.pValue = f.test);
+	BinP.value = pbin,
+	WilcoxP.value = pwil,
+	tP.value = ptstu,
+	FP.value = f.test);
 	return (result)
 }

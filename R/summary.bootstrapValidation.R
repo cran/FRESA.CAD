@@ -1,8 +1,10 @@
 #' @method summary bootstrapValidation
 
-summary.bootstrapValidation <-
-function(object,...) 
+summary.bootstrapValidation <- 
+function(object, ...) 
 {
+
+
 	 digits = 3 
 	conf.int = 0.95
 	cilow = (1.0-conf.int)/2;
@@ -12,26 +14,26 @@ function(object,...)
 	ciSensitivity <- as.vector(quantile(object$train.sensitivity, probs = c(cilow,0.5, cihig), na.rm = TRUE,names = FALSE, type = 7));
 	ciSpecificity <- as.vector(quantile(object$train.specificity, probs = c(cilow,0.5, cihig), na.rm = TRUE,names = FALSE, type = 7));
 
-	citROC <- as.vector(quantile(object$train.ROCACU, probs = c(cilow,0.5, cihig), na.rm = TRUE,names = FALSE, type = 7));
+	citROC <- as.vector(quantile(object$train.ROCAUC, probs = c(cilow,0.5, cihig), na.rm = TRUE,names = FALSE, type = 7));
 	
 		
-	bootAuc <- roc( object$bin.Outcome, object$boot.model$linear.predictors,plot=FALSE,ci=TRUE,boot.n=object$loops);
+	bootAuc <- pROC::roc( object$outcome, object$boot.model$linear.predictors,plot=FALSE,ci=TRUE,boot.n=object$loops);
 	
     cat("\nModel Cross-Validation with Improvement in Predicted Probability\n\n")
-    cat("Number of Cases:", sum(object$bin.Outcome), "\t Number of Controls", sum(object$bin.Outcome==0), "\n\n")
-    cat("Number of Bootstraps:", length(object$train.ROCACU), "\t Sampled Fraction", object$fraction, "\n\n")
+    cat("Number of Cases:", sum(object$outcome), "\t Number of Controls", sum(object$outcome==0), "\n\n")
+    cat("Number of Bootstraps:", length(object$train.ROCAUC), "\t Sampled Fraction", object$fraction, "\n\n")
 
 	performance <- vector();
 	
-	cat(l1 <- sprintf("Blind    Accuracy:\t %8.3f : Bootstrapped    Accuracy:\t %8.3f (%8.3f to %8.3f) \n",object$blind.accuracy,ciAccuracy[2],ciAccuracy[1], ciAccuracy[3]));
+	cat(l1 <- sprintf("Blind    Accuracy: %8.3f : Bootstrapped    Accuracy: %8.3f (%8.3f to %8.3f) \n",object$blind.accuracy,ciAccuracy[2],ciAccuracy[1], ciAccuracy[3]));
 	performance <- append(performance,l1);
-	cat(l1 <- sprintf("Blind Sensitivity:\t %8.3f : Bootstrapped Sensitivity:\t %8.3f (%8.3f to %8.3f) \n",object$blind.sensitivity,ciSensitivity[2],ciSensitivity[1], ciSensitivity[3]));
+	cat(l1 <- sprintf("Blind Sensitivity: %8.3f : Bootstrapped Sensitivity: %8.3f (%8.3f to %8.3f) \n",object$blind.sensitivity,ciSensitivity[2],ciSensitivity[1], ciSensitivity[3]));
 	performance <- append(performance,l1);
-	cat(l1 <- sprintf("Blind Specificity:\t %8.3f : Bootstrapped Specificity:\t %8.3f (%8.3f to %8.3f) \n",object$blind.specificity,ciSpecificity[2],ciSpecificity[1], ciSpecificity[3]));
+	cat(l1 <- sprintf("Blind Specificity: %8.3f : Bootstrapped Specificity: %8.3f (%8.3f to %8.3f) \n",object$blind.specificity,ciSpecificity[2],ciSpecificity[1], ciSpecificity[3]));
 	performance <- append(performance,l1);
-	cat(l1 <- sprintf("Blind     ROC AUC:\t %8.3f : Bootstrapped     ROC AUC:\t %8.3f (%8.3f to %8.3f) \n",object$blind.ROCAUC$auc,object$boot.ROCAUC$auc,bootAuc$ci[1],bootAuc$ci[3]));
+	cat(l1 <- sprintf("Blind     ROC AUC: %8.3f : Bootstrapped     ROC AUC: %8.3f (%8.3f to %8.3f) \n",object$blind.ROCAUC$auc,object$boot.ROCAUC$auc,bootAuc$ci[1],bootAuc$ci[3]));
 	performance <- append(performance,l1);
-	cat(l1 <- sprintf("Blind     ROC AUC:\t %8.3f : ModelBootstrap   ROC AUC:\t %8.3f (%8.3f to %8.3f) \n\n",object$blind.ROCAUC$auc,citROC[2],citROC[1],citROC[3]));
+	cat(l1 <- sprintf("Blind     ROC AUC: %8.3f : ModelBootstrap   ROC AUC: %8.3f (%8.3f to %8.3f) \n\n",object$blind.ROCAUC$auc,citROC[2],citROC[1],citROC[3]));
 	performance <- append(performance,l1);
 	
 	performance.table <- rbind(c(object$blind.accuracy,ciAccuracy[2],ciAccuracy[1], ciAccuracy[3]));
@@ -43,7 +45,7 @@ function(object,...)
 	rownames(performance.table) <- c("Accuracy","Sensitivity","Specificity","ROCAUC 1","ROCAUC 2")
 	
 	
-	smry <- summary(object$boot.model);
+	smry <- summary(object$boot.model, ...);
 	meancoef <- colMeans(object$s.coef,na.rm = TRUE);
 	lowci <- vector();
 	topci <- vector();

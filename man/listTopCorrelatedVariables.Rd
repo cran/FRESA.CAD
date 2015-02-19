@@ -1,76 +1,74 @@
 \name{listTopCorrelatedVariables}
 \alias{listTopCorrelatedVariables}
-%- Also NEED an '\alias' for EACH other topic documented here.
-\title{
-List the variables that are highly correlated
-%%  ~~function to do ... ~~
-}
+\title{List the variables that are highly correlated with each other}
 \description{
-Computes the correlation (Pearson, Spearman or Kendall) for each listed variable in the data set and returns for each variable a list of the
-variables that are correlated. It also provides a short variable list without the higly correlated variables.
-%%  ~~ A concise (1-5 lines) description of what the function does. ~~
+	This function computes the Pearson, Spearman, or Kendall correlation for each specified variable in the data set and returns a list of the variables that are correlated to them.
+	It also provides a short variable list without the highly correlated variables.
 }
 \usage{
-listTopCorrelatedVariables(variablesNames,dataframe,
-					pvalue=0.001,
-					corthreshold=0.9,
-					method = c("pearson", "kendall", "spearman"))
+	listTopCorrelatedVariables(variableList,
+	                           data,
+	                           pvalue = 0.001,
+	                           corthreshold = 0.9,
+	                           method = c("pearson", "kendall", "spearman"))
 }
-%- maybe also 'usage' for other objects documented here.
 \arguments{
-  \item{variablesNames}{ 
-  the data frame with the list of variables to be explored
+	\item{variableList}{ 
+		A data frame with two columns. The first one must have the names of the candidate variables and the other one the description of such variables
+	}
+	\item{data}{
+		A data frame where all variables are stored in different columns
+	}
+	\item{pvalue}{
+		The maximum \emph{p}-value, associated to \code{method}, allowed for a pair of variables to be defined as significantly correlated
+	}
+	\item{corthreshold}{
+		The minimum correlation score, associated to \code{method}, allowed for a pair of variables to be defined as significantly correlated
+	}
+	\item{method}{
+		Correlation method: Pearson product-moment ("pearson"), Spearman's rank ("spearman"), or Kendall rank ("kendall")
+	}
 }
-  \item{dataframe}{
-  The data frame that contains the variables
-}
-  \item{pvalue}{
-  the maximum p.value to be used to call a pair of variables significantly correlated
-}
-  \item{corthreshold}{
-  The minimum correlation threshold
-}  \item{method}{
-  The correlation method: Pearson, Spearman or Kendall
-}
-}
-
-%%\details{
-%%  ~~ If necessary, more details than the description above ~~
-%%}
-
 \value{
-
-	\item{correlated.variables}{ Dataframe with two columns: 1) cor.var.names: The variables that are correlated 2) cor.var.value: The correlation value}
-	\item{short.list}{ A vector with the short list of variables that first enter the correlation analysis. Correlated variables that were correlated to the short list are not included.}
-
+	\item{correlated.variables}{
+		A data frame with two columns:\enumerate{\item cor.var.names: The variables that are correlated	\item cor.var.value: The correlation value}
+	}
+	\item{short.list}{
+		A vector with a list of variables that are not correlated to each other. For every correlated pair, only the variable that first entered the correlation analysis was kept
+	}
 }
-
-%%\references{
-%% ~put references to the literature/web site here ~
-%%}
-
-\author{
-Jose G. Tamez-Pena
-
+\author{Jose G. Tamez-Pena and Antonio Martinez-Torteya}
+\examples{
+	\dontrun{
+	# Start the graphics device driver to save all plots in a pdf format
+	pdf(file = "Example.pdf")
+	# Get the stage C prostate cancer data from the rpart package
+	library(rpart)
+	data(stagec)
+	# Split the stages into several columns
+	dataCancer <- cbind(stagec[,c(1:3,5:6)],
+	                    gleason4 = 1*(stagec[,7] == 4),
+	                    gleason5 = 1*(stagec[,7] == 5),
+	                    gleason6 = 1*(stagec[,7] == 6),
+	                    gleason7 = 1*(stagec[,7] == 7),
+	                    gleason8 = 1*(stagec[,7] == 8),
+	                    gleason910 = 1*(stagec[,7] >= 9),
+	                    eet = 1*(stagec[,4] == 2),
+	                    diploid = 1*(stagec[,8] == "diploid"),
+	                    tetraploid = 1*(stagec[,8] == "tetraploid"),
+	                    notAneuploid = 1-1*(stagec[,8] == "aneuploid"))
+	# Remove the incomplete cases
+	dataCancer <- dataCancer[complete.cases(dataCancer),]
+	# Load a pre-stablished data frame with the names and descriptions of all variables
+	data(cancerVarNames)
+	# Get the variables that have a correlation coefficient larger 
+	# than 0.65 at a p-value of 0.05
+	cor <- listTopCorrelatedVariables(variableList = cancerVarNames,
+	                                  data = dataCancer,
+	                                  pvalue = 0.05,
+	                                  corthreshold = 0.65,
+	                                  method = "pearson")
+	# Shut down the graphics device driver
+	dev.off()}
 }
-
-%%\note{
-%%  ~~further notes~~
-%%}
-
-%% ~Make other sections like Warning with \section{Warning }{....} ~
-
-%%\seealso{
-%% ~~objects to See Also as \code{\link{help}}, ~~~
-%%}
-
-%%\examples{
-%%##---- Should be DIRECTLY executable !! ----
-%%##-- ==>  Define data, use random,
-%%##--	or do  help(data=index)  for the standard data sets.
-%%
-%%}
-
-% Add one or more standard keywords, see file 'KEYWORDS' in the
-% R documentation directory.
 \keyword{Data_Inspection}

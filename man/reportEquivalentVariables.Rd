@@ -1,86 +1,95 @@
 \name{reportEquivalentVariables}
 \alias{reportEquivalentVariables}
-%- Also NEED an '\alias' for EACH other topic documented here.
-\title{
-Report the set of variables that will perform an equivalent IDI discriminant function
-%%  ~~function to do ... ~~
-}
+\title{Report the set of variables that will perform an equivalent IDI discriminant function}
 \description{
-Given a model, the function will report in a matrix of all variables that may be used in the linear model without affecting its classification performance. 
-For each variable in the model, this function will loop all candidate variables and report
-all of them that will have an equivalent or better zIDI than the original model.
-%%  ~~ A concise (1-5 lines) description of what the function does. ~~
+	Given a model, this function will report a data frame with all the variables that may be interchanged in the model without affecting its classification performance.
+	For each variable in the model, this function will loop all candidate variables and report all of which result in an equivalent or better zIDI than the original model.
 }
 \usage{
-reportEquivalentVariables(object,
-pvalue=0.05,
-dataframe,
-searchVarList,
-Outcome="Class", 
-type = c("LOGIT", "LM","COX"),
-eqFrac=0.9,
-description=".") 
-
+	reportEquivalentVariables(object,
+	                          pvalue = 0.05,
+	                          data,
+	                          variableList,
+	                          Outcome = "Class", 
+	                          type = c("LOGIT", "LM", "COX"),
+	                          eqFrac = 0.9,
+	                          description = ".")
 }
-%- maybe also 'usage' for other objects documented here.
 \arguments{
-  \item{object}{
-  a formula for the fitting function
+	\item{object}{
+		An object of class \code{lm}, \code{glm}, or \code{coxph} containing the model to be analyzed
+	}
+	\item{pvalue}{
+		The maximum \emph{p}-value, associated to the IDI , allowed for a pair of variables to be considered equivalent
+	}
+	\item{data}{
+		A data frame where all variables are stored in different columns
+	}
+	\item{variableList}{
+		A data frame with two columns. The first one must have the names of the candidate variables and the other one the description of such variables
+	}
+	\item{Outcome}{
+		The name of the column in \code{data} that stores the variable to be predicted by the model
+	}
+	\item{type}{
+		Fit type: Logistic ("LOGIT"), linear ("LM"), or Cox proportional hazards ("COX")
+	}
+	\item{eqFrac}{
+		A fraction to which the \emph{z}-score will be relaxed, for a pair of variables to be considered equivalent
+	}
+	\item{description}{
+		The name of the column in \code{variableList} that stores the variable description
+	}
 }
-  \item{pvalue}{
-  the maximum pvalue for variable equivalence
-}
-  \item{dataframe}{
-  the dataframe to explore
-}
-  \item{searchVarList}{
-  the list of candidate variables
-}
-  \item{Outcome}{
-  the binary outcome
-}
-  \item{type}{
-  the fitting type
-}
-  \item{eqFrac}{
-  a factor to relax the current z-value
-}
-  \item{description}{
-  The column with the variables description
-}
-}
-
-%%\details{
-%%  ~~ If necessary, more details than the description above ~~
-%%}
-
 \value{
-Returns a data frame with three columns. The first column is the original variable of the model. 
-The second column list all variables that will not statistically affect the original model performance 
-The third column list the corresponding zIDI for each equivalent variable.
+	A data frame with three columns. The first column is the original variable of the model. 
+	The second column lists all variables that, if interchanged, will not statistically affect the performance of the model.
+	The third column lists the corresponding \emph{z}-scores of the IDI for each equivalent variable.
 }
-
-%%\references{
-%% ~put references to the literature/web site here ~
-%%}
-
-\author{
-Jose G. Tamez-Pena
-
+\author{Jose G. Tamez-Pena and Antonio Martinez-Torteya}
+\examples{
+	\dontrun{
+	# Start the graphics device driver to save all plots in a pdf format
+	pdf(file = "Example.pdf")
+	# Get the stage C prostate cancer data from the rpart package
+	library(rpart)
+	data(stagec)
+	# Split the stages into several columns
+	dataCancer <- cbind(stagec[,c(1:3,5:6)],
+	                    gleason4 = 1*(stagec[,7] == 4),
+	                    gleason5 = 1*(stagec[,7] == 5),
+	                    gleason6 = 1*(stagec[,7] == 6),
+	                    gleason7 = 1*(stagec[,7] == 7),
+	                    gleason8 = 1*(stagec[,7] == 8),
+	                    gleason910 = 1*(stagec[,7] >= 9),
+	                    eet = 1*(stagec[,4] == 2),
+	                    diploid = 1*(stagec[,8] == "diploid"),
+	                    tetraploid = 1*(stagec[,8] == "tetraploid"),
+	                    notAneuploid = 1-1*(stagec[,8] == "aneuploid"))
+	# Remove the incomplete cases
+	dataCancer <- dataCancer[complete.cases(dataCancer),]
+	# Load a pre-stablished data frame with the names and descriptions of all variables
+	data(cancerVarNames)
+	# Get a Cox proportional hazards model using:
+	# - 10 bootstrap loops
+	# - zIDI as the feature inclusion criterion
+	cancerModel <- ReclassificationFRESA.Model(loops = 10,
+	                                           Outcome = "pgstat",
+	                                           variableList = cancerVarNames,
+	                                           data = dataCancer,
+	                                           type = "COX",
+	                                           timeOutcome = "pgtime",
+	                                           selectionType = "zIDI")
+	# Get a data frame with variables that could be interchanged:
+	# - Relaxing by a factor of 0.7 the z-score of the IDI
+	eqVars <- reportEquivalentVariables(object = cancerModel$final.model,
+	                                    data = dataCancer,
+	                                    variableList = cancerVarNames,
+	                                    Outcome = "pgstat", 
+	                                    type = "COX",
+	                                    eqFrac = 0.7,
+	                                    description = "Description")
+	# Shut down the graphics device driver
+	dev.off()}
 }
-%%\note{
-%%  ~~further notes~~
-%%}
-
-%% ~Make other sections like Warning with \section{Warning }{....} ~
-
-%%\seealso{
-%% ~~objects to See Also as \code{\link{help}}, ~~~
-%%}
-
-%%\examples{
-%%}
-
-% Add one or more standard keywords, see file 'KEYWORDS' in the
-% R documentation directory.
 \keyword{Model_Inspection}

@@ -1,7 +1,7 @@
 backVarNeRIElimination <- function (object,pvalue=0.05,Outcome="Class",data,startOffset=0, type = c("LOGIT", "LM","COX"),testType=c("Binomial","Wilcox","tStudent","Ftest"),setIntersect=1) 
 {
 
-	back.var.NeRISelection <- function (object,pvalue=0.05,Outcome="Class",dataframe,startOffset=0, type = c("LOGIT", "LM","COX"),testType=c("Binomial","Wilcox","tStudent","Ftest"),setIntersect=1) 
+	back.var.NeRISelection <- function (object,pvalue=0.05,Outcome="Class",data,startOffset=0, type = c("LOGIT", "LM","COX"),testType=c("Binomial","Wilcox","tStudent","Ftest"),setIntersect=1) 
 	{
 		type <- match.arg(type);
 	  
@@ -33,8 +33,8 @@ backVarNeRIElimination <- function (object,pvalue=0.05,Outcome="Class",data,star
 		bckform <- frm1;
 		if (length(termList)>1)
 		{
-			fullModel <- modelFitting(ftmp,dataframe,type)
-			fullResiduals <- residualForNeRIs(fullModel,newdata=dataframe,Outcome);
+			fullModel <- modelFitting(ftmp,data,type)
+			fullResiduals <- residualForNeRIs(fullModel,data,Outcome);
 
 			startSearch = startlist + startOffset;
 			if (length(varsList)>startSearch)
@@ -51,14 +51,14 @@ backVarNeRIElimination <- function (object,pvalue=0.05,Outcome="Class",data,star
 						}
 					}
 					ftmp <- formula(frm1);
-					redModel <- modelFitting(ftmp,dataframe,type)
+					redModel <- modelFitting(ftmp,data,type)
 					if (inherits(redModel, "try-error"))
 					{
 						redModel <- fullModel
 					}
 					
 
-					redResiduals <- residualForNeRIs(redModel,newdata=dataframe,Outcome);
+					redResiduals <- residualForNeRIs(redModel,data,Outcome);
 					iprob <- improvedResiduals(redResiduals,fullResiduals,testType);
 					if (iprob$p.value>cpv)
 					{
@@ -85,7 +85,7 @@ backVarNeRIElimination <- function (object,pvalue=0.05,Outcome="Class",data,star
 				ftmp <- formula(frm1);
 				bckform <- frm1;
 				cat("formula :",frm1,"\n")
-				fullModel <- modelFitting(ftmp,dataframe,type)
+				fullModel <- modelFitting(ftmp,data,type)
 			}
 		}
 		else
@@ -103,23 +103,33 @@ backVarNeRIElimination <- function (object,pvalue=0.05,Outcome="Class",data,star
 	changes=1;
 	loops=0;
     model <- object;
+	changes2<-0
 	while ((changes>0) && (loops<100))
 	{
-		bk <- back.var.NeRISelection(model,pvalue,Outcome=Outcome,dataframe=data,startOffset,type,testType,setIntersect);
+		bk <- back.var.NeRISelection(model,pvalue,Outcome=Outcome,data=data,startOffset,type,testType,setIntersect);
 		changes = as.integer(bk$Removed);
 		if (changes>0)
 		{
-		  loops = loops + 1;      
+		  loops = loops + 1;
+			changes2<- as.character(as.list(attr(terms(model),"variables")))[which(!(as.character(as.list(attr(terms(model),"variables")))%in%as.character(as.list(attr(terms(bk$Model),"variables")))))]
+			if (length(changes2)>1)
+			{
+				changes2<-changes2[2]
+			}
+		}
+		if (changes < 0)
+		{
+			changes2<- changes
 		}
 		 model = bk$Model;
 	}
 	cat(bk$backfrm," : Reduced Model:\n")
-	print(summary(model));
+#	print(summary(model));
 
 	
-	modelReclas <- getVarNeRI(model,dataframe=data,Outcome=Outcome,type=type);
+	modelReclas <- getVarNeRI(model,data=data,Outcome=Outcome,type=type);
 
 	
-	result <- list(back.model= model,loops=loops,reclas.info=modelReclas,back.formula=bk$backfrm,bootCV=NULL);
+	result <- list(back.model= model,loops=loops,reclas.info=modelReclas,back.formula=formula(bk$backfrm),bootCV=NULL,lastRemoved=changes2);
 	return (result);
 }

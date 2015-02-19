@@ -1,33 +1,27 @@
-\name{CancerVarNames}
-\alias{CancerVarNames}
+\name{cancerVarNames}
+\alias{cancerVarNames}
 \docType{data}
-\title{
-CancerVarNames is an example of a list of variable names
-%%   ~~ data name/kind ... ~~
-}
+\title{Data frame used in several examples of this package}
 \description{
-This data set is a sample of a list of variables to be searched for the Prostate Cancer
-%%  ~~ A concise (1-5 lines) description of the dataset. ~~
+	This data frame contains two columns, one with names of variables, and the other with descriptions of such variables.
+	It is used in several examples of this package.
+	Specifically, it is used in examples working with the stage C prostate cancer data from the \code{rpart} package
 }
-\usage{data(CancerVarNames)}
+\usage{
+	data(cancerVarNames)
+}
 \format{
-  A data frame with the name of the variables of the simulated data set
-  \describe{
-    \item{\code{Var}}{a column with variable names }
-    \item{\code{Description}}{Short Description of the variable}
+	A data frame with names and descriptions of the variables used in several examples
+	\describe{
+		\item{\code{Var}}{
+			A column with the names of the variables
+		}
+		\item{\code{Description}}{
+			A column with a short description of the variables
+		}
   }
 }
-%%\details{
-%%  ~~ If necessary, more details than the __description__ above ~~
-%%}
-\source{
-Variables to match the stagec data set from the rpart R package 
-%%  ~~ reference to a publication or URL from which the data were obtained ~~
-}
-%%\references{
-%%  ~~ possibly secondary sources and usages ~~
-%%}
 \examples{
-data(CancerVarNames)
+	data(cancerVarNames)
 }
-\keyword{datasets}
+\keyword{Datasets}

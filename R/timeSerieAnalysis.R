@@ -1,20 +1,20 @@
 timeSerieAnalysis <-
-function(varList,baseModel,dataframe,timevar="time",contime=".",Outcome=".",...,description=".",Ptoshow = c(1),plegend= c("p"),timesign="-",catgo.names=c("Control", "Case"))
+function(variableList,baseModel,data,timevar="time",contime=".",Outcome=".",...,description=".",Ptoshow = c(1),plegend= c("p"),timesign="-",catgo.names=c("Control", "Case"))
 {
 # it will do the time analysis for all variables in the var list. It will create a data frame with the results of the analysis
 # the analysis will  be done using GLS (nlme package) 
 
-if (!require(nlme)) {
-  install.packages("nlme", dependencies = TRUE)
-  library(nlme)
-}
+
+if (!requireNamespace("nlme", quietly = TRUE)) {
+   install.packages("nlme", dependencies = TRUE)
+} 
 
 	frm1 <- NULL
 
-	vnames <- as.vector(varList[,1]);
+	vnames <- as.vector(variableList[,1]);
 	if (description != ".")
 	{
-		plottitles <- as.vector(varList[,description]);
+		plottitles <- as.vector(variableList[,description]);
 	}
 	else
 	{
@@ -30,15 +30,15 @@ if (!require(nlme)) {
 	  contime=timevar;
 	}
 
-	t <- tapply(dataframe[,contime], dataframe[,timevar], mean,na.rm=TRUE)
+	t <- tapply(data[,contime], data[,timevar], mean,na.rm=TRUE)
 	
 	if (timesign=="-")
 	{
-		timeorder <- dataframe[order(-dataframe[,contime]),];
+		timeorder <- data[order(-data[,contime]),];
 	}
 	else
 	{
-		timeorder <- dataframe[order(dataframe[,contime]),];
+		timeorder <- data[order(data[,contime]),];
 	}
 
 	if (Outcome != ".")
@@ -57,11 +57,11 @@ if (!require(nlme)) {
 		frm1 <- paste(vnames[j]," ~ ",baseModel);
 		cat(frm1,"\n");
 		
-		obj_s <- eval(parse(text=paste("try(gls(formula(",frm1,"),dataframe,na.action=na.exclude,...))")))
+		obj_s <- eval(parse(text=paste("try(nlme::gls(formula(",frm1,"),data,na.action=na.exclude,...))")))
 		if ( inherits(obj_s, "try-error"))
 		{
 			cat("Getting the gls without parameters\n")
-			obj_s <- eval(parse(text=paste("try(gls(formula(",frm1,"),dataframe,na.action=na.exclude))")))
+			obj_s <- eval(parse(text=paste("try(nlme::gls(formula(",frm1,"),data,na.action=na.exclude))")))
 		}
 
 		predCases <- NULL
@@ -78,12 +78,12 @@ if (!require(nlme)) {
 		}
 
 
-		mval <- tapply(dataframe[,vnames[j]], dataframe[,timevar], mean,na.rm=TRUE)
-		sdval <- tapply(dataframe[,vnames[j]], dataframe[,timevar], sd,na.rm=TRUE)
-		size <- tapply(dataframe[,vnames[j]], dataframe[,timevar], length)
+		mval <- tapply(data[,vnames[j]], data[,timevar], mean,na.rm=TRUE)
+		sdval <- tapply(data[,vnames[j]], data[,timevar], sd,na.rm=TRUE)
+		size <- tapply(data[,vnames[j]], data[,timevar], length)
 		delta <- sdval / sqrt( size)
 		miny = min(mval-1.5*sdval);
-		maxy = max(mval+sdval);
+		maxy = max(mval+1.5*sdval);
 		
 		maxtime = max(t);
 		mintime = min(t);
@@ -262,7 +262,7 @@ if (!require(nlme)) {
 	}
 
 
-	result  <- list(coeff=coeff,
+	result  <- list(coef=coeff,
 	std.Errors=std.Error,
 	t.values=t.value,
 	p.values=p.value,

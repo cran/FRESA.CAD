@@ -38,5 +38,5 @@ function(univariateObject,summaryBootstrap,listOfCorrelatedVariables=NULL,digits
 	result <- list(performance.table=summaryBootstrap$performance.table,
 	coefStats = p,
 	cor.varibles = corlist);
-	return (result)
+	return(result)
 }

@@ -1,5 +1,5 @@
 predictForFresa <-
-function (object,newdata, type = c("prob", "linear")) 
+function (object,testData, predictType = c("prob", "linear")) 
 {
 
 	frm <- formula(terms(object));
@@ -10,22 +10,28 @@ function (object,newdata, type = c("prob", "linear"))
 		co =
 		{
 			pobj <- object;
-			switch(type, 
+			switch(predictType, 
 				linear = 
 					{		
-						out <- predict(pobj,newdata=newdata,type = 'lp');
+						out <- predict(pobj,testData,type = 'lp');
 					},
 				prob = 
 					{
-						out <- 1.0/(1.0+exp(-predict(pobj,newdata=newdata,type = 'lp')));
+						out <- 1.0/(1.0+exp(-predict(pobj,testData,type = 'lp')));
 					},
 					{
-						out <- predict(pobj,newdata=newdata,type = 'lp');
+						out <- predict(pobj,testData,type = 'lp');
 					}
 			)
 		},
+		fi =
 		{
-			type <- match.arg(type)
+			cf <- object$estimations;
+			pred <-.Call("predictForFresaCpp",cf,model.matrix(frm, testData),predictType,object$type);
+			out <- pred$prediction;
+		},
+		{
+			predictType <- match.arg(predictType)
 			cf <- coef(object)
 			s <- is.na(cf);
 			if (any(s)) 
@@ -33,18 +39,18 @@ function (object,newdata, type = c("prob", "linear"))
 				cf[s] <- 0;
 			}
 			
-			switch(type, 
+			switch(predictType, 
 				linear = 
 					{
-					   out <- as.vector(model.matrix(frm, newdata)  %*% cf);
+					   out <- as.vector(model.matrix(frm, testData)  %*% cf);
 					}, 
 				prob = 
 					{
-					  out <- as.vector(model.matrix(frm, newdata)  %*% cf);
+					  out <- as.vector(model.matrix(frm, testData)  %*% cf);
 					  out <- 1.0/(1.0+exp(-out));
 					}, 
 					{
-					  out <- as.vector(model.matrix(frm, newdata)  %*% cf);
+					  out <- as.vector(model.matrix(frm, testData)  %*% cf);
 					}
 			)
 		}

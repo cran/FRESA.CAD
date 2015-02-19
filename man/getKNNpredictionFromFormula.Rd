@@ -1,71 +1,96 @@
 \name{getKNNpredictionFromFormula}
 \alias{getKNNpredictionFromFormula}
-%- Also NEED an '\alias' for EACH other topic documented here.
-\title{
-get the KNN predicted classification using the terms of a given formula
-%%  ~~function to do ... ~~
-}
+\title{Predict classification using KNN}
 \description{
-Given a formula and a train set. This function will return the classification of the samples of the test set using a KNN algorithm with euclidean distance.
-%%  ~~ A concise (1-5 lines) description of what the function does. ~~
+	This function will return the classification of the samples of a test set using a \emph{k}-nearest neighbors (KNN) algorithm with euclidean distances, given a formula and a train set.
 }
 \usage{
-getKNNpredictionFromFormula(modelFormula,trainData,testData,outcome="CLASS",k=3)
+	getKNNpredictionFromFormula(model.formula,
+	                            trainData,
+	                            testData,
+	                            Outcome = "CLASS",
+	                            nk = 3)
 }
-%- maybe also 'usage' for other objects documented here.
 \arguments{
-  \item{modelFormula}{
-   The formula from witch to extract the variables
+	\item{model.formula}{
+		An object of class \code{formula} with the formula to be used
+	}
+	\item{trainData}{
+		A data frame with the data to train the model, where all variables are stored in different columns
+	}
+	\item{testData}{
+		A data frame similar to \code{trainData}, but with the data set to be predicted
+	}
+	\item{Outcome}{
+		The name of the column in \code{trainData} that stores the variable to be predicted by the model
+	}
+	\item{nk}{
+		The number of neighbors used to generate the KNN classification
+	}
 }
-  \item{trainData}{
-  The data to train the models
-}
-  \item{testData}{
-  The data set to be predicted
-}
-  \item{outcome}{
-   what to be predicted
-}
-  \item{k}{
-   the number of neighbours
-}
-}
-
-%%\details{
-%%  ~~ If necessary, more details than the description above ~~
-%%}
 \value{
-
-%%  If it is a LIST, use
-  \item{prediction}{The results of the prediction}
-  \item{prob}{The proportion of K neighbours that the class}
-  \item{binProb}{The proportion of K neighbours that the class = 1}
-  \item{featureList}{The features used by the KNN procedure}
-%% ...
+	\item{prediction}{
+		A vector with the predicted outcome for the \code{testData} data set
+	}
+	\item{prob}{
+		The proportion of \emph{k} neighbours that predicted the class to be the one being reported in \code{prediction}
+	}
+	\item{binProb}{
+		The proportion of \emph{k} neighbours that predicted the class of the outcome to be equal to 1
+	}
+	\item{featureList}{
+		A vector with the names of the features used by the KNN procedure
+	}
 }
-
-%%\references{
-%% ~put references to the literature/web site here ~
-%%}
-
-\author{
-Jose G. Tamez-Pena
-
+\author{Jose G. Tamez-Pena and Antonio Martinez-Torteya}
+\seealso{\code{\link{predictForFresa},
+				 \link{knn}}}
+\examples{
+	\dontrun{
+	# Start the graphics device driver to save all plots in a pdf format
+	pdf(file = "Example.pdf")
+	# Get the stage C prostate cancer data from the rpart package
+	library(rpart)
+	data(stagec)
+	# Split the stages into several columns
+	dataCancer <- cbind(stagec[,c(1:3,5:6)],
+	                    gleason4 = 1*(stagec[,7] == 4),
+	                    gleason5 = 1*(stagec[,7] == 5),
+	                    gleason6 = 1*(stagec[,7] == 6),
+	                    gleason7 = 1*(stagec[,7] == 7),
+	                    gleason8 = 1*(stagec[,7] == 8),
+	                    gleason910 = 1*(stagec[,7] >= 9),
+	                    eet = 1*(stagec[,4] == 2),
+	                    diploid = 1*(stagec[,8] == "diploid"),
+	                    tetraploid = 1*(stagec[,8] == "tetraploid"),
+	                    notAneuploid = 1-1*(stagec[,8] == "aneuploid"))
+	# Remove the incomplete cases
+	dataCancer <- dataCancer[complete.cases(dataCancer),]
+	# Load a pre-stablished data frame with the names and descriptions of all variables
+	data(cancerVarNames)
+	# Split the data set into train and test samples
+	trainDataCancer <- dataCancer[1:(nrow(dataCancer)/2),]
+	testDataCancer <- dataCancer[(nrow(dataCancer)/2+1):nrow(dataCancer),]
+	# Get a Cox proportional hazards model using:
+	# - 10 bootstrap loops
+	# - Train data
+	# - Age as a covariate
+	# - zIDI as the feature inclusion criterion
+	cancerModel <- ReclassificationFRESA.Model(loops = 10,
+	                                           covariates = "1 + age",
+	                                           Outcome = "pgstat",
+	                                           variableList = cancerVarNames,
+	                                           data = trainDataCancer,
+	                                           type = "COX",
+	                                           timeOutcome = "pgtime",
+	                                           selectionType = "zIDI")
+	# Predict the outcome of the test data sample using KNN
+	KNNPrediction <- getKNNpredictionFromFormula(model.formula = cancerModel$formula,
+	                                             trainData = trainDataCancer,
+	                                             testData = testDataCancer,
+	                                             Outcome = "pgstat",
+	                                             nk = 5)
+	# Shut down the graphics device driver
+	dev.off()}
 }
-
-%%\note{
-%%  ~~further notes~~
-%%}
-
-%% ~Make other sections like Warning with \section{Warning }{....} ~
-
-\seealso{
-See Also \code{knn} from the "class" package
-}
-
-%%\examples{
-%%}
-
-% Add one or more standard keywords, see file 'KEYWORDS' in the
-% R documentation directory.
 \keyword{Model_Inspection}

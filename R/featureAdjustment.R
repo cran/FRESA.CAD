@@ -1,16 +1,16 @@
 featureAdjustment <-
-function(varList,baseModel,strata=NA,dataframe,referenceframe,type=c("LM","GLS"),p.value=0.05,correlationGroup = "ID") 
+function(variableList,baseModel,strata=NA,data,referenceframe,type=c("LM","GLS"),pvalue=0.05,correlationGroup = "ID") 
 {
 
-if (!require(nlme)) {
-  install.packages("nlme", dependencies = TRUE)
-  library(nlme)
-}
+if (!requireNamespace("nlme", quietly = TRUE)) {
+   install.packages("nlme", dependencies = TRUE)
+} 
+
 
 	type <- match.arg(type);
 	## the reference frame will be used to predict a variable from the basemodel. At output the residuals are returned.
 	## strata is a numeric column varname in the data frame from 0 to S, where S is the maximum number of strata
-	colnamesList <- as.vector(varList[,1]);
+	colnamesList <- as.vector(variableList[,1]);
 	size = length(colnamesList);
 	if (!is.na(strata)) 
 	{
@@ -35,14 +35,14 @@ if (!require(nlme)) {
 			strastatement = paste ("subset(referenceframe,",paste(stracondition,")"));
 			cat ("Strata:",stracondition,"\n");
 			cstrataref <- eval(parse(text=strastatement));
-			strastatement = paste ("subset(dataframe,",paste(stracondition,")"));
+			strastatement = paste ("subset(data,",paste(stracondition,")"));
 			cstrata <- eval(parse(text=strastatement));
 			cat ("Rows:",nrow(cstrataref),"Rows 2",nrow(cstrata)," \n");
 		}
 		else
 		{
 			cstrataref = referenceframe;
-			cstrata = dataframe;
+			cstrata = data;
 		}
 		if ((nrow(cstrata)>1) && ( nrow(cstrataref)>1))
 		{
@@ -61,14 +61,12 @@ if (!require(nlme)) {
 					},
 					GLS =
 					{
-					    corformula <- formula(paste( "~ 1 |", correlationGroup));
-						model <- eval(parse(text=paste("try(gls(formula(",ftm1,"),cstrataref,na.action=na.exclude,correlation = corAR1(form =",corformula,")))")))
-#					    model <- gls(ftmp,data=cstrataref,na.action=na.exclude,correlation = corAR1(form = corformula))
-						var1 <- var(cstrataref[,colnamesList[i]],na.rm = TRUE);
-						var2 <- var(model$residuals,na.rm = TRUE);
-						f1 = var1/var2;
+						model <- eval(parse(text=paste("try(nlme::gls(formula(",ftm1,"),cstrataref,na.action=na.exclude,correlation = nlme::corAR1(form = ~ 1 | ",correlationGroup,")))")))
 						dgf = nrow(cstrataref)-1;
-						p <- pf(f1,dgf,dgf,lower.tail=FALSE);
+						rss1 <- var(cstrataref[,colnamesList[i]],na.rm = TRUE)
+						rss2 <- var(model$residuals,na.rm = TRUE);
+						f1 = rss1/rss2;
+						p <- 1-pf(dgf*rss1/rss2-dgf,1,dgf); 
 					},
 					{ 
 						model <- lm(ftmp,data=cstrataref,na.action=na.exclude)
@@ -81,15 +79,28 @@ if (!require(nlme)) {
 				cat(" Variable:\t ",colnamesList[i],"\t F Stats:\t ",f1,"\t P-value:\t",p,"\n");
 				if (!is.na(p))
 				{
-					if (p<p.value)
-					{
-						cstrata[,colnamesList[i]] <- cstrata[,colnamesList[i]]-predict(model,cstrata);
-					}
-					else
-					{
-						avg <- mean(cstrataref[,colnamesList[i]],na.rm = TRUE);
-						cstrata[,colnamesList[i]] <- cstrata[,colnamesList[i]]-avg;
-					}
+					switch(type, 
+						LM = 
+						{ 
+							if (p<pvalue)
+							{
+								cstrata[,colnamesList[i]] <- cstrata[,colnamesList[i]]-predict(model,cstrata);
+							}
+							else
+							{
+								avg <- mean(cstrataref[,colnamesList[i]],na.rm = TRUE);
+								cstrata[,colnamesList[i]] <- cstrata[,colnamesList[i]]-avg;
+							}
+						},
+						GLS =
+						{
+							if (p<pvalue)
+							{
+								avg <-model$coef[1];
+								cstrata[,colnamesList[i]] <- cstrata[,colnamesList[i]]-predict(model,cstrata)+avg;
+							}
+						}
+					)
 				}
 			}
 			if (created == 1) 
@@ -105,7 +116,7 @@ if (!require(nlme)) {
 	}
 	for (i in 1:size)		
 	{ 
-		var1 <- var(dataframe[,colnamesList[i]],na.rm = TRUE);
+		var1 <- var(data[,colnamesList[i]],na.rm = TRUE);
 		var2 <- var(AdjustedFrame[,colnamesList[i]],na.rm = TRUE);
 		cat(" Variable: \t",colnamesList[i],"\t Var Ini: \t",var1,"\t Var End:\t",var2,"\t F:\t",var1/var2,"\n");
 	}

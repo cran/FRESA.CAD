@@ -1,29 +1,40 @@
-#
 plotModels.ROC <-
-function(modelPredictions,number.of.models=0,specificities=c(0.95,0.90,0.80,0.70,0.60,0.50,0.40,0.30,0.20,0.10,0.05),...) 
+function(modelPredictions,number.of.models=0,specificities=c(0.95,0.90,0.80,0.70,0.60,0.50,0.40,0.30,0.20,0.10,0.05),theCVfolds=1,...) 
 {
+
+
+	number.of.runs=number.of.models;
 	par(mfrow=c(1,1))
 	rocadded = 0;
-	if (number.of.models == 0)
+	if (number.of.runs == 0)
 	{
-		number.of.models=max(modelPredictions[,"Model"])
+		number.of.runs=max(modelPredictions[,"Model"]) %/% theCVfolds;
 	}
 	auclist <- vector()
 	sumSen <- NULL;
 	blindSen <- NULL;
-	auc1 <- roc(modelPredictions[,"Outcome"],modelPredictions[,"Blind_Prediction"],col="darkblue",auc=TRUE,plot=TRUE,smooth=FALSE,...)$auc
+	auc1 <- pROC::roc(modelPredictions[,"Outcome"],modelPredictions[,"Blind_Prediction"],col="darkblue",auc=TRUE,plot=TRUE,smooth=FALSE,...)$auc
 	par(new=TRUE)
 	ley.names <- c(paste("Blind: Coherence (",sprintf("%.3f",auc1),")"))
 	ley.colors <- c("darkblue")
 	ley.lty <- c(1)
-	for (n in 1:number.of.models)
+
+	for (n in 1:number.of.runs)
 	{
-		blindmodel <- modelPredictions[which(modelPredictions[,3] == n),];
+		if (theCVfolds>1) 
+		{
+			mm = n-1;
+		}
+		else
+		{
+			mm = n;
+		}
+		blindmodel <- modelPredictions[which((modelPredictions[,3] %/% theCVfolds)  == mm),];
 		if ( (sum(blindmodel[,"Outcome"]==1) > 3) && (sum(blindmodel[,"Outcome"]==0) > 3))
 		{
-			auclist <- append(auclist,roc(blindmodel[,"Outcome"],blindmodel[,"Blind_Prediction"],auc=TRUE,plot=TRUE,col="lightgray",lty=4,lwd=1)$auc)
+			auclist <- append(auclist,pROC::roc(blindmodel[,"Outcome"],blindmodel[,"Blind_Prediction"],auc=TRUE,plot=TRUE,col="lightgray",lty=4,lwd=1)$auc)
 			par(new=TRUE)
-			sen <- roc(blindmodel[,"Outcome"],blindmodel[,"Blind_Prediction"],auc=TRUE,plot=FALSE,ci=TRUE,of='se',specificities=specificities,boot.n=100,smooth=FALSE,lty=3,lwd=1)$ci[,2]
+			sen <- pROC::roc(blindmodel[,"Outcome"],blindmodel[,"Blind_Prediction"],auc=TRUE,plot=FALSE,ci=TRUE,of='se',specificities=specificities,boot.n=100,smooth=FALSE,lty=3,lwd=1)$ci[,2]
 			if (n == 1) 
 			{
 				blindSen <- sen;
@@ -57,7 +68,7 @@ function(modelPredictions,number.of.models=0,specificities=c(0.95,0.90,0.80,0.70
 		ley.lty <- append(ley.lty,c(4,1));
 	}
 
-	legend(0.6,0.30, ley.names,col = ley.colors, lty = ley.lty,bty="n")
+	legend(0.6,0.30, legend=ley.names,col = ley.colors, lty = ley.lty,bty="n")
 
 	result <- list(ROC.AUCs=auclist,
 	mean.sensitivities=sumSen,

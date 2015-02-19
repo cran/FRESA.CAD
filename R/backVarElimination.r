@@ -2,7 +2,7 @@ backVarElimination <- function (object,pvalue=0.05,Outcome="Class",data,startOff
 {
   	seltype <- match.arg(selectionType)
 
-	back.var.IDISelection <- function (object,pvalue=0.05,Outcome="Class",dataframe,startOffset=0, type = c("LOGIT", "LM","COX"),selectionType=c("zIDI","zNRI")) 
+	back.var.IDISelection <- function (object,pvalue=0.05,Outcome="Class",data,startOffset=0, type = c("LOGIT", "LM","COX"),selectionType=c("zIDI","zNRI")) 
 	{
 		seltype <- match.arg(selectionType)
 		type <- match.arg(type);
@@ -30,10 +30,10 @@ backVarElimination <- function (object,pvalue=0.05,Outcome="Class",data,startOff
 		
 		ftmp <- formula(frm1);
 		bckform <- frm1;
-		fullModel <- modelFitting(ftmp,dataframe,type)
+		fullModel <- modelFitting(ftmp,data,type)
 		if ( !inherits(fullModel, "try-error"))
 		{
-			fullPredict <- predictForFresa(fullModel,newdata=dataframe,type = 'prob');
+			fullPredict <- predictForFresa(fullModel,data,'prob');
 			startSearch = startlist + startOffset;
 			if (length(varsList)>startSearch)
 			{
@@ -49,11 +49,11 @@ backVarElimination <- function (object,pvalue=0.05,Outcome="Class",data,startOff
 						}
 					}
 					ftmp <- formula(frm1);
-					redModel <- modelFitting(ftmp,dataframe,type)
+					redModel <- modelFitting(ftmp,data,type)
 					if ( !inherits(redModel, "try-error"))
 					{
-						redPredict <- predictForFresa(redModel,newdata=dataframe,type = 'prob');
-						iprob <- improveProb(redPredict,fullPredict,dataframe[,Outcome]);
+						redPredict <- predictForFresa(redModel,data,'prob');
+						iprob <- improveProb(redPredict,fullPredict,data[,Outcome]);
 						if (seltype=="zIDI") 
 						{
 							ztst = iprob$z.idi;
@@ -89,10 +89,10 @@ backVarElimination <- function (object,pvalue=0.05,Outcome="Class",data,startOff
 			}
 			ftmp <- formula(frm1);
 			bckform <- frm1;
-			fullModel <- modelFitting(ftmp,dataframe,type)
+			fullModel <- modelFitting(ftmp,data,type)
 		}
-		cat("removed : ",removeID,"Final Model: \n")
-		print(summary(fullModel));
+#		cat("removed : ",removeID,"Final Model: \n")
+#		print(summary(fullModel));
 		result <- list(Model=fullModel,Removed=removeID,backfrm=bckform);
 
 		return (result)
@@ -104,18 +104,28 @@ backVarElimination <- function (object,pvalue=0.05,Outcome="Class",data,startOff
     model <- object;
 	mydataFrame <- data;
 	myOutcome <- Outcome;
+	changes2 <- 0
 	while ((changes>0) && (loops<100))
 	{
-		bk <- back.var.IDISelection(model,pvalue,Outcome=myOutcome,dataframe=mydataFrame,startOffset,type,seltype);
+		bk <- back.var.IDISelection(model,pvalue,Outcome=myOutcome,data=mydataFrame,startOffset,type,seltype);
 		changes = as.integer(bk$Removed);
 		if (changes>0)
 		{
-		  loops = loops + 1;      
+		  loops = loops + 1;
+		  changes2<- as.character(as.list(attr(terms(model),"variables")))[which(!(as.character(as.list(attr(terms(model),"variables")))%in%as.character(as.list(attr(terms(bk$Model),"variables")))))]
+		  if (length(changes2)>1)
+			{
+				changes2<-changes2[2]
+			}
+		}
+		if (changes < 0)
+		{
+			changes2<- changes
 		}
 		model = bk$Model;
 	}
-	print(summary(model));
-	modelReclas <- getVarReclassification(model,dataframe=mydataFrame,Outcome=myOutcome,type);
-	result <- list(back.model=model,loops=loops,reclas.info=modelReclas,back.formula=bk$backfrm,lastRemoved=changes);
+#	print(summary(model));
+	modelReclas <- getVarReclassification(model,data=mydataFrame,Outcome=myOutcome,type);
+	result <- list(back.model=model,loops=loops,reclas.info=modelReclas,back.formula=formula(bk$backfrm),lastRemoved=changes2);
 	return (result);
 }

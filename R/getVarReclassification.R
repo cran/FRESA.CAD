@@ -1,11 +1,10 @@
 getVarReclassification <-
-function (object,dataframe,Outcome="Class", type = c("LOGIT", "LM","COX"),independentFrame=NULL) 
+function (object,data,Outcome="Class", type = c("LOGIT", "LM","COX"),testData=NULL) 
 {
-    type <- match.arg(type);
 
-	if (is.null(independentFrame))
+	if (is.null(testData))
 	{
-		independentFrame <- dataframe;
+		testData <- data;
 	}
 
 	model_zidi <- vector();
@@ -30,12 +29,12 @@ function (object,dataframe,Outcome="Class", type = c("LOGIT", "LM","COX"),indepe
 	}
 	ftmp <- formula(frm1);
 	
-	fullModel <- modelFitting(ftmp,dataframe,type)
+	fullModel <- modelFitting(ftmp,data,type)
 	if ( !inherits(fullModel, "try-error"))
 	{
 	
-		fullPredict_train <- predictForFresa(fullModel,newdata=dataframe,type = 'prob');
-		fullPredict <- predictForFresa(fullModel,newdata=independentFrame,type = 'prob');
+		fullPredict_train <- predictForFresa(fullModel,data,'prob');
+		fullPredict <- predictForFresa(fullModel,testData, 'prob');
 
 		for ( i in startlist:length(varsList))
 		{
@@ -49,17 +48,17 @@ function (object,dataframe,Outcome="Class", type = c("LOGIT", "LM","COX"),indepe
 					}
 				}
 			ftmp <- formula(frm1);
-			redModel <- modelFitting(ftmp,dataframe,type)
+			redModel <- modelFitting(ftmp,data,type)
 			if (inherits(redModel, "try-error"))
 			{
 				redModel <- fullModel;
 			}
 
-			redPredict <- predictForFresa(redModel,newdata=independentFrame,type = 'prob');
-			redPredict_train <- predictForFresa(redModel,newdata=dataframe,type = 'prob');
+			redPredict <- predictForFresa(redModel,testData,'prob');
+			redPredict_train <- predictForFresa(redModel,data,'prob');
 			
-			iprob <- improveProb(redPredict,fullPredict,independentFrame[,Outcome]);
-			iprob_t <- improveProb(redPredict_train,fullPredict_train,dataframe[,Outcome]);
+			iprob <- improveProb(redPredict,fullPredict,testData[,Outcome]);
+			iprob_t <- improveProb(redPredict_train,fullPredict_train,data[,Outcome]);
 
 
 			model_zidi <- append(model_zidi,iprob$z.idi);
@@ -76,14 +75,14 @@ function (object,dataframe,Outcome="Class", type = c("LOGIT", "LM","COX"),indepe
 	}
 	
 	 result <- list(
-	 z.IDIs=model_zidi,
-	 z.NRIs=model_znri,
-	 IDIs=model_idi,
-	 NRIs=model_nri,
-	 tz.IDIs=t.model_zidi,
-	 tz.NRIs=t.model_znri,
-	 tIDIs=t.model_idi,
-	 tNRIs=t.model_nri
+	 z.IDIs=t.model_zidi,
+	 z.NRIs=t.model_znri,
+	 IDIs=t.model_idi,
+	 NRIs=t.model_nri,
+	 testData.z.IDIs=model_zidi,
+	 testData.z.NRIs=model_znri,
+	 testData.IDIs=model_idi,
+	 testData.NRIs=model_nri
 	 );
 
     return (result)

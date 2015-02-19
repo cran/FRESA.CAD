@@ -1,9 +1,9 @@
 listTopCorrelatedVariables <-
-function(variablesNames,dataframe,pvalue=0.001,corthreshold=0.9,method = c("pearson", "kendall", "spearman"))
+function(variableList,data,pvalue=0.001,corthreshold=0.9,method = c("pearson", "kendall", "spearman"))
 {
 ## returns a list of top correlated features for each variable
-	vnames = as.vector(variablesNames[,1]);
-	delnames = as.vector(variablesNames[,1]);
+	vnames = as.vector(variableList[,1]);
+	delnames = as.vector(variableList[,1]);
 	
 	size = length(vnames)
 	
@@ -22,7 +22,7 @@ function(variablesNames,dataframe,pvalue=0.001,corthreshold=0.9,method = c("pear
 		{
 			if ( j != i)
 			{
-				pval <- cor.test(dataframe[,vnames[j]],dataframe[,vnames[i]] ,alternative ="two.sided",method=method);
+				pval <- cor.test(data[,vnames[j]],data[,vnames[i]] ,alternative ="two.sided",method=method);
 				if ((pval$p.value<pvalue) && (pval$estimate > corthreshold))
 				{
 					varlist <- paste(varlist,vnames[i])

@@ -1,75 +1,112 @@
 \name{plotModels.ROC}
 \alias{plotModels.ROC}
-%- Also NEED an '\alias' for EACH other topic documented here.
-\title{
-Plot the test ROC curves of each one of the Cross validated models
-%%  ~~function to do ... ~~
-}
+\title{Plot test ROC curves of each cross-validation model}
 \description{
-Plot each one of the models found in the cross validation process.
-It will aggregate the models into a single prediction performance, plotting the resulting ROC curve (model coherence ROC)
-Finally it will plot the mean sensitivity for the given set of specificities.
-%%  ~~ A concise (1-5 lines) description of what the function does. ~~
+	This function plots test ROC curves of each model found in the cross validation process.
+	It will also aggregate the models into a single prediction performance, plotting the resulting ROC curve (models coherence).
+	Furthermore, it will plot the mean sensitivity for a given set of specificities.
 }
 \usage{
-plotModels.ROC(modelPredictions, number.of.models=0,
-specificities=c(0.95,0.90,0.80,0.70,0.60,0.50,0.40,0.30,0.20,0.10,0.05),
-...)
+	plotModels.ROC(modelPredictions,
+	        number.of.models=0,
+	        specificities=c(0.95,0.90,0.80,0.70,0.60,0.50,0.40,0.30,0.20,0.10,0.05),
+	        theCVfolds=1,
+            ...)
 }
-%- maybe also 'usage' for other objects documented here.
 \arguments{
-  \item{modelPredictions}{
-   A data frame created by the model cross validation process
+	\item{modelPredictions}{
+		A data frame returned by the \code{crossValidationFeatureSelection} function, either the \code{Models.testPrediction}, the \code{FullModel.testPrediction},\cr the \code{Models.CVtestPredictions}, the \code{TestRetrained.blindPredictions},\cr the \code{KNN.testPrediction}, or the \code{enet.testPredictions} value
+	}
+	\item{number.of.models}{
+		The maximum number of models to plot
+	}
+	\item{specificities}{
+		Vector containing the specificities at which the ROC sensitivities will be calculated
+	}
+	\item{theCVfolds}{
+		the number of folds performed in a Cross-validation experiment
+	}
+	\item{...}{
+		Additional parameters for the \code{roc} function (\code{pROC} package)
+	}
 }
-  \item{number.of.models}{
-  the maximum number of models to plot
-}
-  \item{specificities}{
-   list of specificities for ROC sensitivities 
-}
-  \item{...}{
-   additional parameters for the ROC function
-}
-}
-
-%%\details{
-%%  ~~ If necessary, more details than the description above ~~
-%%}
-
-%%\references{
-%% ~put references to the literature/web site here ~
-%%}
-
-\author{
-Jose G. Tamez-Pena
-
-}
-
-%%\note{
-%%  ~~further notes~~
-%%}
-
-%% ~Make other sections like Warning with \section{Warning }{....} ~
-
-%%\seealso{
-%% ~~objects to See Also as \code{\link{help}}, ~~~
-%%}
-
 \value{
-
-%%  If it is a LIST, use
-  \item{ROC.AUCs}{A list with the individual AUC of the ROC}
-  \item{mean.sensitivities}{A vector of the mean sensitivity given the specificities}
-  \item{model.sensitivities}{A matrix where each row is the sensitivities for each model}
-  \item{specificities}{The specificities used to calculate the sensitivities}
-  \item{senAUC}{The AUC of the curve given the specificities and the mean sensitivities}
-%% ...
+	\item{ROC.AUCs}{
+		A vector with the AUC of each ROC
+	}
+	\item{mean.sensitivities}{
+		A vector with the mean sensitivity at the specificities given by \code{specificities}
+	}
+	\item{model.sensitivities}{
+		A matrix where each row represents the sensitivitiy at the specificities given by \code{specificities} for a different ROC
+	}
+	\item{specificities}{
+		The specificities used to calculate the sensitivities
+	}
+	\item{senAUC}{
+		The AUC of the ROC curve that resulted from using \code{mean.sensitivities}
+	}
 }
-
-
-%%\examples{
-%%}
-
-% Add one or more standard keywords, see file 'KEYWORDS' in the
-% R documentation directory.
+\author{Jose G. Tamez-Pena and Antonio Martinez-Torteya}
+\examples{
+	\dontrun{
+	# Start the graphics device driver to save all plots in a pdf format
+	pdf(file = "Example.pdf")
+	# Get the stage C prostate cancer data from the rpart package
+	library(rpart)
+	data(stagec)
+	# Split the stages into several columns
+	dataCancer <- cbind(stagec[,c(1:3,5:6)],
+	                    gleason4 = 1*(stagec[,7] == 4),
+	                    gleason5 = 1*(stagec[,7] == 5),
+	                    gleason6 = 1*(stagec[,7] == 6),
+	                    gleason7 = 1*(stagec[,7] == 7),
+	                    gleason8 = 1*(stagec[,7] == 8),
+	                    gleason910 = 1*(stagec[,7] >= 9),
+	                    eet = 1*(stagec[,4] == 2),
+	                    diploid = 1*(stagec[,8] == "diploid"),
+	                    tetraploid = 1*(stagec[,8] == "tetraploid"),
+	                    notAneuploid = 1-1*(stagec[,8] == "aneuploid"))
+	# Remove the incomplete cases
+	dataCancer <- dataCancer[complete.cases(dataCancer),]
+	# Load a pre-stablished data frame with the names and descriptions of all variables
+	data(cancerVarNames)
+	# Rank the variables:
+	# - Analyzing the raw data
+	# - According to the zIDI
+	rankedDataCancer <- univariateRankVariables(variableList = cancerVarNames,
+	                                            formula = "Surv(pgtime, pgstat) ~ 1",
+	                                            Outcome = "pgstat",
+	                                            data = dataCancer,
+	                                            categorizationType = "Raw",
+	                                            type = "COX",
+	                                            rankingTest = "zIDI",
+	                                            description = "Description")
+	# Get a Cox proportional hazards model using:
+	# - The top 7 ranked variables
+	# - 10 bootstrap loops in the feature selection procedure
+	# - The zIDI as the feature inclusion criterion
+	# - 5 bootstrap loops in the backward elimination procedure
+	# - A 5-fold cross-validation in the feature selection, 
+	#            update, and backward elimination procedures
+	# - A 10-fold cross-validation in the model validation procedure
+	# - First order interactions in the update procedure
+	cancerModel <- crossValidationFeatureSelection(size = 7,
+	                                               loops = 10,
+	                                               Outcome = "pgstat",
+	                                               timeOutcome = "pgtime",
+	                                               variableList = rankedDataCancer,
+	                                               data = dataCancer,
+	                                               type = "COX",
+	                                               selectionType = "zIDI",
+	                                               elimination.bootstrap.steps = 5,
+	                                               trainRepetition = 5,
+	                                               CVfolds = 10,
+	                                               interaction = c(1,2))
+	# Plot the results of the blind test set predictions made at each 
+	# fold of the cross-validation
+	cancerModelPlot <- plotModels.ROC(cancerModel$Models.testPrediction)
+	# Shut down the graphics device driver
+	dev.off()}
+}
 \keyword{Model_Inspection}

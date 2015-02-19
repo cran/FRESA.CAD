@@ -1,8 +1,8 @@
-bootVarNeRIElimination <- function (object,pvalue=0.05,Outcome="Class",data,startOffset=0, type = c("LOGIT", "LM","COX"),testType=c("Binomial","Wilcox","tStudent","Ftest"),bootLoops=250,bootFraction=1.00,setIntersect=1) 
+bootstrapVarNeRIElimination <- function (object,pvalue=0.05,Outcome="Class",data,startOffset=0, type = c("LOGIT", "LM","COX"),testType=c("Binomial","Wilcox","tStudent","Ftest"),loops=250,fraction=1.00,setIntersect=1,print=TRUE,plots=TRUE) 
 {
   	testType <- match.arg(testType)
 
-	boot.var.NeRISelection <- function (object,pvalue=0.05,Outcome="Class",dataframe,startOffset=0, type = c("LOGIT", "LM","COX"),testType=c("Binomial","Wilcox","tStudent","Ftest"),bootLoops,bootFraction=1.0,setIntersect=1) 
+	boot.var.NeRISelection <- function (object,pvalue=0.05,Outcome="Class",data,startOffset=0, type = c("LOGIT", "LM","COX"),testType=c("Binomial","Wilcox","tStudent","Ftest"),loops,fraction=1.0,setIntersect=1) 
 	{
 		testType <- match.arg(testType)
 		type <- match.arg(type);
@@ -22,10 +22,11 @@ bootVarNeRIElimination <- function (object,pvalue=0.05,Outcome="Class",data,star
 		ftmp <- formula(frm1);
 		backfrm <- frm1;
 #		cat("Start  Formula :",frm1,"\n")
-		NeRICV <- bootstrapValidationNeRI(bootFraction,bootLoops,ftmp,Outcome,dataframe,type,plots=FALSE)
+		NeRICV <- bootstrapValidationNeRI(fraction,loops,ftmp,Outcome,data,type,plots=plots)
+#		cat("Bootstrapped  Formula :",frm1,"\n")
 		wcoef <- object$coefficients;
 		startSearch = startlist + startOffset;
-		if ((length(varsList)-startSearch)>1)
+		if (length(varsList)>startSearch)
 		{		
 			idlist=startOffset+1;
 			frm1 = outCome;
@@ -94,11 +95,12 @@ bootVarNeRIElimination <- function (object,pvalue=0.05,Outcome="Class",data,star
 				else
 				{
 					removeID=idlist;
+					cat ("Removed ",paste(" -> ",varsList[i]),"\n");
 				}
 			}
-	#		cat ("Formula: ",frm1,"\n")
+#			cat ("Rm: Formula: ",frm1,"\n")
 			ftmp <- formula(frm1);
-			fullModel <- modelFitting(ftmp,dataframe,type)
+			fullModel <- modelFitting(ftmp,data,type,TRUE)
 			backfrm <- frm1
 			if (inherits(fullModel, "try-error"))
 			{
@@ -121,7 +123,7 @@ bootVarNeRIElimination <- function (object,pvalue=0.05,Outcome="Class",data,star
 				}
 				ftmp <- formula(frm1);
 				backfrm <- frm1
-				fullModel <- modelFitting(ftmp,dataframe,type)
+				fullModel <- modelFitting(ftmp,data,type)
 			}
 
 		}
@@ -132,44 +134,54 @@ bootVarNeRIElimination <- function (object,pvalue=0.05,Outcome="Class",data,star
 
 
 	changes=1;
-	loops=0;
+	loopsAux=0;
     model <- object;
-	while ((changes>0) && (loops<100))
+	changes2 <- 0
+	while ((changes>0) && (loopsAux<100))
 	{
-		bk <- boot.var.NeRISelection(object=model,pvalue=pvalue,Outcome=Outcome,dataframe=data,
-		startOffset=startOffset,type=type,testType=testType,bootLoops=bootLoops,bootFraction=bootFraction,setIntersect=setIntersect);
+		bk <- boot.var.NeRISelection(object=model,pvalue=pvalue,Outcome=Outcome,data=data,
+		startOffset=startOffset,type=type,testType=testType,loops=loops,fraction=fraction,setIntersect=setIntersect);
 		if (!inherits(bk$Model, "try-error"))
 		{
 			changes = as.integer(bk$Removed);
 			if (changes>0)
 			{
-			  loops = loops + 1;      
+			  loopsAux = loopsAux + 1;
+				changes2<- as.character(as.list(attr(terms(model),"variables")))[which(!(as.character(as.list(attr(terms(model),"variables")))%in%as.character(as.list(attr(terms(bk$Model),"variables")))))]
+				if (length(changes2)>1)
+				{
+					changes2<-changes2[2]
+				}
+			}
+			if (changes < 0)
+			{
+				changes2<- changes
 			}
 			model = bk$Model;
 		}
 		else
 		{
 			changes = 1;
-			loops = loops + 1;      
+			loopsAux = loopsAux + 1;      
 		}
 	}
-	modelReclas <- getVarNeRI(model,dataframe=data,Outcome=Outcome,type);
-	if ((bootFraction<1) ||  (changes <0 ))
+	modelReclas <- getVarNeRI(model,data=data,Outcome=Outcome,type);
+	if ((fraction<1) ||  (changes <0 ))
 	{
-		NeRICV <- bootstrapValidationNeRI(1.0,bootLoops,model$formula,Outcome,data,type,plots=FALSE);
+		NeRICV <- bootstrapValidationNeRI(1.0,loops,model$formula,Outcome,data,type,plots=plots);
 	}
 	else
 	{
 		NeRICV <- bk$BootModel;
 	}
-	cat ("Reduced Model\n")
-	print(summary(NeRICV$boot.model));
+	cat("Reduced Formula:",bk$backfrm,"\n")
+#	print(summary(NeRICV$boot.model));
 
 	result <- list(back.model=NeRICV$boot.model,
-	loops=loops,
+	loops=loopsAux,
 	reclas.info=modelReclas,
 	bootCV=NeRICV,
-	back.formula=bk$backfrm,
-	lastRemoved=changes);
+	back.formula=formula(bk$backfrm),
+	lastRemoved=changes2);
 	return (result);
 }

@@ -1,0 +1,75 @@
+Changes from FRESA.CAD 1.0 to FRESA.CAD version 2.0
+
+	+ Added c++ libraries to speed-up feature selection.
+		The c++ libraries functions were written using ARMADILLO and openMP.
+		+ FRESAcommons.cpp : Auxiliary functions with ARMADILLO implementations of COX, logit and linear fitting 
+		+ binaryFeatureSelectionCpp.cpp: Main functions for bootstrapping, selection and estimation of 
+							features confidence intervals for binary classification models.
+		+ regresionFeatureSelectionCpp.cpp: Main functions for bootstrapping, selection and estimation of 
+							linear models coefficients.
+		+ rankInverseNormalCpp.cpp: Function to standardize features based on their ranking
+
+    + Improvements and bug-fix across the FRESA.CAD package to deal with exceptions and zero size models.
+	+ Interface changes:
+		*in bootstrapValidation(...,dataframe,...) 
+			"dataframe" argument renamed "data"
+		*in bootstrapValidationNeRI(...,dataframe,...) 
+			"dataframe" argument renamed "data"
+		*in bootVarNeRIElimination(...,bootLoops=250,bootFraction=1.0,...) 
+			"bootLoops" and "bootFraction" arguments renamed "loops" and "fraction" respectively.
+		*in crossValidationFeatureSelection(...,dataframe,...,backBootLoops,...,bootEstimations,...) 
+			"dataframe", "backBootLoops" and "bootEstimations" arguments renamed 
+			"data", "elimination.bootstrap.steps" and "bootstrap.steps" respectively
+		*in crossValidationNeRIFeatureSelection(...,dataframe,...,backBootLoops,...) 
+			"dataframe" and "backBootLoops" arguments renamed 
+			"data" and "elimination.bootstrap.steps" respectively
+		*in featureAdjustment(...,dataframe,...) 
+			"dataframe" argument renamed "data"
+		*FRESA.Model(...,k,...) 
+			"k" argument renamed "nk"
+		*getKNNpredictionFromFormula(modelFormula,...,k,...) 
+			"modelFormula" and "k"  arguments renamed "model.formula" and "nk" respectively
+		*getVarNeRI(...,dataframe,...) 
+			"dataframe" argument renamed "data"
+		*getVarReclassification(...,dataframe,...)
+			"dataframe" argument renamed "data"
+		*heatMaps(...,dataframe,...)
+			"dataframe" argument renamed "data"
+		*listTopCorrelatedVariables(...,dataframe,...)
+			"dataframe" argument renamed "data"
+		*medianPredict(...,newdata,...,k,...)
+			"newdata" and "k" arguments renamed "testdata" and "nk" respectively
+		*modelFitting(model,dataframe,...)
+			"model" and "dataframe" arguments renamed "mode.formula" and "data" respectively
+		*NeRIBasedFRESA.Model(...,dataframe,...)
+			"dataframe" argument renamed "data"
+		*predictForFresa(...,newdata,type,...) -> 
+			"newdata"  and "type" arguments renamed "testdata" and "predictType" respectively
+		*rankInverseNormalDataFrame(varList, dataframe,..)
+			"varList" and "dataframe" arguments renamed "variableList" and "data" respectively
+		*ReclassificationFRESA.Model(...,dataframe,...)
+			"dataframe" argument renamed "data"
+		*reportEquivalentVariables(...,dataframe,...)
+			"dataframe" argument renamed "data"
+		*residualForNeRIs(...,newdata,...)
+			"newdata" argument renamed "testData"
+		*timeSerieAnalysis(...,dataframe,...)
+			"dataframe" argument renamed "data"
+		*uniRankVar(...,dataframe,...,FitType,..)
+			"dataframe" and "FitType" arguments renamed "data" and "type" respectively
+		*univariateRankVariables(...,dataframe,...,FitType,..)
+			"dataframe" and "FitType" arguments renamed "data" and "type" respectively
+		*updateModel(...,dataframe,...)
+			"dataframe" argument renamed "data"
+		*updateNeRImodel(...,dataframe,...)
+			"dataframe" argument renamed "data"
+			
+		
+		
+
+
+    
+
+
+
+

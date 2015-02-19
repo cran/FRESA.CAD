@@ -1,99 +1,160 @@
 \name{bootstrapValidationNeRI}
 \alias{bootstrapValidationNeRI}
-%- Also NEED an '\alias' for EACH other topic documented here.
-\title{
-Bootstrap validation of regression models.
-%%  ~~function to do ... ~~
-}
+\title{Bootstrap validation of regression models}
 \description{
-bootstrapValidationNeRI bootstrap the model N times to estimate for each variable the empirical bootstrapped distribution of coefficients.
-At each bootstrap the non-observed data is predicted by the trained model and statistic of test-prediction are stored and reported. 
-%%  ~~ A concise (1-5 lines) description of what the function does. ~~
+	This function bootstraps the model \emph{n} times to estimate for each variable the empirical bootstrapped distribution of model coefficients, and net residual improvement (NeRI).
+	At each bootstrap the non-observed data is predicted by the trained model, and statistics of the test prediction are stores and reported.
 }
 \usage{
-bootstrapValidationNeRI(fraction = 1, loops = 200, model.formula, 
-Outcome, dataframe, type = c("LM", "LOGIT", "COX"),plots=TRUE)
+	bootstrapValidationNeRI(fraction = 1,
+	                        loops = 200,
+	                        model.formula,
+	                        Outcome,
+	                        data,
+	                        type = c("LM", "LOGIT", "COX"),
+	                        plots = TRUE)
 }
-%- maybe also 'usage' for other objects documented here.
 \arguments{
-  \item{fraction}{
-  The fraction of data to be sampled with replacement (bootstrap sampling)
-}
-  \item{loops}{
-  The number of bootstrapped steps
-}
-  \item{model.formula}{
-  The formula to be bootstrapped and validated. It has to be either a COX object or a LM model.
-%%     ~~Describe \code{model.formula} here~~
-}
-  \item{Outcome}{
-  The outcome variable to which the accuracy, sensitivity and specificity will be computed.
-}
-  \item{dataframe}{
-  The training data frame 
-}
-  \item{type}{
-  The type of fit: LM", "LOGIT", "COX"
-}
-  \item{plots}{
-  Set to FALSE to avoid showing the density plots 
-}
+	\item{fraction}{
+		The fraction of data (sampled with replacement) to be used as train
+	}
+	\item{loops}{
+		The number of bootstrap loops
+	}
+	\item{model.formula}{
+		An object of class \code{formula} with the formula to be used
+	}
+	\item{Outcome}{
+		The name of the column in \code{data} that stores the variable to be predicted by the model
+	}
+	\item{data}{
+		A data frame where all variables are stored in different columns
+	}
+	\item{type}{
+		Fit type: Logistic ("LOGIT"), linear ("LM"), or Cox proportional hazards ("COX")
+	}
+	\item{plots}{
+		Logical. If \code{TRUE}, density distribution plots are displayed
+	}
 }
 \details{
-The bootstrap validation will estimate the CI of the model coefficients and the NeRI.
-It will compute the test RMSE and the train RMSE as well as the distribution of the NeRI pvalues
-%%  ~~ If necessary, more details than the description above ~~
+	The bootstrap validation will estimate the confidence interval of the model coefficients and the NeRI.
+	It will also compute the train and blind test root-mean-square error (RMSE), as well as the distribution of the NeRI \emph{p}-values.
 }
 \value{
-
-%%  If it is a LIST, use
-  \item{outcome}{A vector of the outcome}
-  \item{coefficients}{The matrix of the sampled coefficients}
-  \item{NeRis}{The matrix of each coefficient NeRI}
-  \item{tStudent.pvalues}{the t-student p value of the NeRI}
-  \item{wilcox.pvalues}{the wilcox p value of the NeRI}
-  \item{bin.pvlaues}{the binomial p value of the NeRI}
-  \item{F.pvlaues}{the F p value of the NeRI}
-  \item{test.tStudent.pvalues}{the t-student p value of the test NeRI}
-  \item{test.wilcox.pvalues}{the wilcox p value of the test NeRI}
-  \item{test.bin.pvlaues}{the binomial p value of the test NeRI}
-  \item{test.F.pvlaues}{the F p value of the test NeRI}
-  \item{testPrediction}{the predicted observations on the test set}
-  \item{testOutcome}{the true outcome of the test set}
-  \item{testResiduals}{The test residuals}
-  \item{trainPrediction}{The training predictions}
-  \item{trainOutcome}{The training outcomes}
-  \item{trainResiduals}{The training residuals}
-  \item{testRMSE}{The global test RMSE}
-  \item{trainRMSE}{The global train RMSE}
-  \item{trainSampleRSME}{The bootstrap train sample RMSE}
-  \item{testSampledRSME}{The bootstrap test sample RMSE}
-%% ...
+	\item{data}{
+		The data frame used to bootstrap and validate the model
+	}
+	\item{outcome}{
+		A vector with the predictions made by the model
+	}
+	\item{boot.model}{
+		An object of class \code{lm}, \code{glm}, or \code{coxph} containing a model whose coefficients are the median of the coefficients of the bootstrapped models
+	}
+	\item{NeRIs}{
+		A matrix with the NeRI for each model term, estimated using the bootstrap test sets
+	}
+	\item{tStudent.pvalues}{
+		A matrix with the \emph{t}-test \emph{p}-value of the NeRI for each model term, estimated using the bootstrap train sets
+	}
+	\item{wilcox.pvalues}{
+		A matrix with the Wilcoxon rank-sum test \emph{p}-value of the NeRI for each model term, estimated using the bootstrap train sets
+	}
+	\item{bin.pvlaues}{
+		A matrix with the binomial test \emph{p}-value of the NeRI for each model term, estimated using the bootstrap train sets
+	}
+	\item{F.pvlaues}{
+		A matrix with the \emph{F}-test \emph{p}-value of the NeRI for each model term, estimated using the bootstrap train sets
+	}
+	\item{test.tStudent.pvalues}{
+		A matrix with the \emph{t}-test \emph{p}-value of the NeRI for each model term, estimated using the bootstrap test sets
+	}
+	\item{test.wilcox.pvalues}{
+		A matrix with the Wilcoxon rank-sum test \emph{p}-value of the NeRI for each model term, estimated using the bootstrap test sets
+	}
+	\item{test.bin.pvlaues}{
+		A matrix with the binomial test \emph{p}-value of the NeRI for each model term, estimated using the bootstrap test sets
+	}
+	\item{test.F.pvlaues}{
+		A matrix with the \emph{F}-test \emph{p}-value of the NeRI for each model term, estimated using the bootstrap test sets
+	}
+	\item{testPrediction}{
+		A vector that contains all the individual predictions used to validate the model in the bootstrap test sets
+	}
+	\item{testOutcome}{
+		A vector that contains all the individual outcomes used to validate the model in the bootstrap test sets
+	}
+	\item{testResiduals}{
+		A vector that contains all the residuals used to validate the model in the bootstrap test sets
+	}
+	\item{trainPrediction}{
+		A vector that contains all the individual predictions used to validate the model in the bootstrap train sets
+	}
+	\item{trainOutcome}{
+		A vector that contains all the individual outcomes used to validate the model in the bootstrap train sets
+	}
+	\item{trainResiduals}{
+		A vector that contains all the residuals used to validate the model in the bootstrap train sets
+	}
+	\item{testRMSE}{
+		The global RMSE, estimated using the bootstrap test sets
+	}
+	\item{trainRMSE}{
+		The global RMSE, estimated using the bootstrap train sets
+	}
+	\item{trainSampleRMSE}{
+		A vector with the RMSEs in the bootstrap train sets
+	}
+	\item{testSampledRMSE}{
+		A vector with the RMSEs in the bootstrap test sets
+	}
 }
-%%\references{
-%% ~put references to the literature/web site here ~
-%%}
-\author{
-Jose G. Tamez-Pena
-
+\author{Jose G. Tamez-Pena and Antonio Martinez-Torteya}
+\seealso{\code{\link{bootstrapValidation},
+				 \link{plot.bootstrapValidationNeRI}}}
+\examples{
+	\dontrun{
+	# Start the graphics device driver to save all plots in a pdf format
+	pdf(file = "Example.pdf")
+	# Get the stage C prostate cancer data from the rpart package
+	library(rpart)
+	data(stagec)
+	# Split the stages into several columns
+	dataCancer <- cbind(stagec[,c(1:3,5:6)],
+	                    gleason4 = 1*(stagec[,7] == 4),
+	                    gleason5 = 1*(stagec[,7] == 5),
+	                    gleason6 = 1*(stagec[,7] == 6),
+	                    gleason7 = 1*(stagec[,7] == 7),
+	                    gleason8 = 1*(stagec[,7] == 8),
+	                    gleason910 = 1*(stagec[,7] >= 9),
+	                    eet = 1*(stagec[,4] == 2),
+	                    diploid = 1*(stagec[,8] == "diploid"),
+	                    tetraploid = 1*(stagec[,8] == "tetraploid"),
+	                    notAneuploid = 1-1*(stagec[,8] == "aneuploid"))
+	# Remove the incomplete cases
+	dataCancer <- dataCancer[complete.cases(dataCancer),]
+	# Load a pre-stablished data frame with the names and descriptions of all variables
+	data(cancerVarNames)
+	# Get a Cox proportional hazards model using:
+	# - 10 bootstrap loops
+	# - Age as a covariate
+	# - The Wilcoxon rank-sum test as the feature inclusion criterion
+	cancerModel <- NeRIBasedFRESA.Model(loops = 10,
+	                                    covariates = "1 + age",
+	                                    Outcome = "pgstat",
+	                                    variableList = cancerVarNames,
+	                                    data = dataCancer,
+	                                    type = "COX",
+	                                    testType= "Wilcox",
+	                                    timeOutcome = "pgtime")
+	# Validate the previous model:
+	# - Using 50 bootstrap loops
+	bootCancerModel <- bootstrapValidationNeRI(loops = 50,
+	                                           model.formula = cancerModel$formula,
+	                                           Outcome = "pgstat",
+	                                           data = dataCancer,
+	                                           type = "COX")
+	# Shut down the graphics device driver
+	dev.off()}
 }
-%%\note{
-%%  ~~further notes~~
-%%}
-
-%% ~Make other sections like Warning with \section{Warning }{....} ~
-
-%%\seealso{
-%% ~~objects to See Also as \code{\link{help}}, ~~~
-%%}
-
-%%\examples{
-%%##---- Should be DIRECTLY executable !! ----
-%%##-- ==>  Define data, use random,
-%%##--	or do  help(data=index)  for the standard data sets.
-%%
-%%}
-
-% Add one or more standard keywords, see file 'KEYWORDS' in the
-% R documentation directory.
 \keyword{Model_Diagnosis}

@@ -1,155 +1,143 @@
 \name{NeRIBasedFRESA.Model}
 \alias{NeRIBasedFRESA.Model}
-%- Also NEED an '\alias' for EACH other topic documented here.
-\title{
-Net-Residual-Improvement feature selection procedure for regression models (Linear, Logistic or COX) from a set of candidate variables.  
-%%  ~~function to do ... ~~
-}
+\title{NeRI-based feature selection procedure for linear, logistic, or Cox proportional hazards regression models}
 \description{
-This function preform a Bootstrap sampling to rank the most frequent variables that 
-statistically aid the regression models to move towards a better residual. 
-After the frequency rank, the function uses a forward selection procedure to create a final linear model 
-with terms that provide a significant improvement in residuals.
-%%  ~~ A concise (1-5 lines) description of what the function does. ~~
+	This function performs a bootstrap sampling to rank the most frequent variables that statistically aid the models by minimizing the residuals.
+	After the frequency rank, the function uses a forward selection procedure to create a final model, whose terms all have a significant contribution to the net residual improvement (NeRI).
 }
 \usage{
-NeRIBasedFRESA.Model(size = 100, 
-fraction = 1, 
-pvalue = 0.05, 
-loops = 100, 
-covariates = "1", 
-Outcome, 
-variableList, 
-dataframe, 
-maxTrainModelSize = 10, 
-type = c("LM", "LOGIT", "COX"), 
-testType=c("Binomial","Wilcox","tStudent","Ftest"),
-timeOutcome = "Time",
-loop.threshold=20,
-interaction = 1)
+	NeRIBasedFRESA.Model(size = 100, 
+	                     fraction = 1, 
+	                     pvalue = 0.05, 
+	                     loops = 100, 
+	                     covariates = "1", 
+	                     Outcome, 
+	                     variableList, 
+	                     data, 
+	                     maxTrainModelSize = 10, 
+	                     type = c("LM", "LOGIT", "COX"), 
+	                     testType=c("Binomial", "Wilcox", "tStudent", "Ftest"),
+	                     timeOutcome = "Time",
+	                     loop.threshold = 20,
+	                     interaction = 1,
+	                     cores = 4)
 }
-
-%- maybe also 'usage' for other objects documented here.
 \arguments{
-  \item{size}{
-  The number of candidate variables to be tested.
-
+	\item{size}{
+		The number of candidate variables to be tested (the first \code{size} variables from \code{variableList})
+	}
+	\item{fraction}{
+		The fraction of data (sampled with replacement) to be used as train
+	}
+	\item{pvalue}{
+		The maximum \emph{p}-value, associated to the NeRI, allowed for a term in the model (controls the false selection rate)
+	}
+	\item{loops}{
+		The number of bootstrap loops
+	}
+	\item{covariates}{
+		A string of the type "1 + var1 + var2" that defines which variables will always be included in the models (as covariates)
+	}
+	\item{Outcome}{
+		The name of the column in \code{data} that stores the variable to be predicted by the model
+	}
+	\item{variableList}{
+		A data frame with two columns. The first one must have the names of the candidate variables and the other one the description of such variables
+	}
+	\item{data}{
+		A data frame where all variables are stored in different columns
+	}
+	\item{maxTrainModelSize}{
+		Maximum number of terms that can be included in the model
+	}
+	\item{type}{
+		Fit type: Logistic ("LOGIT"), linear ("LM"), or Cox proportional hazards ("COX")
+	}
+	\item{testType}{
+		Type of non-parametric test to be evaluated by the \code{improvedResiduals} function: Binomial test ("Binomial"), Wilcoxon rank-sum test ("Wilcox"), Student's \emph{t}-test ("tStudent"), or \emph{F}-test ("Ftest")
+	}
+	\item{timeOutcome}{
+		The name of the column in \code{data} that stores the time to event (needed only for a Cox proportional hazards regression model fitting)
+	}
+	\item{loop.threshold}{
+		After \code{loop.threshold} cycles, only variables that have already been selected in previous cycles will be candidates to be selected in posterior cycles
+	}
+	\item{interaction}{
+		Set to either 1 for first order models, or to 2 for second order models
+	}
+	\item{cores}{
+		Cores to be used for parallel processing
+	}
 }
-  \item{fraction}{
-  The fraction of samples (with replacement) to be used for training and blind test.
-
-}
-  \item{pvalue}{
-  The critical p.value to control the false selection rate (FSR) 
-}
-  \item{loops}{
-  The number of bootstraps steps to be performed. 
-
-}
-  \item{covariates}{
-  A string of variables that will be included in the models
-
-}
-  \item{Outcome}{
-  The name of the outcome variable
-%%     ~~Describe \code{Outcome} here~~
-}
-  \item{variableList}{
-  A list with the name of the candidate variables to be tested. 
-
-}
-  \item{dataframe}{
-  The training data frame whose column include the outcome, the covariates and the variable list. The dataframe rows have all the subject samples
-
-}
-  \item{maxTrainModelSize}{
-  The maximum size of the model
-
-}
-  \item{type}{
-  The type of fitting (LOGIT,LM, COX): LOGIT: Logistic, LM Linear, Or COX
-
-}
-  \item{testType}{
-  The pvalue that will be returned by the improved residuals function
-}
-  \item{timeOutcome}{
-  The name of the time to event variable required for COX fitting.
-
-}
-  \item{loop.threshold}{
-  The loop.threshold indicates how many bootstrapping cycles will be performed before using the
-  selection frequency to filter for candidate features to be included in the model. 
-  If the selection frequency of a feature is less than 1/(2*loop.threshold), then it will be removed from the variable search list
-}
-  \item{interaction}{
-  the order of the linear model. Default = 1. Max =2. If set to 2, it will automatically search for pair-wise feature interactions.
-}
-}
-
-%%\details{
-%%  ~~ If necessary, more details than the description above ~~
-%%}
-
 \value{
-%%  If it is a LIST, use
-  \item{final.model}{The final model after forward selection}
-  \item{var.names}{The list of features that were included in the model}
-  \item{formula}{The model formula}
-  \item{ranked.var}{The table that contains the feature frequency}
-  \item{z.iri}{A vector with the z-value of the residual improvement of each included feature}
-  \item{formulas.list}{The list of formulas that were created after each bootstrap cycle}
-%% ...
+	\item{final.model}{
+		An object of class \code{lm}, \code{glm}, or \code{coxph} containing the final model
+	}
+	\item{var.names}{
+		A vector with the names of the features that were included in the final model
+	}
+	\item{formula}{
+		An object of class \code{formula} with the formula used to fit the final model
+	}
+	\item{ranked.var}{
+		An array with the ranked frequencies of the features
+	}
+	\item{z.NeRIs}{
+		A vector in which each element represents the \emph{z}-score of the NeRI, associated to the \code{testType}, for each feature found in the final model
+	}
+	\item{formula.list}{
+		A list containing objects of class \code{formula} with the formulas used to fit the models found at each cycle
+	}
 }
-
-%%\references{
-%% ~put references to the literature/web site here ~
-%%}
-
-\author{
-Jose G. Tamez-Pena
-
-}
-
-%%\note{
-%%  ~~further notes~~
-%%}
-
-%% ~Make other sections like Warning with \section{Warning }{....} ~
-
-%%\seealso{
-%% ~~objects to See Also as \code{\link{help}}, ~~~
-%%}
-
+\author{Jose G. Tamez-Pena and Antonio Martinez-Torteya}
+\seealso{\code{\link{ReclassificationFRESA.Model}}}
 \examples{
-## Get the stage C prostate cancer data
-
-require(rpart)
-data(stagec)
-## Split the stages into several columns
-dataCancer <- cbind(stagec[,1:3],stagec[,5:6],1*(stagec[,7] == 4),
-1*(stagec[,7] == 5),1*(stagec[,7] == 6),1*(stagec[,7] == 7),
-1*(stagec[,7] == 8),1*(stagec[,7] >= 9),1*(stagec[,4] == 2),
-1*(stagec[,8]=='diploid'),1*(stagec[,8]=='tetraploid'),1-1*(stagec[,8]=='aneuploid'))
-## Assign the column names
-colnames(dataCancer) <- c("pgtime","pgstat","age","g2","Grade",
-"gleason4","gleason5","gleason6","gleason7","gleason8",
-"gleason910","eet","diploid","tetraploid","Notaneuploid")
-## Lets remove the incomplete cases
-dataCancer <- dataCancer[complete.cases(dataCancer),]
-## Load the list of variables to be searched
-data(CancerVarNames)
-\dontrun{
-## Rank the COX model variables according to the IDI
-rankedCancer <- univariateRankVariables(CancerVarNames,"Surv(pgtime,pgstat) ~ 1",
- "pgstat",dataCancer,"Raw","COX","zIDI",description="Description");
-## Get the bootstrapped model that reduces the  Martingale  residuals of the prognosis
-CancerModel <- NeRIBasedFRESA.Model(20,1.0,0.05,1,'1','pgstat',
-rankedCancer,dataCancer,type="COX",timeOutcome="pgtime")
-
+	\dontrun{
+	# Start the graphics device driver to save all plots in a pdf format
+	pdf(file = "Example.pdf")
+	# Get the stage C prostate cancer data from the rpart package
+	library(rpart)
+	data(stagec)
+	# Split the stages into several columns
+	dataCancer <- cbind(stagec[,c(1:3,5:6)],
+	                    gleason4 = 1*(stagec[,7] == 4),
+	                    gleason5 = 1*(stagec[,7] == 5),
+	                    gleason6 = 1*(stagec[,7] == 6),
+	                    gleason7 = 1*(stagec[,7] == 7),
+	                    gleason8 = 1*(stagec[,7] == 8),
+	                    gleason910 = 1*(stagec[,7] >= 9),
+	                    eet = 1*(stagec[,4] == 2),
+	                    diploid = 1*(stagec[,8] == "diploid"),
+	                    tetraploid = 1*(stagec[,8] == "tetraploid"),
+	                    notAneuploid = 1-1*(stagec[,8] == "aneuploid"))
+	# Remove the incomplete cases
+	dataCancer <- dataCancer[complete.cases(dataCancer),]
+	# Load a pre-stablished data frame with the names and descriptions of all variables
+	data(cancerVarNames)
+	# Rank the variables:
+	# - Analyzing the raw data
+	# - Using a Cox proportional hazards fitting
+	# - According to the NeRI
+	rankedDataCancer <- univariateRankVariables(variableList = cancerVarNames,
+	                                            formula = "Surv(pgtime, pgstat) ~ 1",
+	                                            Outcome = "pgstat",
+	                                            data = dataCancer,
+	                                            categorizationType = "Raw",
+	                                            type = "COX",
+	                                            rankingTest = "NeRI",
+	                                            description = "Description")
+	# Get a Cox proportional hazards model using:
+	# - 10 bootstrap loops
+	# - The ranked variables
+	# - The Wilcoxon rank-sum test as the feature inclusion criterion
+	cancerModel <- NeRIBasedFRESA.Model(loops = 10,
+	                                    Outcome = "pgstat",
+	                                    variableList = rankedDataCancer,
+	                                    data = dataCancer,
+	                                    type = "COX",
+	                                    testType= "Wilcox",
+	                                    timeOutcome = "pgtime")
+	# Shut down the graphics device driver
+	dev.off()}
 }
-
-}
-% Add one or more standard keywords, see file 'KEYWORDS' in the
-% R documentation directory.
 \keyword{Model_Generation}

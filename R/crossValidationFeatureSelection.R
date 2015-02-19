@@ -1,24 +1,20 @@
 crossValidationFeatureSelection <-
-function(size=10,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,variableList,dataframe,maxTrainModelSize=10,type=c("LM","LOGIT","COX"),timeOutcome="Time",selectionType=c("zIDI","zNRI"),loop.threshold=10,startOffset=0,backBootLoops=25,trainFraction=0.67,trainRepetition=9,elimination.pValue=0.05,CVfolds=10,bootEstimations=25,interaction=c(1,1),nk=0)
+function(size=10,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,timeOutcome="Time",variableList,data,maxTrainModelSize=10,type=c("LM","LOGIT","COX"),selectionType=c("zIDI","zNRI"),loop.threshold=10,startOffset=0,elimination.bootstrap.steps=25,trainFraction=0.67,trainRepetition=9,elimination.pValue=0.05,CVfolds=10,bootstrap.steps=25,interaction=c(1,1),nk=0,unirank=NULL,print=TRUE,plots=TRUE)
 {
 
+if (!requireNamespace("cvTools", quietly = TRUE)) {
+   install.packages("cvTools", dependencies = TRUE)
+} 
 
-if (!require(cvTools)) {
- cvFolds <- function(...) {}
-  install.packages("cvTools", dependencies = TRUE)
-  library(cvTools)
-}
+if (!requireNamespace("glmnet", quietly = TRUE)) {
+   install.packages("glmnet", dependencies = TRUE)
+} 
 
-if (!require(glmnet)) {
- cv.glmnet <- function (...) {}
-  install.packages("glmnet", dependencies = TRUE)
-  library(glmnet)
-}
 
 	enetSamples <- NULL;
 
-	casesample = subset(dataframe,get(Outcome)  == 1);
-	controlsample = subset(dataframe,get(Outcome) == 0);
+	casesample = subset(data,get(Outcome)  == 1);
+	controlsample = subset(data,get(Outcome) == 0);
 
 	casesamplesize <- nrow(casesample);
 
@@ -85,8 +81,8 @@ if (!require(glmnet)) {
 				,"\\*"))[1]," ",""))
 	}
 	shortVarList <- as.vector(rownames(table(varlist)))
-	print(shortVarList)
-	fullenet <- try(cv.glmnet(as.matrix(dataframe[,shortVarList]),as.vector(dataframe[,Outcome]),family="binomial"));
+#	print(shortVarList)
+	fullenet <- try(glmnet::cv.glmnet(as.matrix(data[,shortVarList]),as.vector(data[,Outcome]),family="binomial"));
 	if (inherits(fullenet, "try-error"))
 	{
 		cat("enet Error")
@@ -101,7 +97,7 @@ if (!require(glmnet)) {
 
 	
 	
-	CurModel_Full <- ReclassificationFRESA.Model(size=size,fraction=fraction,pvalue=CVselection.pValue,loops=loops,covariates=covariates,Outcome=Outcome,variableList=variableList,dataframe=dataframe,maxTrainModelSize=maxTrainModelSize,type=type,timeOutcome=timeOutcome,selectionType=selectionType,loop.threshold=loop.threshold,interaction=mOrderSel)
+	CurModel_Full <- ReclassificationFRESA.Model(size=size,fraction=fraction,pvalue=CVselection.pValue,loops=loops,covariates=covariates,Outcome=Outcome,variableList=variableList,data=data,maxTrainModelSize=maxTrainModelSize,type=type,timeOutcome=timeOutcome,selectionType=selectionType,loop.threshold=loop.threshold,interaction=mOrderSel)
 	if (length(CurModel_Full$var.names)==0)
 	{
 		stop("no initial model found\n");
@@ -109,27 +105,29 @@ if (!require(glmnet)) {
 
 	if (loops>1)
 	{
-		UCurModel_Full <- updateModel(Outcome=Outcome,covariates=covariates,pvalue=CVupdate.pValue,VarFrequencyTable=CurModel_Full$ranked.var,variableListNames=variableList,dataframe=dataframe,type=type,lastTopVariable= 0,timeOutcome=timeOutcome,selectionType=selectionType,interaction=mOrderUpdate,numberOfModels=1)
+		UCurModel_Full <- updateModel(Outcome=Outcome,covariates=covariates,pvalue=CVupdate.pValue,VarFrequencyTable=CurModel_Full$ranked.var,variableList=variableList,data=data,type=type,lastTopVariable= 0,timeOutcome=timeOutcome,selectionType=selectionType,interaction=mOrderUpdate,numberOfModels=1)
 	}
 	else
 	{
 		UCurModel_Full <- CurModel_Full;
 	}
-	if (backBootLoops>1)
+	if (elimination.bootstrap.steps>1)
 	{
-		redCurmodel_Full <- bootstrapVarElimination(object=UCurModel_Full$final.model,pvalue=CVelimination.pValue,Outcome=Outcome,data=dataframe,startOffset=startOffset,type=type,selectionType=selectionType,bootLoops=backBootLoops,bootFraction=fraction);
+		redCurmodel_Full <- bootstrapVarElimination(object=UCurModel_Full$final.model,pvalue=CVelimination.pValue,Outcome=Outcome,data=data,startOffset=startOffset,type=type,selectionType=selectionType,loops=elimination.bootstrap.steps,fraction=fraction,print=print,plots=plots);
 	}
 	else
 	{
 		
-		redCurmodel_Full <- backVarElimination(object=UCurModel_Full$final.model,pvalue=CVelimination.pValue,Outcome=Outcome,data=dataframe,startOffset=startOffset,type=type,selectionType=selectionType);
+		redCurmodel_Full <- backVarElimination(object=UCurModel_Full$final.model,pvalue=CVelimination.pValue,Outcome=Outcome,data=data,startOffset=startOffset,type=type,selectionType=selectionType);
 	}
 	
-	full_formula <- formula(redCurmodel_Full$back.formula);
-#	cat(redCurmodel_Full$back.formula, "Reduced Formula: \n");
-#	print(redCurmodel_Full$back.model$coefficients)
-	fullBootCross <- bootstrapValidation(1.0,4*bootEstimations,full_formula,Outcome,dataframe,type,plots=FALSE)
-	summary(fullBootCross,2)
+	full_formula <- redCurmodel_Full$back.formula;
+	fullBootCross <- bootstrapValidation(1.0,bootstrap.steps,full_formula,Outcome,data,type,plots=plots)
+	if (is.null(fullBootCross))
+	{
+		stop("no initial model found\n");
+	}
+	if (print) summary(fullBootCross,2)
 
 	inserted = 0;
 	rocadded = 0;
@@ -143,6 +141,7 @@ if (!require(glmnet)) {
 	fullsammples <- min(casesamplesize,controlsamplesize);
 	if ( K > fullsammples) K=fullsammples
 	cat("Number of folds: ",K,"\n");
+	specificities <- c(0.975,0.95,0.90,0.80,0.70,0.60,0.50,0.40,0.30,0.20,0.10,0.05);
 
 
 	for (i in 1:trainRepetition)
@@ -150,8 +149,10 @@ if (!require(glmnet)) {
 		j <- 1 + ((i-1) %% K)
 		if ( j == 1)
 		{
-			casefolds <- cvFolds(casesamplesize, K, type = "random");
-			controlfolds <- cvFolds(controlsamplesize, K, type = "random");
+#			casefolds <- cvTools::cvFolds(casesamplesize, K, type = "random");
+#			controlfolds <- cvTools::cvFolds(controlsamplesize, K, type = "random");
+			casefolds <- cvTools::cvFolds(casesamplesize, K,1,  "random");
+			controlfolds <- cvTools::cvFolds(controlsamplesize, K,1,  "random");
 		}
 
 		CaseTrainSet <- casesample[casefolds$subsets[casefolds$which != j,],];
@@ -161,12 +162,53 @@ if (!require(glmnet)) {
 
 		TrainSet <- rbind(CaseTrainSet,ControlTrainSet);
 		BlindSet <- rbind(CaseBlindSet,ControlBlindSet);
-		
+		minTrainSamples <- min(nrow(CaseTrainSet),nrow(ControlTrainSet));
 
+		if (nk==0)
+		{
+			nk = 2*as.integer(sqrt(minTrainSamples/2)) + 1;
+		}
+			
+
+		KnnTrainSet <- rbind(CaseTrainSet[sample(1:nrow(CaseTrainSet),minTrainSamples,replace=FALSE),],ControlTrainSet[sample(1:nrow(ControlTrainSet),minTrainSamples,replace=FALSE),])
+		
+		par(mfrow=c(1,1))
+
+		redBootCross <- bootstrapValidation(1.0,bootstrap.steps,full_formula,Outcome,TrainSet,type,plots=plots)
+		par(mfrow=c(1,1))
+
+#		print(summary(redBootCross$boot.model))
+		full.p <- predictForFresa(redBootCross$boot.model,BlindSet, 'prob');
+		Fullknnclass <- getKNNpredictionFromFormula(redCurmodel_Full$back.formula,KnnTrainSet,BlindSet,Outcome,nk)
+
+
+		if (!is.null(unirank))
+		{
+#			cat("Ranking Again \n");
+			variableList <- update.uniRankVar(unirank,data=TrainSet,fullAnalysis=FALSE)$orderframe;
+			shortVarList <- as.vector(variableList[1:size,1]);
+			varlist <- vector();
+			for (nn in 1:length(shortVarList))
+			{
+				varlist <- append(varlist,str_replace_all(unlist(strsplit(
+								str_replace_all(
+									str_replace_all(
+										str_replace_all(
+											str_replace_all(shortVarList[nn],"I\\("," ")
+										,"\\("," ")
+									,">","\\*")
+								,"<","\\*")
+						,"\\*"))[1]," ",""))
+			}
+			shortVarList <- as.vector(rownames(table(varlist)))
+		}
+		
+		
+		
 		if (!is.null(fullenet))
 		{
 #			cat("In elastic Net\n")
-			foldenet <- try(cv.glmnet(as.matrix(TrainSet[,shortVarList]),as.vector(TrainSet[,Outcome]),family="binomial"));
+			foldenet <- try(glmnet::cv.glmnet(as.matrix(TrainSet[,shortVarList]),as.vector(TrainSet[,Outcome]),family="binomial"));
 			cenet <- as.matrix(coef(foldenet))
 			enetVariables[[i+1]] <- names(cenet[as.vector(cenet[,1]>0),])
 			if (i == 1)
@@ -181,66 +223,48 @@ if (!require(glmnet)) {
 		}
 
 
-		minTrainSamples <- min(nrow(CaseTrainSet),nrow(ControlTrainSet));
-
-		if (nk==0)
-		{
-			nk = 2*as.integer(sqrt(minTrainSamples/2)) + 1;
-		}
-			
-
-		KnnTrainSet <- rbind(CaseTrainSet[sample(1:nrow(CaseTrainSet),minTrainSamples,replace=FALSE),],ControlTrainSet[sample(1:nrow(ControlTrainSet),minTrainSamples,replace=FALSE),])
 
 
-		cat ("Loop :",i,"Input Cases =",sum(dataframe[,Outcome] > 0 ),"Input Control =",sum(dataframe[,Outcome] == 0),"\n")
+		cat ("Loop :",i,"Input Cases =",sum(data[,Outcome] > 0 ),"Input Control =",sum(data[,Outcome] == 0),"\n")
 		cat ("Loop :",i,"Train Cases =",sum(TrainSet[,Outcome] > 0 ),"Train Control =",sum(TrainSet[,Outcome] == 0),"\n")
 		cat ("Loop :",i,"Blind Cases =",sum(BlindSet[,Outcome] > 0 ),"Blind Control =",sum(BlindSet[,Outcome] == 0),"\n")
 		cat ("K   :",nk,"KNN T Cases =",sum(KnnTrainSet[,Outcome] > 0 ),"KNN T Control =",sum(KnnTrainSet[,Outcome] == 0),"\n")
 
-		par(mfrow=c(1,1))
-
-		CurModel_S <- ReclassificationFRESA.Model(size=size,fraction=fraction,pvalue=selection.pValue,loops=loops,covariates=covariates,Outcome=Outcome,variableList=variableList,dataframe=TrainSet,maxTrainModelSize=maxTrainModelSize,type=type,timeOutcome=timeOutcome,selectionType=selectionType,loop.threshold=loop.threshold,interaction=mOrderSel)
+		CurModel_S <- ReclassificationFRESA.Model(size=size,fraction=fraction,pvalue=selection.pValue,loops=loops,covariates=covariates,Outcome=Outcome,variableList=variableList,data=TrainSet,maxTrainModelSize=maxTrainModelSize,type=type,timeOutcome=timeOutcome,selectionType=selectionType,loop.threshold=loop.threshold,interaction=mOrderSel)
 		if (length(CurModel_S$var.names)>0)
 		{
 			if (loops>1)
 			{
-				UCurModel_S <- updateModel(Outcome=Outcome,covariates=covariates,pvalue=update.pValue,VarFrequencyTable=CurModel_S$ranked.var,variableListNames=variableList,dataframe=TrainSet,type=type,lastTopVariable= 0,timeOutcome=timeOutcome,selectionType=selectionType,interaction=mOrderUpdate,numberOfModels=1)
+				UCurModel_S <- updateModel(Outcome=Outcome,covariates=covariates,pvalue=update.pValue,VarFrequencyTable=CurModel_S$ranked.var,variableList=variableList,data=TrainSet,type=type,lastTopVariable= 0,timeOutcome=timeOutcome,selectionType=selectionType,interaction=mOrderUpdate,numberOfModels=1)
 			}
 			else
 			{
 				UCurModel_S <- CurModel_S;
 			}
-			if (backBootLoops > 1)
+			if (elimination.bootstrap.steps > 1)
 			{
-				redCurmodel_S <- bootstrapVarElimination(object=UCurModel_S$final.model,pvalue=elimination.pValue,Outcome=Outcome,data=TrainSet,startOffset=startOffset,type=type,selectionType=selectionType,bootLoops=backBootLoops,bootFraction=fraction);	
-				cat ("\n Back Elim bootstrapped model")
-				print(summary(redCurmodel_S$bootCV$boot.model))
+				redCurmodel_S <- bootstrapVarElimination(object=UCurModel_S$final.model,pvalue=elimination.pValue,Outcome=Outcome,data=TrainSet,startOffset=startOffset,type=type,selectionType=selectionType,loops=elimination.bootstrap.steps,fraction=fraction,print=print,plots=plots);	
+				redBootCross_S <- redCurmodel_S$bootCV;
 			}
 			else
 			{
 				redCurmodel_S <- backVarElimination(object=UCurModel_S$final.model,pvalue=elimination.pValue,Outcome=Outcome,data=TrainSet,startOffset=startOffset,type=type,selectionType=selectionType);
+				redBootCross_S <- bootstrapValidation(1.0,bootstrap.steps,redCurmodel_S$back.formula,Outcome,TrainSet,type,plots=plots)
+				par(mfrow=c(1,1))
 			}
 			 
-			redBootCross <- bootstrapValidation(1.0,bootEstimations,full_formula,Outcome,TrainSet,type,plots=FALSE)
-			par(mfrow=c(1,1))
-			redBootCross_S <- bootstrapValidation(1.0,bootEstimations,formula(redCurmodel_S$back.formula),Outcome,TrainSet,type,plots=FALSE)
-			par(mfrow=c(1,1))
 
 			cat ("\n The last CV bootstrapped model")
-			sm_S <- summary(redBootCross_S,2)
-			cat ("\n The Full bootStrapped model")
-			sm_F <- summary(redBootCross,2)
-			cat ("\n \n")
+			if (print) s <- summary(redBootCross_S,2)
 
 			if (redCurmodel_S$lastRemoved >= 0)
 			{
-				knnclass <- getKNNpredictionFromFormula(formula(redCurmodel_S$back.formula),KnnTrainSet,BlindSet,Outcome,nk)
-				Fullknnclass <- getKNNpredictionFromFormula(formula(redCurmodel_Full$back.formula),KnnTrainSet,BlindSet,Outcome,nk)
+#				print(summary(redCurmodel_S$back.model))
+				p <- predictForFresa(redBootCross_S$boot.model,BlindSet, 'prob');
+				knnclass <- getKNNpredictionFromFormula(redCurmodel_S$back.formula,KnnTrainSet,BlindSet,Outcome,nk)
+				
 								
 				inserted = inserted + 1
-
-				p <- predictForFresa(redBootCross_S$boot.model,newdata=BlindSet,type = 'prob');
-				full.p <- predictForFresa(redBootCross$boot.model,newdata=BlindSet,type = 'prob');
 
 				tcor <- cor.test(p, full.p, method = "spearman",na.action=na.omit,exact=FALSE)$estimate
 				trainCorrelations <- append(trainCorrelations,tcor);
@@ -254,7 +278,7 @@ if (!require(glmnet)) {
 
 				if ((sum(BlindSet[,Outcome]>0) > 3) && (sum(BlindSet[,Outcome]==0) > 3))
 				{
-					splitRoc <- roc(BlindSet[,Outcome], p,plot=FALSE,ci=TRUE,auc=TRUE,of='se',specificities=c(0.95,0.90,0.80,0.70,0.60,0.50,0.40,0.30,0.20,0.10,0.05),boot.n=100,smooth=FALSE)$ci[,2]
+					splitRoc <- pROC::roc(BlindSet[,Outcome], p,plot=FALSE,ci=TRUE,auc=TRUE,of='se',specificities=specificities,boot.n=100,smooth=FALSE)$ci[,2]
 					if (rocadded == 0)
 					{
 						split.blindSen <- splitRoc;
@@ -265,20 +289,6 @@ if (!require(glmnet)) {
 					}
 					rocadded = rocadded + 1;
 				}
-				if (nrow(BlindSet)>30)
-				{
-					blindBootCross <- bootstrapValidation(1.0,bootEstimations,full_formula,Outcome,BlindSet,type,plots=FALSE)
-					if (inserted == 1)
-					{
-						blindreboot <- cbind(blindBootCross$blind.test.outcome,blindBootCross$blind.test.prediction,i)
-					}
-					else
-					{
-						blindreboot <- rbind(blindreboot,cbind(blindBootCross$blind.test.outcome,blindBootCross$blind.test.prediction,i))
-					}
-					rm(blindBootCross);
-				}
-				
 				
 				totsize <- totsize + framesize;
 				scase <- sum(BlindSet[,Outcome] == 1);
@@ -346,7 +356,7 @@ if (!require(glmnet)) {
 					full.kmmSamples <- rbind(full.kmmSamples,px);
 				}
 				
-				formulas <- append(formulas,redCurmodel_S$back.formula);
+				formulas <- append(formulas,as.character(redCurmodel_S$back.formula));
 				knnACC <- sum(kmmSamples[,1] == (kmmSamples[,2]>0.5))/totsize;
 				knnSEN <- sum((kmmSamples[,1]>0.5) & (kmmSamples[,2]>0.5))/sizecases;
 				knnSPE <- sum((kmmSamples[,1]<0.5) & (kmmSamples[,2]<0.5))/sizecontrol;
@@ -381,43 +391,6 @@ if (!require(glmnet)) {
 	{
 		stop("No Significant Models Found\n");
 	}
-	casefolds <- cvFolds(casesamplesize, CVfolds, type = "random");
-	controlfolds <- cvFolds(controlsamplesize, CVfolds, type = "random");
-	for (i in 1:CVfolds)
-	{
-
-		CaseTrainSet <- casesample[casefolds$subsets[casefolds$which != i,],];
-		CaseBlindSet <- casesample[casefolds$subsets[casefolds$which == i,],];
-		ControlTrainSet <- controlsample[controlfolds$subsets[controlfolds$which != i,],];
-		ControlBlindSet <- controlsample[controlfolds$subsets[controlfolds$which == i,],];
-
-		TrainSet <- rbind(CaseTrainSet,ControlTrainSet);
-		BlindSet <- rbind(CaseBlindSet,ControlBlindSet);
-		for (n in 1:trainRepetition)
-		{
-			m = (i-1)*trainRepetition + n
-			if (n <= length(formulas))
-			{
-#				cat(formulas[n],"\n")
-				trainmodel <- modelFitting(formula(formulas[n]),TrainSet,type)
-				if ( !inherits(trainmodel, "try-error"))
-				{
-					plog <- predictForFresa(trainmodel,newdata=BlindSet,type = 'prob');
-					if (m == 1)
-					{
-						CVblindtotSamples <- cbind(BlindSet[,Outcome],plog,n);
-					}
-					else
-					{
-						px <- cbind(BlindSet[,Outcome],plog,n);
-						CVblindtotSamples <- rbind(CVblindtotSamples,px);
-					}
-				}
-			}
-		}
-	}
-	colnames(CVblindtotSamples) <- c("Outcome","Blind_Prediction","Model");
-	CVblindtotSamples <- as.data.frame(CVblindtotSamples);
 	colnames(totSamples) <- c("Outcome","Blind_Prediction","Model");
 	totSamples <- as.data.frame(totSamples);
 	colnames(full.totSamples) <- c("Outcome","Blind_Prediction","Model");
@@ -435,60 +408,25 @@ if (!require(glmnet)) {
 		enetSamples <- as.data.frame(enetSamples);
 	}
 
-	print(enetVariables)
 	
-	blindSen <- NULL
 	
 	plotModels.ROC(totSamples);
-	if (!is.null(blindreboot))
-	{
-		colnames(blindreboot) <- c("Outcome","Blind_Prediction","Model");
-		blindreboot <- as.data.frame(blindreboot);
-		plotModels.ROC(blindreboot);
-	}
 	par(mfrow=c(1,1))
 	incBsen=0
-	for (n in 1:trainRepetition)
-	{
-		blindmodel <- CVblindtotSamples[which(CVblindtotSamples$Model == n),];
-		if (nrow(blindmodel)>10)
-		{
-			roc(blindmodel[,"Outcome"],blindmodel[,"Blind_Prediction"],plot=TRUE,col="lightgrey",lty=3,lwd=1)
-			sen <- roc(blindmodel[,"Outcome"],blindmodel[,"Blind_Prediction"],auc=TRUE,plot=FALSE,ci=TRUE,of='se',specificities=c(0.95,0.90,0.80,0.70,0.60,0.50,0.40,0.30,0.20,0.10,0.05),boot.n=100,smooth=FALSE)$ci[,2]
-			par(new=TRUE)
-			if (n == 1) 
-			{
-				blindSen <- sen;
-				incBsen=1;
-			}
-			else
-			{
-				blindSen <- rbind(sen,blindSen);
-				incBsen=incBsen+1;
-			}
-		}
-	}
-	if ((!is.null(blindSen)) && (incBsen > 2))
-	{
-		boxplot(blindSen,add=TRUE, axes = FALSE,boxwex=0.05,at=c(0.95,0.90,0.80,0.70,0.60,0.50,0.40,0.30,0.20,0.10,0.05));
-		par(new=TRUE);
-	}
-	aucBlindTest <- roc(totSamples[,1],totSamples[,2],col="red",auc=TRUE,plot=TRUE,smooth=FALSE,lty=3)$auc
+	aucBlindTest <- pROC::roc(totSamples[,1],totSamples[,2],col="red",auc=TRUE,plot=TRUE,smooth=FALSE,lty=3)$auc
 	par(new=TRUE)
-	aucRetrainCV <- roc( CVblindtotSamples[,1],CVblindtotSamples[,2],col="orange",plot=TRUE,auc=TRUE,smooth=FALSE,lty=2)$auc;        
+	aucCVBlind <- pROC::roc(full.totSamples[,1],full.totSamples[,2],col="blue",auc=TRUE,plot=TRUE,ci=TRUE,smooth=FALSE)$auc
 	par(new=TRUE)
-	aucCVBlind <- roc(full.totSamples[,1],full.totSamples[,2],col="blue",auc=TRUE,plot=TRUE,ci=TRUE,smooth=FALSE)$auc
+	aucTrain <- pROC::roc( fullBootCross$outcome, fullBootCross$boot.model$linear.predictors,col="green",plot=TRUE,auc=TRUE,smooth=FALSE)$auc;        
 	par(new=TRUE)
-	aucTrain <- roc( fullBootCross$bin.Outcome, fullBootCross$boot.model$linear.predictors,col="green",plot=TRUE,auc=TRUE,smooth=FALSE)$auc;        
-	par(new=TRUE)
-	aucBoot <- roc( fullBootCross$blind.test.outcome, fullBootCross$blind.test.prediction,col="black",auc=TRUE,plot=TRUE,smooth=FALSE)$auc;
+	aucBoot <- pROC::roc( fullBootCross$testOutcome, fullBootCross$testPrediction,col="black",auc=TRUE,plot=TRUE,smooth=FALSE)$auc;
 	ley.names <- c(paste("Bootstrapped: Train Model ROC (",sprintf("%.3f",aucTrain),")"),paste("Bootstrapped: Blind ROC (",sprintf("%.3f",aucBoot),")"),
-	paste("CV: Blind ROC (",sprintf("%.3f",aucCVBlind),")"),paste("CV: Blind Fold Models Coherence (",sprintf("%.3f",aucBlindTest),")"),
-	paste("CV: Models Coherence (",sprintf("%.3f",aucRetrainCV),")"))
-	ley.colors <- c("green","black","blue","red","orange")
-	ley.lty <- c(1,1,1,3,2)
+	paste("CV: Blind ROC (",sprintf("%.3f",aucCVBlind),")"),paste("CV: Blind Fold Models Coherence (",sprintf("%.3f",aucBlindTest),")"))
+	ley.colors <- c("green","black","blue","red")
+	ley.lty <- c(1,1,1,3)
 	if (rocadded>0)
 	{
+		boxplot(split.blindSen,add=TRUE, axes = FALSE,boxwex=0.04,at=specificities);
 		sumSen <- colMeans(split.blindSen,na.rm = TRUE);
 		sennames <- names(sumSen);
 		sumSen <- append(0,sumSen);
@@ -496,8 +434,6 @@ if (!require(glmnet)) {
 		sennames <- append("1",sennames);
 		sennames <- append(sennames,"0");
 		names(sumSen) <- sennames;
-		cat("Mean Sensitivities at given specificities\n")
-		print(sumSen);
 		spevalues <- as.numeric(names(sumSen));
 		lines(spevalues,sumSen,col="red",lwd=2.0);
 		auc = 0;
@@ -514,12 +450,11 @@ if (!require(glmnet)) {
 		sumSen = NA;
 	}
 	
-	legend(0.6,0.35, ley.names,col = ley.colors, lty = ley.lty,bty="n")
+	legend(0.6,0.30, legend=ley.names,col = ley.colors, lty = ley.lty,bty="n")
 	
 	result <- list(formula.list=formulas,
 	Models.testPrediction=totSamples,
 	FullModel.testPrediction=full.totSamples,
-	Models.CVtestPredictions=CVblindtotSamples,
 	TestRetrained.blindPredictions=blindreboot,
 	LastTrainedModel.bootstrapped=redCurmodel_S$bootCV,
 	Test.accuracy=paracc,
@@ -533,7 +468,6 @@ if (!require(glmnet)) {
 	AtCVFoldModelBlindAccuracies=FoldBlindAccuracy,
 	AtCVFoldModelBlindSpecificities=FoldBlindSpecificity,
 	AtCVFoldModelBlindSensitivities=FoldBlindSensitivity,
-	CVROCSensitivities = blindSen,
 	Models.CVblindMeanSensitivites=sumSen,
 	varIDISelection = CurModel_Full,
 	updateIDISelection = UCurModel_Full,

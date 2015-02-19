@@ -1,122 +1,135 @@
 \name{ReclassificationFRESA.Model}
 \alias{ReclassificationFRESA.Model}
-%- Also NEED an '\alias' for EACH other topic documented here.
-\title{
-IDI-based selection of a linear classification (Logistic or COX) model from a set of candidate variables.  
-%%  ~~function to do ... ~~
-}
+\title{IDI/NRI-based feature selection procedure for linear, logistic, and Cox proportional hazards regresion models}
 \description{
-This function preforms a bootstrap sampling to rank the variables that statistically improve predictor models using the train/test bootstrapped samples
-At each bootstrap step each variable IDI/NRI is computed and the variables with the largest statically significance IDI/NRI is added to the model.
-The procedure is repeated at each bootstrap until no more variables can be inserted.
-The variables that enter the model are counted and the next bootstrap sample is repeated for N times. 
-The frequency of variable-inclusion in the model is returned as well as a model that uses the frequency of inclusion.
-%%  ~~ A concise (1-5 lines) description of what the function does. ~~
+	This function performs a bootstrap sampling to rank the variables that statistically improve prediction.
+	After the frequency rank, the function uses a forward selection procedure to create a final model, whose terms all have a significant contribution to the integrated discrimination improvement (IDI) or the net reclassification improvement (NRI).
+	For each bootstrap, the IDI/NRI is computed and the variable with the largest statically significant IDI/NRI is added to the model.
+	The procedure is repeated at each bootstrap until no more variables can be inserted.
+	The variables that enter the model are then counted, and the same procedure is repeated for the rest of the bootstrap loops.
+	The frequency of variable-inclusion in the model is returned as well as a model that uses the frequency of inclusion.
 }
 \usage{
-ReclassificationFRESA.Model(size = 100, fraction = 1.0, pvalue = 0.05, 
-loops = 100, covariates = "1", Outcome, variableList, dataframe, 
-maxTrainModelSize = 10, type = c("LM", "LOGIT", "COX"), timeOutcome = "Time",
-selectionType=c("zIDI","zNRI"),
-loop.threshold=20,interaction=1
-)
+	ReclassificationFRESA.Model(size = 100,
+	                            fraction = 1,
+	                            pvalue = 0.05, 
+	                            loops = 100,
+	                            covariates = "1",
+	                            Outcome,
+	                            variableList,
+	                            data, 
+	                            maxTrainModelSize = 10,
+	                            type = c("LM", "LOGIT", "COX"),
+	                            timeOutcome = "Time",
+	                            selectionType=c("zIDI", "zNRI"),
+	                            loop.threshold = 20,
+	                            interaction = 1,
+	                            cores = 4)
 }
-%- maybe also 'usage' for other objects documented here.
 \arguments{
-  \item{size}{
-  The number of candidate variables to be tested.
-
+	\item{size}{
+		The number of candidate variables to be tested (the first \code{size} variables from \code{variableList})
+	}
+	\item{fraction}{
+		The fraction of data (sampled with replacement) to be used as train
+	}
+	\item{pvalue}{
+		The maximum \emph{p}-value, associated to either IDI or NRI, allowed for a term in the model
+	}
+	\item{loops}{
+		The number of bootstrap loops
+	}
+	\item{covariates}{
+		A string of the type "1 + var1 + var2" that defines which variables will always be included in the models (as covariates)
+	}
+	\item{Outcome}{
+		The name of the column in \code{data} that stores the variable to be predicted by the model
+	}
+	\item{variableList}{
+		A data frame with two columns. The first one must have the names of the candidate variables and the other one the description of such variables
+	}
+	\item{data}{
+		A data frame where all variables are stored in different columns
+	}
+	\item{maxTrainModelSize}{
+		Maximum number of terms that can be included in the model
+	}
+	\item{type}{
+		Fit type: Logistic ("LOGIT"), linear ("LM"), or Cox proportional hazards ("COX")
+	}
+	\item{timeOutcome}{
+		The name of the column in \code{data} that stores the time to event (needed only for a Cox proportional hazards regression model fitting)
+	}
+	\item{selectionType}{
+		The type of index to be evaluated by the \code{improveProb} function (\code{Hmisc} package): \emph{z}-score of IDI or of NRI
+	}
+	\item{loop.threshold}{
+		After \code{loop.threshold} cycles, only variables that have already been selected in previous cycles will be candidates to be selected in posterior cycles
+	}
+	\item{interaction}{
+		Set to either 1 for first order models, or to 2 for second order models
+	}
+	\item{cores}{
+		Cores to be used for parallel processing
+	}
 }
-  \item{fraction}{
-  The fraction of samples used at the training and the independent testing phase.
-
-}
-  \item{pvalue}{
-  The threshold used to insert a variable in the model. the p value of the N(z.IDI,0,1) has to be lower that pvalue in order to be included in the model.
-
-}
-  \item{loops}{
-  The number of bootstraps steps
-
-}
-  \item{covariates}{
-  A string of variables that always will be included in the models
-
-}
-  \item{Outcome}{
-  The outcome variable
-
-}
-  \item{variableList}{
-  The candidate variables to be tested. They usually are the output of a univariate ranking procedure
-
-}
-  \item{dataframe}{
-  The train data
-
-}
-  \item{maxTrainModelSize}{
-  A largest size of models to be created
-
-}
-  \item{type}{
-  The type of fitting (LOGIT,LM, COX): LOGIT: Logistic, LM: Lineal, Or COX
-
-}
-  \item{timeOutcome}{
-  Time to event variable for COX fitting.
-
-}
-  \item{selectionType}{
-  Selection criteria for feature inclusion: zIDI or zIRI
-}
-  \item{loop.threshold}{
-  It defines the number of bootstraps loops to be used before start filtering by variable frequency. 
-  Once the bootstrap iteration number is greater than loop.threshold, only variables with a bagging frequency greater than 1/(2*loop.threshold) 
-  will be explored as model candidates. 
-}
-  \item{interaction}{
-  the order of the factors. Default = 1. Max =2. If set to 2, it will search for first order feature interactions.
-}
-
-}
-%%\details{
-%%  ~~ If necessary, more details than the description above ~~
-%%}
 \value{
-
-%%  If it is a LIST, use
-  \item{final.model}{Description of 'comp1'}
-  \item{var.names}{Description of 'comp2'}
-  \item{formula}{Description of 'comp2'}
-  \item{ranked.var}{Description of 'comp2'}
-  \item{z.idi}{Description of 'comp2'}
-  \item{formula.list}{Description of 'comp2'}
-%% ...
+	\item{final.model}{
+		An object of class \code{lm}, \code{glm}, or \code{coxph} containing the final model
+	}
+	\item{var.names}{
+		A vector with the names of the features that were included in the final model
+	}
+	\item{formula}{
+		An object of class \code{formula} with the formula used to fit the final model
+	}
+	\item{ranked.var}{
+		An array with the ranked frequencies of the features
+	}
+	\item{z.selection}{
+		A vector in which each term represents the \emph{z}-score of the index defined in \code{selectionType} obtained with the full model and the model without one term
+	}
+	\item{formula.list}{
+		A list containing objects of class \code{formula} with the formulas used to fit the models found at each cycle
+	}
 }
-\references{
-Pencina, Michael J., Ralph B. D'Agostino, and Ramachandran S. Vasan. 
-"Evaluating the added predictive ability of a new marker: from area under 
-the ROC curve to reclassification and beyond." 
-Statistics in medicine 27.2 (2008): 157-172.
+\references{Pencina, M. J., D'Agostino, R. B., & Vasan, R. S. (2008). Evaluating the added predictive ability of a new marker: from area under the ROC curve to reclassification and beyond. \emph{Statistics in medicine} \bold{27}(2), 157-172.}
+\author{Jose G. Tamez-Pena and Antonio Martinez-Torteya}
+\seealso{\code{\link{NeRIBasedFRESA.Model}}}
+\examples{
+	\dontrun{
+	# Start the graphics device driver to save all plots in a pdf format
+	pdf(file = "Example.pdf")
+	# Get the stage C prostate cancer data from the rpart package
+	library(rpart)
+	data(stagec)
+	# Split the stages into several columns
+	dataCancer <- cbind(stagec[,c(1:3,5:6)],
+	                    gleason4 = 1*(stagec[,7] == 4),
+	                    gleason5 = 1*(stagec[,7] == 5),
+	                    gleason6 = 1*(stagec[,7] == 6),
+	                    gleason7 = 1*(stagec[,7] == 7),
+	                    gleason8 = 1*(stagec[,7] == 8),
+	                    gleason910 = 1*(stagec[,7] >= 9),
+	                    eet = 1*(stagec[,4] == 2),
+	                    diploid = 1*(stagec[,8] == "diploid"),
+	                    tetraploid = 1*(stagec[,8] == "tetraploid"),
+	                    notAneuploid = 1-1*(stagec[,8] == "aneuploid"))
+	# Remove the incomplete cases
+	dataCancer <- dataCancer[complete.cases(dataCancer),]
+	# Load a pre-stablished data frame with the names and descriptions of all variables
+	data(cancerVarNames)
+	# Get a Cox proportional hazards model using:
+	# - 10 bootstrap loops
+	# - zIDI as the feature inclusion criterion
+	cancerModel <- ReclassificationFRESA.Model(loops = 10,
+	                                           Outcome = "pgstat",
+	                                           variableList = cancerVarNames,
+	                                           data = dataCancer,
+	                                           type = "COX",
+	                                           timeOutcome = "pgtime",
+	                                           selectionType = "zIDI")
+	# Shut down the graphics device driver
+	dev.off()}
 }
-\author{
-Jose G. Tamez-Pena
-
-}
-%%\note{
-%%  ~~further notes~~
-%%}
-
-%% ~Make other sections like Warning with \section{Warning }{....} ~
-
-%%seealso{
-%% ~~objects to See Also as \code{\link{help}}, ~~~
-%%}
-
-%%\examples{
-%%}
-
-% Add one or more standard keywords, see file 'KEYWORDS' in the
-% R documentation directory.
 \keyword{Model_Generation}

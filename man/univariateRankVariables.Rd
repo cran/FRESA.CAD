@@ -1,179 +1,304 @@
 \name{univariateRankVariables}
 \alias{univariateRankVariables}
-%- Also NEED an '\alias' for EACH other topic documented here.
-\title{
-Univariate analysis of data 
-%%  ~~function to do ... ~~
-}
+\title{Univariate analysis of features}
 \description{
-The function reports the mean, the standard deviation for each listed variable data.
-It does a KS test on the raw and z-standardized data. After that, reports the raw t test, the z-standardized t-test, 
-the Willcox test, the NRI, the IDI, NeRI and the AUC. Furthermore, it reports the z-value of the variable significance
-on the regression model fitted either by LOGIT, LM or COX procedures. The results of the analyses is sorted according the specified test.
-%%  ~~ A concise (1-5 lines) description of what the function does. ~~
+	This function reports the mean and standard deviation for each feature in a model, and ranks them according to a user-specified score.
+	Additionally, it does a Kolmogorov-Smirnov (KS) test on the raw and \emph{z}-standardized data.
+	It also reports the raw and \emph{z}-standardized \emph{t}-test score, the \emph{p}-value of the Wilcoxon rank-sum test, the integrated discrimination improvement (IDI), the net reclassification improvement (NRI), the net residual improvement (NeRI), and the area under the ROC curve (AUC).
+	Furthermore, it reports the \emph{z}-value of the variable significance	on the fitted model.
 }
 \usage{
-univariateRankVariables(varList, baseModel, Outcome, dataframe, 
-categorizationType=c("Raw","Categorical","ZCategorical",
-"RawZCategorical","RawZTail","RawTail"), 
-FitType = c("LOGIT", "LM", "COX"), 
-rankingTest = c("zIDI", "zNRI","IDI", "NRI","NeRI","Ztest","AUC","CStat","Kendall"), 
-cateGroups = c(0.1, 0.9),
-raw.dataFrame=NULL,
-description=".",
-uniType=c("Binary","Regression")
-)
+	univariateRankVariables(variableList,
+	                        formula,
+	                        Outcome,
+	                        data, 
+	                        categorizationType = c("Raw",
+	                                               "Categorical",
+	                                               "ZCategorical",
+	                                               "RawZCategorical",
+	                                               "RawTail",
+	                                               "RawZTail"), 
+	                        type = c("LOGIT", "LM", "COX"), 
+	                        rankingTest = c("zIDI",
+	                                        "zNRI",
+	                                        "IDI",
+	                                        "NRI",
+	                                        "NeRI",
+	                                        "Ztest",
+	                                        "AUC",
+	                                        "CStat",
+	                                        "Kendall"), 
+	                        cateGroups = c(0.1, 0.9),
+	                        raw.dataFrame = NULL,
+	                        description = ".",
+	                        uniType = c("Binary","Regression"),
+	                        fullAnalysis=TRUE)
 }
-%- maybe also 'usage' for other objects documented here.
 \arguments{
-  \item{varList}{
-  A data frame with the candidate variables to be ranked
-%%     ~~Describe \code{varList} here~~
-}
-  \item{baseModel}{
-  A base model containing the covariates ie: Gender, BMI, Height to be adjusted
-%%     ~~Describe \code{baseModel} here~~
-}
-  \item{Outcome}{
-  The binary outcome 
-
-}
-  \item{dataframe}{
-  The data frame with column features and row observations
-
-}
-  \item{categorizationType}{
-  How variables will be ranked: 
-  Raw: As given in the data frame. 
-  Categorical: variables are broken into the p.values categories.
-  ZCategorical: Categories will be weighted by it z value.
-  RawZCategorical: Categories plus raw.
-  RawZTail: The raw variables plus the two tails.
-%%     ~~Describe \code{categorizationType} here~~
-}
-  \item{FitType}{
-  The fitting function to be used:
-  LM: Lineal regression fitted by gls.
-  LOGIT: Logistic regression fitted by gls.
-  COX: cox proportional model fitted by coxph (Survival package).
-%%     ~~Describe \code{FitType} here~~
-}
-  \item{rankingTest}{
-  The test to be used to rank the variables.
-  IDI: Integrated Discriminant Index.
-  NRI: Net reclassification Improvement.
-  NeRI: Net Residual Improvement.
-  Z: Z value of the model fit.
-  AUC: ROC AUC
-%%     ~~Describe \code{rankingTest} here~~
-}
-  \item{cateGroups}{
-  A list of p.values that will be used to create the categories.
-%%     ~~Describe \code{cateGroups} here~~
-}
-  \item{raw.dataFrame}{
- The dataframe with the original (non-transformed) data
-}
-  \item{description}{
-  The varList's column name that contains the variable description
-}
-  \item{uniType}{
-  The type of univariate analysis: Binary classification or Regression
-}
-
+	\item{variableList}{
+		A data frame with the candidate variables to be ranked
+	}
+	\item{formula}{
+		An object of class \code{formula} with the formula to be fitted
+	}
+	\item{Outcome}{
+		The name of the column in \code{data} that stores the variable to be predicted by the model
+	}
+	\item{data}{
+		A data frame where all variables are stored in different columns
+	}
+	\item{categorizationType}{
+		How variables will be analyzed: As given in \code{data} ("Raw"); broken into the \emph{p}-value categories given by \code{cateGroups} ("Categorical"); broken into the \emph{p}-value categories given by \code{cateGroups}, and weighted by the \emph{z}-score ("ZCategorical"); broken into the \emph{p}-value categories given by \code{cateGroups}, weighted by the \emph{z}-score, plus the raw values ("RawZCategorical"); raw values, plus the tails ("RawTail"); or raw values, wighted by the \emph{z}-score, plus the tails ("RawZTail")
+	}
+	\item{type}{
+		Fit type: Logistic ("LOGIT"), linear ("LM"), or Cox proportional hazards ("COX")
+	}
+	\item{rankingTest}{
+		Variables will be ranked based on: The \emph{z}-score of the IDI ("zIDI"), the \emph{z}-score of the NRI ("zNRI"), the IDI ("IDI"), the NRI ("NRI"), the NeRI ("NeRI"), the \emph{z}-score of the model fit ("Ztest"), the AUC ("AUC"), the Somers' rank correlation ("Cstat"), or the Kendall rank correlation ("Kendall")
+	}
+	\item{cateGroups}{
+		A vector of percentiles to be used for the categorization procedure
+	}
+	\item{raw.dataFrame}{
+		A data frame similar to \code{data}, but with unadjusted data, used to get the means and variances of the unadjusted data
+	}
+	\item{description}{
+		The name of the column in \code{variableList} that stores the variable description
+	}
+	\item{uniType}{
+		Type of univariate analysis: Binary classification ("Binary") or regression ("Regression")
+	}
+	\item{fullAnalysis}{
+		If FALSE it will only order the features according to its z-statistics of the linear model
+	}
 }
 \details{
-This univariate function will create valid dummy categorical variables if and only if, the dataframe has been z-standarized.
-The provided p.values for categorization will be converted to its corresponding z-value and this z-value will be used for the 
-variable categorization. If the data frame has not been z-standardized the categorization analysis provided by the function is wrong.
-
+	This function will create valid dummy categorical variables if, and only if, \code{data} has been \emph{z}-standardized.
+	The \emph{p}-values provided in \code{cateGroups} will be converted to its corresponding \emph{z}-score, which will then be used to create the categories.
+	If non \emph{z}-standardized data were to be used, the categorization analysis would return wrong results.
 }
 \value{
-Returns a sorted frame of the univariate analysis.
-For Binary Classification it will return a data frame with the following columns: \cr 
-Name: The raw variable or dummy variable if the data has been categorized \cr
-parent: The raw variable name \cr
-descrip: If the description is present, it will describe the parent variable\cr
-cohortMean: The entire set mean\cr
-cohortStd: the entire set standard deviation\cr
-cohortKSD: the entire set D value of the Kolmogorov-Smirnov(KS) test compared to a normal distribution\cr
-cohortKSP: The associated p-value of the test compared\cr
-caseMean: The mean value of the cases (Outcome == 1)\cr
-caseStd: The standard deviation value of the cases (Outcome == 1)\cr
-caseKSD: The (KS) D-statistics of the cases (Outcome == 1)\cr
-caseKSP: The (KS) p-value of the cases (Outcome == 1)\cr
-caseZKSD: The (KS) D-statistics of the z-standarized cases (Outcome == 1)\cr
-caseZKSP: The (KS) p-value of the z-standarized cases (Outcome == 1)\cr
-controlMean: he mean value of the cases (Outcome == 0)\cr
-controlStd: The standard deviation value of the cases (Outcome == 0)\cr
-controlKSD: The (KS) D-statistics of the cases (Outcome == 0)\cr
-controlKSP: The (KS) p-value of the cases (Outcome == 0)\cr
-controlZKSD: The (KS) D-statistics of the z-standarized cases (Outcome == 0)\cr
-controlZKSP: The (KS) p-value of the z-standarized cases (Outcome == 0)\cr
-t.Rawvalue: The normal inverse p-value (Z-value) of the t-test performed on the raw data set\cr
-t.Zvalue: The normal inverse p-value (Z-value) of the t-test performed on the dataframe\cr
-wilcox.Zvalue: The normal inverse p-value (Z-value) of the Mann-Whitney test performed on the dataframe\cr
-ZGLM:: The z-value returned by the glm or COX procedure of the tested adjusted variable\cr
-zNRI: The z-value returned by the improveProb procedure (HMISC) for the NRI\cr
-zIDI: The z-value returned by the improveProb procedure (HMISC) for the IDI\cr
-zNeRI: The z-value returned by the improvedResiduals procedure (FRESA.CAD) for the NeRI\cr
-ROCAUC: The area under the curve returned by the roc procedure (pROC) \cr
-cStatCorr: The c-stat correlation coefficient returned by the rcorr.cens procedure (HMISC)\cr
-NRI: The NRI statistics: improveProb procedure (HMISC) \cr
-IDI: The IDI statistics: improveProb procedure (HMISC) \cr
-NeRI: The NeRI statistics: improvedResiduals procedure (FRESA.CAD)\cr
-kendall.r: The Kendall tau correlation to the binary outcome\cr
-kendall.p: The p-value of the Kendall tau correlation to the binary outcome\cr
-TstudentRes.p: The p-value of the improvement in residuals as evaluated by the paired t-test\cr
-WilcoxRes.p: The p-value of the improvement in residuals as evaluated by the paired Mann-Whitney test\cr
-FRes.p: The p-value of the improvement in residuals variance as evaluated by the F test \cr
-caseN_Z_Low_Tail: The number of case subjects in the low tail\cr
-caseN_Z_Hi_Tail: The number of case subjects in the top tail\cr
-controlN_Z_Low_Tail: The number of control subjects in the low tail\cr
-controlN_Z_Hi_Tail: The number of control subjects in the top tail\cr
-
-For residual analysis it will return a data frame with the following columns
-Name: The raw variable or dummy variable if the data has been categorized\cr
-parent: The raw variable name\cr
-descrip: If the description is present, it will describe the parent variable\cr
-cohortMean: The entire set mean\cr
-cohortStd: the entire set standard deviation\cr
-cohortKSD: the entire set D value of the Kolmogorov-Smirnov(KS) test compared to a normal distribution\cr
-cohortKSP: The associated p-value of the test compared to a normal distribution\cr
-cohortZKSD: The entire set D value of the Kolmogorov-Smirnov(KS) test of the z standardized data compared to a normal distribution\cr
-cohortZKSP: The associated p-value of the KS test of the z standardized data compared to a normal distribution\cr
-ZGLM:: The z-value returned by the glm or COX procedure of the tested adjusted variable\cr
-zNeRI: The z-value returned by the improvedResiduals procedure (FRESA.CAD) for the NeRI\cr
-NeRI: The NeRI statistics: improvedResiduals procedure (FRESA.CAD)\cr
-cStatCorr: The c-stat correlation coefficient returned by the rcorr.cens procedure (HMISC)\cr
-spearman.r: The Spearman rho correlation between the outcome and the variable\cr
-pearson.r: The Pearson rho correlation between the outcome and the variable\cr
-kendall.r: The Kendaall Tau correlation between the outcome and the variable\cr
-kendall.p: The Kendaall p.value of the Tau correlation between the outcome and the variable\cr
-TstudentRes.p: The p-value of the improvement in residuals as evaluated by the paired t-test\cr
-WilcoxRes.p: The p-value of the improvement in residuals as evaluated by the paired Mann-Whitney test\cr
-FRes.p: The p-value of the improvement in residuals variance as evaluated by the F test \cr
+	A sorted data frame.
+	In the case of a binary classification analysis, the data frame will have the following columns:
+	\item{Name}{
+		Name of the raw variable or of the dummy variable if the data has been categorized
+	}
+	\item{parent}{
+		Name of the raw variable from which the dummy variable was created
+	}
+	\item{descrip}{
+		Description of the parent variable, as defined in \code{description}
+	}
+	\item{cohortMean}{
+		Mean value of the variable
+	}
+	\item{cohortStd}{
+		Standard deviation of the variable
+	}
+	\item{cohortKSD}{
+		D statistic of the KS test when comparing a normal distribution and the distribution of the variable
+	}
+	\item{cohortKSP}{
+		Associated \emph{p}-value to the \code{cohortKSD}
+	}
+	\item{caseMean}{
+		Mean value of cases (subjects with \code{Outcome} equal to 1)
+	}
+	\item{caseStd}{
+		Standard deviation of cases
+	}
+	\item{caseKSD}{
+		D statistic of the KS test when comparing a normal distribution and the distribution of the variable only for cases
+	}
+	\item{caseKSP}{
+		Associated \emph{p}-value to the \code{caseKSD}
+	}
+	\item{caseZKSD}{
+		D statistic of the KS test when comparing a normal distribution and the distribution of the \emph{z}-standardized variable only for cases
+	}
+	\item{caseZKSP}{
+		Associated \emph{p}-value to the \code{caseZKSD}
+	}
+	\item{controlMean}{
+		Mean value of controls (subjects with \code{Outcome} equal to 0)
+	}
+	\item{controlStd}{
+		Standard deviation of controls
+	}
+	\item{controlKSD}{
+		D statistic of the KS test when comparing a normal distribution and the distribution of the variable only for controls
+	}
+	\item{controlKSP}{
+		Associated \emph{p}-value to the \code{controlsKSD}
+	}
+	\item{controlZKSD}{
+		D statistic of the KS test when comparing a normal distribution and the distribution of the \emph{z}-standardized variable only for controls
+	}
+	\item{controlZKSP}{
+		Associated \emph{p}-value to the \code{controlsZKSD}
+	}
+	\item{t.Rawvalue}{
+		Normal inverse \emph{p}-value (\emph{z}-value) of the \emph{t}-test performed on \code{raw.dataFrame}
+	}
+	\item{t.Zvalue}{
+		\emph{z}-value of the \emph{t}-test performed on \code{data}
+	}
+	\item{wilcox.Zvalue}{
+		\emph{z}-value of the Wilcoxon rank-sum test performed on \code{data}
+	}
+	\item{ZGLM}{
+		\emph{z}-value returned by the \code{lm}, \code{glm}, or \code{coxph} functions for the \code{z}-standardized variable
+	}
+	\item{zNRI}{
+		\emph{z}-value returned by the \code{improveProb} function (\code{Hmisc} package) when evaluating the NRI
+	}
+	\item{zIDI}{
+		\emph{z}-value returned by the \code{improveProb} function (\code{Hmisc} package) when evaluating the IDI
+	}
+	\item{zNeRI}{
+		\emph{z}-value returned by the \code{improvedResiduals} function when evaluating the NeRI
+	}
+	\item{ROCAUC}{
+		Area under the ROC curve returned by the \code{roc} function (\code{pROC} package)
+	}
+	\item{cStatCorr}{
+		\emph{c} index of Somers' rank correlation returned by the \code{rcorr.cens} function (\code{Hmisc} package)
+	}
+	\item{NRI}{
+		NRI returned by the \code{improveProb} function (\code{Hmisc} package)
+	}
+	\item{IDI}{
+		IDI returned by the \code{improveProb} function (\code{Hmisc} package)
+	}
+	\item{NeRI}{
+		NeRI returned by the \code{improvedResiduals} function
+	}
+	\item{kendall.r}{
+		Kendall \eqn{\tau} rank correlation coefficient between the variable and the binary outcome
+	}
+	\item{kendall.p}{
+		Associated \emph{p}-value to the \code{kendall.r}
+	}
+	\item{TstudentRes.p}{
+		\emph{p}-value of the improvement in residuals, as evaluated by the paired \emph{t}-test
+	}
+	\item{WilcoxRes.p}{
+		\emph{p}-value of the improvement in residuals, as evaluated by the paired Wilcoxon rank-sum test
+	}
+	\item{FRes.p}{
+		\emph{p}-value of the improvement in residual variance, as evaluated by the \emph{F}-test
+	}
+	\item{caseN_Z_Low_Tail}{
+		Number of cases in the low tail
+	}
+	\item{caseN_Z_Hi_Tail}{
+		Number of cases in the top tail
+	}
+	\item{controlN_Z_Low_Tail}{
+		Number of controls in the low tail
+	}
+	\item{controlN_Z_Hi_Tail}{
+		Number of controls in the top tail
+	}
+	In the case of regression analysis, the data frame will have the following columns:
+	\item{Name}{
+		Name of the raw variable or of the dummy variable if the data has been categorized
+	}
+	\item{parent}{
+		Name of the raw variable from which the dummy variable was created
+	}
+	\item{descrip}{
+		Description of the parent variable, as defined in \code{description}
+	}
+	\item{cohortMean}{
+		Mean value of the variable
+	}
+	\item{cohortStd}{
+		Standard deviation of the variable
+	}
+	\item{cohortKSD}{
+		D statistic of the KS test when comparing a normal distribution and the distribution of the variable
+	}
+	\item{cohortKSP}{
+		Associated \emph{p}-value to the \code{cohortKSP}
+	}
+	\item{cohortZKSD}{
+		D statistic of the KS test when comparing a normal distribution and the distribution of the \emph{z}-standardized variable
+	}
+	\item{cohortZKSP}{
+		Associated \emph{p}-value to the \code{cohortZKSD}
+	}
+	\item{ZGLM}{
+		\emph{z}-value returned by the glm or Cox procedure for the z-standardized variable
+	}
+	\item{zNRI}{
+		\emph{z}-value returned by the \code{improveProb} function (\code{Hmisc} package) when evaluating the NRI
+	}
+	\item{NeRI}{
+		NeRI returned by the \code{improvedResiduals} function
+	}
+	\item{cStatCorr}{
+		\emph{c} index of Somers' rank correlation returned by the \code{rcorr.cens} function (\code{Hmisc} package)
+	}
+	\item{spearman.r}{
+		Spearman \eqn{\rho} rank correlation coefficient between the variable and the outcome
+	}
+	\item{pearson.r}{
+		Pearson \emph{r} product-moment correlation coefficient between the variable and the outcome
+	}
+	\item{kendall.r}{
+		Kendall \eqn{\tau} rank correlation coefficient between the variable and the outcome
+	}
+	\item{kendall.p}{
+		Associated \emph{p}-value to the \code{kendall.r}
+	}
+	\item{TstudentRes.p}{
+		\emph{p}-value of the improvement in residuals, as evaluated by the paired \emph{t}-test
+	}
+	\item{WilcoxRes.p}{
+		\emph{p}-value of the improvement in residuals, as evaluated by the paired Wilcoxon rank-sum test
+	}
+	\item{FRes.p}{
+		\emph{p}-value of the improvement in residual variance, as evaluated by the \emph{F}-test
+	}
 }
-%%\references{
-%% ~put references to the literature/web site here ~
-%%}
-\author{
-Jose G. Tamez-Pena
+\references{Pencina, M. J., D'Agostino, R. B., & Vasan, R. S. (2008). Evaluating the added predictive ability of a new marker: from area under the ROC curve to reclassification and beyond. \emph{Statistics in medicine} \bold{27}(2), 157-172.}
+\author{Jose G. Tamez-Pena and Antonio Martinez-Torteya}
+\examples{
+	\dontrun{
+	# Start the graphics device driver to save all plots in a pdf format
+	pdf(file = "Example.pdf")
+	# Get the stage C prostate cancer data from the rpart package
+	library(rpart)
+	data(stagec)
+	# Split the stages into several columns
+	dataCancer <- cbind(stagec[,c(1:3,5:6)],
+	                    gleason4 = 1*(stagec[,7] == 4),
+	                    gleason5 = 1*(stagec[,7] == 5),
+	                    gleason6 = 1*(stagec[,7] == 6),
+	                    gleason7 = 1*(stagec[,7] == 7),
+	                    gleason8 = 1*(stagec[,7] == 8),
+	                    gleason910 = 1*(stagec[,7] >= 9),
+	                    eet = 1*(stagec[,4] == 2),
+	                    diploid = 1*(stagec[,8] == "diploid"),
+	                    tetraploid = 1*(stagec[,8] == "tetraploid"),
+	                    notAneuploid = 1-1*(stagec[,8] == "aneuploid"))
+	# Remove the incomplete cases
+	dataCancer <- dataCancer[complete.cases(dataCancer),]
+	# Load a pre-stablished data frame with the names and descriptions of all variables
+	data(cancerVarNames)
+	# Rank the variables:
+	# - Analyzing the raw data
+	# - According to the zIDI
+	rankedDataCancer <- univariateRankVariables(variableList = cancerVarNames,
+	                                            formula = "Surv(pgtime, pgstat) ~ 1",
+	                                            Outcome = "pgstat",
+	                                            data = dataCancer, 
+	                                            categorizationType = "Raw", 
+	                                            type = "COX", 
+	                                            rankingTest = "zIDI",
+	                                            description = "Description")
+	# Shut down the graphics device driver
+	dev.off()}
 }
-%%\note{
-%%  ~~further notes~~
-%%}
-
-%% ~Make other sections like Warning with \section{Warning }{....} ~
-
-%%\seealso{
-%% ~~objects to See Also as \code{\link{help}}, ~~~
-%%}
-
-%%\examples{
-%%
-%%% Add one or more standard keywords, see file 'KEYWORDS' in the
-%%% R documentation directory.
-%%}
 \keyword{Data_Inspection}
-

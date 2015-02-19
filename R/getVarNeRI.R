@@ -1,11 +1,10 @@
 getVarNeRI <-
-function (object,dataframe,Outcome="Class", type=c("LM","LOGIT","COX"),testdata=NULL) 
+function (object,data,Outcome="Class", type=c("LM","LOGIT","COX"),testData=NULL) 
 {
-	if (is.null(testdata))
+	if (is.null(testData))
 	{
-		testdata <- dataframe;
+		testData <- data;
 	}
-    type <- match.arg(type);
   
 	varsList <- as.list(attr(terms(object),"variables"))
 	termList <- as.list(attr(terms(object),"term.labels"))
@@ -18,10 +17,10 @@ function (object,dataframe,Outcome="Class", type=c("LM","LOGIT","COX"),testdata=
 		frm1 <- paste(frm1,paste(" + ",varsList[i]));
 	}
 	ftmp <- formula(frm1);
-	fullModel <- modelFitting(ftmp,dataframe,type);
+	fullModel <- modelFitting(ftmp,data,type);
 
-	fullResiduals <- residualForNeRIs(fullModel,newdata=dataframe,Outcome);
-	testResiduals <- residualForNeRIs(fullModel,newdata=testdata,Outcome);
+	fullResiduals <- residualForNeRIs(fullModel,data,Outcome);
+	testResiduals <- residualForNeRIs(fullModel,testData,Outcome);
 
 	model_tpvalue <- vector();
 	model_bpvalue <- vector();
@@ -47,26 +46,26 @@ function (object,dataframe,Outcome="Class", type=c("LM","LOGIT","COX"),testdata=
 				}
 			}
 			ftmp <- formula(frm1);
-			redModel <- modelFitting(ftmp,dataframe,type)
+			redModel <- modelFitting(ftmp,data,type)
 
 			if ( inherits(redModel, "try-error"))
 			{
 				redModel <- fullModel;
 			}
 			
-			redResiduals <- residualForNeRIs(redModel,newdata=dataframe,Outcome);
-			redTestResiduals <- residualForNeRIs(redModel,newdata=testdata,Outcome);
+			redResiduals <- residualForNeRIs(redModel,data,Outcome);
+			redTestResiduals <- residualForNeRIs(redModel,testData,Outcome);
 			iprob <- improvedResiduals(redResiduals,fullResiduals);
 			testiprob <- improvedResiduals(redTestResiduals,testResiduals);
-			model_tpvalue <- append(model_tpvalue,iprob$t.test.pValue);
-			model_bpvalue <- append(model_bpvalue,iprob$binom.pValue);
-			model_wpvalue <- append(model_wpvalue,iprob$wilcox.pValue);
-			model_fpvalue <- append(model_fpvalue,iprob$F.test.pValue);
+			model_tpvalue <- append(model_tpvalue,iprob$tP.value);
+			model_bpvalue <- append(model_bpvalue,iprob$BinP.value);
+			model_wpvalue <- append(model_wpvalue,iprob$WilcoxP.value);
+			model_fpvalue <- append(model_fpvalue,iprob$FP.value);
 			model_neri <- append(model_neri,iprob$NeRI);
-			testmodel_tpvalue <- append(testmodel_tpvalue,testiprob$t.test.pValue);
-			testmodel_bpvalue <- append(testmodel_bpvalue,testiprob$binom.pValue);
-			testmodel_wpvalue <- append(testmodel_wpvalue,testiprob$wilcox.pValue);
-			testmodel_fpvalue <- append(testmodel_fpvalue,testiprob$F.test.pValue);
+			testmodel_tpvalue <- append(testmodel_tpvalue,testiprob$tP.value);
+			testmodel_bpvalue <- append(testmodel_bpvalue,testiprob$BinP.value);
+			testmodel_wpvalue <- append(testmodel_wpvalue,testiprob$WilcoxP.value);
+			testmodel_fpvalue <- append(testmodel_fpvalue,testiprob$FP.value);
 			testmodel_neri <- append(testmodel_neri,testiprob$NeRI);
 		}
 	}

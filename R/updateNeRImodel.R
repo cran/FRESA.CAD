@@ -1,19 +1,19 @@
-updateNeRImodel <-
-function(Outcome,covariates="1",pvalue=c(0.05,0.05),VarFrequencyTable,variableListNames,dataframe,type=c("LM","LOGIT","COX"),testType=c("Binomial","Wilcox","tStudent"), lastTopVariable= 0,timeOutcome="Time",interaction=1,maxTrainModelSize=0)
+updateNeRIModel <-
+function(Outcome,covariates="1",pvalue=c(0.05,0.02),VarFrequencyTable,variableList,data,type=c("LM","LOGIT","COX"),testType=c("Binomial","Wilcox","tStudent"), lastTopVariable= 0,timeOutcome="Time",interaction=1,maxTrainModelSize=0)
 {
 	type <- match.arg(type)
   
-	vnames <- as.vector(variableListNames[,1]);
+	vnames <- as.vector(variableList[,1]);
 	topvarID <- as.numeric(rownames(VarFrequencyTable));
 	vnames_model <- vector();
-	nsize <- nrow(dataframe)
+	nsize <- nrow(data)
 
 	if (maxTrainModelSize == 0)
 	{
 		maxTrainModelSize = nsize/5;
 	}
 
-	nsize <- nrow(dataframe)
+	nsize <- nrow(data)
 	
 	baseForm = Outcome;
 #For Cox  models 
@@ -30,14 +30,14 @@ function(Outcome,covariates="1",pvalue=c(0.05,0.05),VarFrequencyTable,variableLi
 	
 	ftmp <- formula(frm1);
 	varlist <- append(varlist,topvarID[1])
-	bestmodel <- modelFitting(ftmp,dataframe,type)
+	bestmodel <- modelFitting(ftmp,data,type,TRUE)
 	startIndex = 2;
 	if ( inherits(bestmodel, "try-error"))
 	{
 		frm1 <- paste(frm1," + ",vnames[topvarID[2]]);
 		varlist <- append(varlist,topvarID[2])
 		ftmp <- formula(frm1);
-		bestmodel <- modelFitting(ftmp,dataframe,type);
+		bestmodel <- modelFitting(ftmp,data,type,TRUE);
 		startIndex = 3;
 		topvarID[2]=0;
 	}
@@ -45,10 +45,10 @@ function(Outcome,covariates="1",pvalue=c(0.05,0.05),VarFrequencyTable,variableLi
 	{
 		topvarID[1]=0;
 	}
-	cat("Update Formula: ",frm1,"\n")
-	print(summary(bestmodel))
+#	cat("Update Formula: ",frm1,"\n")
+#	print(summary(bestmodel))
 	
-	bestResiduals <- residualForNeRIs(bestmodel,newdata=dataframe,Outcome);
+	bestResiduals <- residualForNeRIs(bestmodel,data,Outcome);
 
 	model_ziri <- vector();
 
@@ -59,27 +59,27 @@ function(Outcome,covariates="1",pvalue=c(0.05,0.05),VarFrequencyTable,variableLi
 	inserted = 1
 	kins=1
 	cpyformula <- frm1;
-
+	termsinserted = 1;
 	for (pval in 1:length(pvalue))
 	{
 		cthr = pvalue[pval];
 		pthrO = cthr*cthr;
 		cat ("Update at:",cthr,"\n");
-		while ((loops<5) ||((changes>0) && (loops<100)))
+		while ((termsinserted <= maxTrainModelSize)&&((loops<5) ||((changes>0) && (loops<100))))
 		{
 			changes = 0;
 
 			theTrainSamples <- sample(1:nsize, nsize, replace=TRUE);
-			myTrainSample <- dataframe[theTrainSamples,];
-			myTestSample <- dataframe[-theTrainSamples,];
+			myTrainSample <- data[theTrainSamples,];
+			myTestSample <- data[-theTrainSamples,];
 			myTestSample <- myTestSample[sample(1:nrow(myTestSample), nsize, replace=TRUE),];
 			
-#			myTrainSample <- dataframe[sample(1:nsize, nsize, replace=TRUE),]
-#			myTestSample <- dataframe[sample(1:nsize, nsize, replace=TRUE),];
+#			myTrainSample <- data[sample(1:nsize, nsize, replace=TRUE),]
+#			myTestSample <- data[sample(1:nsize, nsize, replace=TRUE),];
 
 
 			ftmp <- formula(frm1);
-			bestmodel <- modelFitting(ftmp,myTrainSample,type)
+			bestmodel <- modelFitting(ftmp,myTrainSample,type,TRUE)
 			if ((loops == 0)&&(inherits(bestmodel, "try-error")))
 			{
 				frm1 <- paste(frm1," + ",vnames[topvarID[startIndex]]);
@@ -88,7 +88,7 @@ function(Outcome,covariates="1",pvalue=c(0.05,0.05),VarFrequencyTable,variableLi
 				VarFrequencyTable[startIndex]=0;
 				ftmp <- formula(frm1);
 				inserted = inserted + 1;
-				bestmodel <- modelFitting(ftmp,myTrainSample,type);
+				bestmodel <- modelFitting(ftmp,myTrainSample,type,TRUE);
 				startIndex = startIndex + 1;
 			}
 			
@@ -98,40 +98,41 @@ function(Outcome,covariates="1",pvalue=c(0.05,0.05),VarFrequencyTable,variableLi
 				ftmp <- formula(frm1);
 				cat("Update Formula 2: ",frm1,"\n")
 				theTrainSamples <- sample(1:nsize, nsize, replace=TRUE);
-				myTrainSample <- dataframe[theTrainSamples,];
-				myTestSample <- dataframe[-theTrainSamples,];
+				myTrainSample <- data[theTrainSamples,];
+				myTestSample <- data[-theTrainSamples,];
 				myTestSample <- myTestSample[sample(1:nrow(myTestSample), nsize, replace=TRUE),];
-				bestmodel <- modelFitting(ftmp,myTrainSample,type)
+				bestmodel <- modelFitting(ftmp,myTrainSample,type,TRUE)
 			}
 			cpyformula <- frm1;
 
-			bestResiduals <- residualForNeRIs(bestmodel,newdata=myTrainSample,Outcome);
-			bestTestResiduals <- residualForNeRIs(bestmodel,newdata=myTestSample,Outcome);
+			bestResiduals <- residualForNeRIs(bestmodel,myTrainSample,Outcome);
+			bestTestResiduals <- residualForNeRIs(bestmodel,myTestSample,Outcome);
 
 			for ( i in startIndex:lastTopVariable)
 			{
 	#				cat(vnames[topvarID[i]],"-",VarFrequencyTable[i],"\n")
-				if ((VarFrequencyTable[i]>0) && (topvarID[i]>0) && (inserted <= maxTrainModelSize))
+				if ((VarFrequencyTable[i]>0) && (topvarID[i]>0) && (termsinserted <= maxTrainModelSize))
 				{
 					frma <- paste(frm1," + ");
 					frma <-paste(frma,vnames[topvarID[i]]);
 					ftmp <- formula(frma);
-					newmodel <- modelFitting(ftmp,myTrainSample,type)
+					newmodel <- modelFitting(ftmp,myTrainSample,type,TRUE)
 					if ( !inherits(newmodel, "try-error"))
 					{
-						iprob <- improvedResiduals(bestResiduals,residualForNeRIs(newmodel,newdata=myTrainSample,Outcome),testType);
-						iprob_t <- improvedResiduals(bestTestResiduals,residualForNeRIs(newmodel,newdata=myTestSample,Outcome),testType);
+						iprob <- improvedResiduals(bestResiduals,residualForNeRIs(newmodel,myTrainSample,Outcome),testType);
+						iprob_t <- improvedResiduals(bestTestResiduals,residualForNeRIs(newmodel,myTestSample,Outcome),testType);
 						piri <- max(iprob$p.value,iprob_t$p.value);
 						if (is.numeric(piri) && !is.na(piri) && (piri<cthr))
 						{
-							bestResiduals <- residualForNeRIs(newmodel,newdata=myTrainSample,Outcome);
-							bestTestResiduals <- residualForNeRIs(newmodel,newdata=myTestSample,Outcome);
+							bestResiduals <- residualForNeRIs(newmodel,myTrainSample,Outcome);
+							bestTestResiduals <- residualForNeRIs(newmodel,myTestSample,Outcome);
 							frm1 <- paste(frm1," + ",vnames[topvarID[i]]);
 							vnames_model <- append(vnames_model,vnames[topvarID[i]]);
 							varlist <- append(varlist,topvarID[i]);
 							model_ziri <- append(model_ziri,abs(qnorm(piri)));
 							changes = changes + 1;
 							inserted = inserted + 1;
+							termsinserted = termsinserted + 1;
 							kins=1
 							VarFrequencyTable[i]=0;
 						}	
@@ -139,40 +140,44 @@ function(Outcome,covariates="1",pvalue=c(0.05,0.05),VarFrequencyTable,variableLi
 						{
 							for (nlist in 1:inserted)
 							{
-								if (kins==1)
+								if (termsinserted<=maxTrainModelSize)
 								{
-									pthrOl=cthr;
-									frma <- paste(frm1," + I(",vnames[varlist[nlist]],"*",vnames[topvarID[i]],")")
-								}
-								else
-								{
-									frma <- paste(frm1," + ",vnames[topvarID[i]]," + I(",vnames[varlist[nlist]],"*",vnames[topvarID[i]],")")
-									pthrOl=pthrO;
-								}
-								ftmp <- formula(frma);
-								newmodel <- modelFitting(ftmp,myTrainSample,type)
-								if ( !inherits(newmodel, "try-error"))
-								{
-									iprob <- improvedResiduals(bestResiduals,residualForNeRIs(newmodel,newdata=myTrainSample,Outcome),testType);
-									iprob_t <- improvedResiduals(bestTestResiduals,residualForNeRIs(newmodel,newdata=myTestSample,Outcome),testType);
-									piri <- max(iprob$p.value,iprob_t$p.value);
-									if (is.numeric(piri) && !is.na(piri) && (piri<pthrOl))
+									if (kins==1)
 									{
-										bestResiduals <- residualForNeRIs(newmodel,newdata=myTrainSample,Outcome);
-										bestTestResiduals <- residualForNeRIs(newmodel,newdata=myTestSample,Outcome);
-										frm1 <- frma;
-										vnames_model <- append(vnames_model,vnames[topvarID[i]]);
-										model_ziri <- append(model_ziri,abs(qnorm(piri)));
-										if (kins == 0)
-										{
-											varlist <- append(varlist,topvarID[i]);
-											inserted = inserted + 1;
-										}
-										kins =1
-										VarFrequencyTable[i]=0;
-										changes = changes + 1;
+										pthrOl=cthr;
+										frma <- paste(frm1," + I(",vnames[varlist[nlist]],"*",vnames[topvarID[i]],")")
 									}
-								}							
+									else
+									{
+										frma <- paste(frm1," + ",vnames[topvarID[i]]," + I(",vnames[varlist[nlist]],"*",vnames[topvarID[i]],")")
+										pthrOl=pthrO;
+									}
+									ftmp <- formula(frma);
+									newmodel <- modelFitting(ftmp,myTrainSample,type,TRUE)
+									if ( !inherits(newmodel, "try-error"))
+									{
+										iprob <- improvedResiduals(bestResiduals,residualForNeRIs(newmodel,myTrainSample,Outcome),testType);
+										iprob_t <- improvedResiduals(bestTestResiduals,residualForNeRIs(newmodel,myTestSample,Outcome),testType);
+										piri <- max(iprob$p.value,iprob_t$p.value);
+										if (is.numeric(piri) && !is.na(piri) && (piri<pthrOl))
+										{
+											bestResiduals <- residualForNeRIs(newmodel,myTrainSample,Outcome);
+											bestTestResiduals <- residualForNeRIs(newmodel,myTestSample,Outcome);
+											frm1 <- frma;
+											vnames_model <- append(vnames_model,vnames[topvarID[i]]);
+											model_ziri <- append(model_ziri,abs(qnorm(piri)));
+											if (kins == 0)
+											{
+												varlist <- append(varlist,topvarID[i]);
+												inserted = inserted + 1;
+											}
+											termsinserted = termsinserted + 1;
+											kins =1
+											VarFrequencyTable[i]=0;
+											changes = changes + 1;
+										}
+									}
+								}
 							}
 						}
 					}
@@ -181,12 +186,13 @@ function(Outcome,covariates="1",pvalue=c(0.05,0.05),VarFrequencyTable,variableLi
 			}
 			loops = loops+1;
 		}
+		cat(frm1,"\n");
 	}
 
 	ftmp <- formula(frm1);
-	bestmodel <- modelFitting(ftmp,dataframe,type)
-	cat("Updated Model: \n")
-	print(summary(bestmodel));
+	bestmodel <- modelFitting(ftmp,data,type)
+	cat("Update Formula: ",frm1,"\n");
+#	print(summary(bestmodel));
 	
   	result <- list(final.model=bestmodel,
 	var.names=vnames_model,

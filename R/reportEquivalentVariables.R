@@ -1,11 +1,11 @@
 reportEquivalentVariables <-
-function (object,pvalue=0.05,dataframe,searchVarList,Outcome="Class", type = c("LOGIT", "LM","COX"),eqFrac=0.9,description=".") 
+function (object,pvalue=0.05,data,variableList,Outcome="Class", type = c("LOGIT", "LM","COX"),eqFrac=0.9,description=".") 
 {
     type <- match.arg(type);
 	cthr = abs(qnorm(pvalue));
   
 	varsList <- as.list(attr(terms(object),"variables"))
-	vnames <- as.vector(searchVarList[,1]);
+	vnames <- as.vector(variableList[,1]);
     
 	orgsize <- length(varsList);
     
@@ -19,7 +19,7 @@ function (object,pvalue=0.05,dataframe,searchVarList,Outcome="Class", type = c("
 	outrelated <- vector();
 	outzIDI <- vector();
 
-	orgzIDI <- as.vector(getVarReclassification(object,dataframe,Outcome,type)$z.IDIs);
+	orgzIDI <- as.vector(getVarReclassification(object,data,Outcome,type)$testData.z.IDIs);
 	print (orgzIDI,digits=3);
 	orgzIDI <- eqFrac * orgzIDI;
 	print (orgzIDI,digits=3);
@@ -45,17 +45,17 @@ function (object,pvalue=0.05,dataframe,searchVarList,Outcome="Class", type = c("
 				}
 			}
 			ftmp <- formula(frm1);
-			auxmodel <- modelFitting(ftmp,dataframe,type)
+			auxmodel <- modelFitting(ftmp,data,type)
       
 			if (orgsize == length(as.list(attr(terms(auxmodel),"variables"))))
 			{
-				zIDI <- as.vector(getVarReclassification(auxmodel,dataframe,Outcome,type)$z.IDIs);
+				zIDI <- as.vector(getVarReclassification(auxmodel,data,Outcome,type)$testData.z.IDIs);
 		##        cat(frm1," : ");
 		##        print(zIDI,digits = 2 );
 				if ((zIDI[i-indexZidi] > cthr) && ( zIDI[i-indexZidi] > orgzIDI[i-indexZidi] ))
 				{
 				  namelist <- paste(namelist,vnames[j]);
-				  if (description != ".") namelist <- paste(namelist,"[",searchVarList[j,description],"]");
+				  if (description != ".") namelist <- paste(namelist,"[",variableList[j,description],"]");
 				  zIDIlist <- paste(zIDIlist,sprintf("%5.3f",zIDI[i-indexZidi]));
 				}        
 			}

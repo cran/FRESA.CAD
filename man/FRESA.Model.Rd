@@ -1,206 +1,216 @@
 \name{FRESA.Model}
 \alias{FRESA.Model}
-%- Also NEED an '\alias' for EACH other topic documented here.
-\title{
-Automated model selection
-%%  ~~function to do ... ~~
-}
+\title{Automated model selection}
 \description{
-Given an initial model template (Survival or Linear) and optimization procedure (Residual or Classification) and a data frame, this 
-function will use a wrapper procedure to select the best features of a non-penalized linear model that best predict the outcome.
-A filter scheme may be enabled to reduced the search space of the wrapper procedure. The false selection rate may be empirically controlled 
-by enabling bootstrapping, and model shrinkage can be evaluated by cross-validation. 
-%%  ~~ A concise (1-5 lines) description of what the function does. ~~
+	This function uses a wrapper procedure to select the best features of a non-penalized linear model that best predict the outcome, given the formula of an initial model template (linear, logistic, or Cox proportional hazards), an optimization procedure, and a data frame.
+	A filter scheme may be enabled to reduce the search space of the wrapper procedure.
+	The false selection rate may be empirically controlled by enabling bootstrapping, and model shrinkage can be evaluated by cross-validation. 
 }
 \usage{
-FRESA.Model(formula,
-data,
-OptType=c("Binary","Residual"),
-pvalue=0.05,
-filter.p.value=0.10,
-loops=1,
-maxTrainModelSize=10,
-loop.threshold=20,
-elimination.bootstrap.steps=100,
-bootstrap.steps=100,
-interaction=c(1,1),
-print=TRUE,
-plot=TRUE,
-folds=10,
-repeats=1,
-k=0,
-categorizationType=c("Raw","Categorical","ZCategorical",
-"RawZCategorical","RawZTail","RawTail"),
-cateGroups=c(0.1,0.9),
-raw.dataFrame=NULL,
-var.description=NULL,
-testType=c("zIDI","zNRI","Binomial","Wilcox","tStudent","Ftest")
-)
+	FRESA.Model(formula,
+	            data,
+	            OptType = c("Binary", "Residual"),
+	            pvalue = 0.05,
+	            filter.p.value = 0.10,
+	            loops = 1,
+	            maxTrainModelSize = 10,
+	            loop.threshold = 20,
+	            elimination.bootstrap.steps = 100,
+	            bootstrap.steps = 100,
+	            interaction = c(1,1),
+	            print = TRUE,
+	            plots = TRUE,
+	            CVfolds = 10,
+	            repeats = 1,
+	            nk = 0,
+	            categorizationType = c("Raw",
+	                                   "Categorical",
+	                                   "ZCategorical",
+	                                   "RawZCategorical",
+	                                   "RawTail",
+	                                   "RawZTail"),
+	            cateGroups = c(0.1, 0.9),
+	            raw.dataFrame = NULL,
+	            var.description = NULL,
+	            testType = c("zIDI",
+	                         "zNRI",
+	                         "Binomial",
+	                         "Wilcox",
+	                         "tStudent",
+	                         "Ftest"))
 
 }
-%- maybe also 'usage' for other objects documented here.
 \arguments{
-  \item{formula}{
-   The Base Formula. It Defines the fitting function
+	\item{formula}{
+		An object of class \code{formula} with the formula to be fitted
+	}
+	\item{data}{
+		A data frame where all variables are stored in different columns
+	}
+	\item{OptType}{
+		Optimization type: Based on the integrated discrimination improvement (Binary) index for binary classification ("Binary"), or based on the net residual improvement (NeRI) index for linear regression ("Residual") 
+	}
+	\item{pvalue}{
+		The maximum \emph{p}-value, associated to the \code{testType}, allowed for a term in the model (controls the false selection rate)
+	}
+	\item{filter.p.value}{
+		The maximum \emph{p}-value, associated to the Kendall rank correlation test, allowed for a variable to be included to the feature selection procedure
+	}
+	\item{loops}{
+		The number of bootstrap loops for the forward selection procedure
+	}
+	\item{maxTrainModelSize}{
+		Maximum number of terms that can be included in the model
+	}
+	\item{loop.threshold}{
+		After \code{loop.threshold} cycles, only variables that have already been selected in previous cycles will be candidates to be selected in posterior cycles
+	}
+	\item{elimination.bootstrap.steps}{
+		The number of bootstrap loops for the backwards elimination procedure
+	}
+	\item{bootstrap.steps}{
+		The number of bootstrap loops for the bootstrap validation procedure
+	}
+	\item{interaction}{
+		A vector of size two. The terms are used by the search and update procedures, respectively. Set to either 1 for first order models, or to 2 for second order models
+	}
+	\item{print}{
+		Logical. If \code{TRUE}, information will be displayed
+	}
+	\item{plots}{
+		Logical. If \code{TRUE}, plots are displayed
+	}
+	\item{CVfolds}{
+		The number of folds for the final cross-validation
+	}
+	\item{repeats}{
+		The number of times that the cross-validation procedure will be repeated
+	}
+	\item{nk}{
+		The number of neighbors used to generate a \emph{k}-nearest neighbors (KNN) classification. If zero, \emph{k} is set to the square root of the number of cases. If less than zero, it will not perform the KNN classification
+	}
+	\item{categorizationType}{
+		How variables will be analyzed: As given in \code{data} ("Raw"); broken into the \emph{p}-value categories given by \code{cateGroups} ("Categorical"); broken into the \emph{p}-value categories given by \code{cateGroups}, and weighted by the \emph{z}-score ("ZCategorical"); broken into the \emph{p}-value categories given by \code{cateGroups}, weighted by the \emph{z}-score, plus the raw values ("RawZCategorical"); raw values, plus the tails ("RawTail"); or raw values, wighted by the \emph{z}-score, plus the tails ("RawZTail")
+	}
+	\item{cateGroups}{
+		A vector of percentiles to be used for the categorization procedure
+	}
+	\item{raw.dataFrame}{
+		A data frame similar to \code{data}, but with unajusted data, used to get the means and variances of the unadjusted data
+	}
+	\item{var.description}{
+		A vector of the same length as the number of columns of \emph{data}, containing a description of the variables
+	}
+	\item{testType}{
+		For an Binary-based optimization, the type of index to be evaluated by the \code{improveProb} function (\code{Hmisc} package): \emph{z}-value of Binary or of NRI. For a NeRI-based optimization, the type of non-parametric test to be evaluated by the \code{improvedResiduals} function: Binomial test ("Binomial"), Wilcoxon rank-sum test ("Wilcox"), Student's \emph{t}-test ("tStudent"), or \emph{F}-test ("Ftest")
+	}
 }
-  \item{data}{
-  The data frame
+\details{
+This is the main function of FRESA.CAD given an outcome formula, and a data.frame this function will do an univariate analysis of the data (\code{univariateRankVariables}),
+then it will select the top ranked variables; after that it will select the model that best describes the outcome. At output it will return the bootstrapped performance of the model 
+(\code{bootstrapValidation} or \code{bootstrapValidationNeRI}). It can be set to report the cross-validation performance of the selection process which will return either 
+a  \code{crossValidationFeatureSelection} or a \code{crossValidationNeRIFeatureSelection} object.
 }
-  \item{OptType}{
-  The optimization type to be used. \cr
-  Binary: Binary classification based on IDI\cr
-  Residuals: Residual optimization\cr
-}
-  \item{pvalue}{
-   The maximum p value for FSR-controlled warping procedure 
-}
-  \item{filter.p.value}{
-   The maximum p value for the filter selection procedure.
-   }
-  \item{loops}{
-   The number of bootstrap loops for the forward selection procedure
-}
-  \item{maxTrainModelSize}{
-   The maximum size of the model that can be created
-}
-  \item{loop.threshold}{
-   The loop.threshold is used by the bootstrap procedure to filter-out the non-frequent terms.
-}
-  \item{elimination.bootstrap.steps}{
-   The number of bootstrap steps to be used by the backwards elimination procedure
-}
-  \item{bootstrap.steps}{
-   The number of steps to be performed by the model bootstrapping-validation function.
-}
-  \item{interaction}{
-   The vector of two elements with interactions by the search and update procedures (1: first order mode, 2: Second order models)
-}
-  \item{print}{
-   if TRUE it will print model information
-}
-  \item{plot}{
-	if TRUE it will create the plots
-}
-  \item{folds}{
-	The number of cross-validation folds to be used
-}
-  \item{repeats}{
-  The number of times that the cross-validation procedure will be repeated
-}
-  \item{k}{
-   the number of neighbours for the KNN. If zero k is set to the square root of cases. If KNN is less than 0 it will not perform the KNN
-}
-  \item{categorizationType}{
-  It can be used to create categorical terms on the models
-}
-  \item{cateGroups}{
-  the p-values to be used in for the categorization procedure
-
-}
-  \item{raw.dataFrame}{
-  The original data frame. It is used to get the mean and variances of the original data
-}
-  \item{var.description}{
-  A vector of the same size as the columns of the data frame that contains a description of the variables.
-}
-  \item{testType}{
-  The test to be used to select a model term 
-}
-}
-
-%%\details{
-%%  ~~ If necessary, more details than the description above ~~
-%%}
 \value{
-
-%%  If it is a LIST, use
-  \item{model}{The final model}
-  \item{reducedModel}{The object of the backwards elimination procedure}
-  \item{univariateAnalysis}{A Data frame with the univariate analysis}
-  \item{firstModel}{The ReclassificationFRESA.Model or NeRIBasedFRESA.Model object }
-  \item{updatedModel}{The object after the update procedure}
-  \item{bootstrappedModel}{The bootstrapped object of the final model}
-  \item{cvObject}{The cross-validation object}
-  \item{used.variables}{The number of terms that pass the filter procedure}
- }
-
-%%\references{
-%% ~put references to the literature/web site here ~
-%%}
-
-\author{
-Jose G. Tamez-Pena
-
+	\item{final.model}{
+		An object of class \code{lm}, \code{fastglm}, or \code{coxph} containing the final model
+	}
+	\item{reducedModel}{
+		The resulting object of the backward elimination procedure
+	}
+	\item{univariateAnalysis}{
+		A data frame with the results from the univariate analysis
+	}
+	\item{firstModel}{
+		The resulting object of the feature selection function.
+	}
+	\item{updatedModel}{
+		The resulting object of the the update procedure
+	}
+	\item{bootstrappedModel}{
+		The resulting object of the bootstrap procedure on \code{final.model}
+	}
+	\item{cvObject}{
+		The resulting object of the cross-validation procedure
+	}
+	\item{used.variables}{
+		The number of terms that passed the filter procedure
+	}
 }
-
-%%\note{
-%%  ~~further notes~~
-%%}
-
-%% ~Make other sections like Warning with \section{Warning }{....} ~
-
-%%\seealso{
-%% ~~objects to See Also as \code{\link{help}}, ~~~
-%%}
-
+\references{Pencina, M. J., D'Agostino, R. B., & Vasan, R. S. (2008). Evaluating the added predictive ability of a new marker: from area under the ROC curve to reclassification and beyond. \emph{Statistics in medicine} \bold{27}(2), 157-172.}
+\author{Jose G. Tamez-Pena and Antonio Martinez-Torteya}
 \examples{
-## Get the stage C prostate cancer data from rpart
-library(rpart)
-data(stagec)
-## Split the stages into several columns
-dataCancer <- cbind(stagec[,1:3],stagec[,5:6],1*(stagec[,7] == 4),
-  1*(stagec[,7] == 5),1*(stagec[,7] == 6),1*(stagec[,7] == 7),
-  1*(stagec[,7] == 8),1*(stagec[,7] >= 9),1*(stagec[,4] == 2),
-  1*(stagec[,8]=='diploid'),1*(stagec[,8]=='tetraploid'),1-1*(stagec[,8]=='aneuploid'))
-## Assign the column names
-colnames(dataCancer) <- c("pgtime","pgstat","age","g2","Grade",
-                          "gleason4","gleason5","gleason6","gleason7","gleason8",
-                          "gleason910","eet","diploid","tetraploid","Notaneuploid")
-## Lets remove the incomplete cases
-dataCancer <- as.data.frame(dataCancer[complete.cases(dataCancer),])
-
-## A simple Call for COX modeling
-\dontrun{
-md <- FRESA.Model(Surv(pgtime,pgstat) ~ 1,dataCancer)
-plotModels(md$
+	\dontrun{
+	# Start the graphics device driver to save all plots in a pdf format
+	pdf(file = "Example.pdf")
+	# Get the stage C prostate cancer data from the rpart package
+	library(rpart)
+	data(stagec)
+	# Split the stages into several columns
+	dataCancer <- cbind(stagec[,c(1:3,5:6)],
+	                    gleason4 = 1*(stagec[,7] == 4),
+	                    gleason5 = 1*(stagec[,7] == 5),
+	                    gleason6 = 1*(stagec[,7] == 6),
+	                    gleason7 = 1*(stagec[,7] == 7),
+	                    gleason8 = 1*(stagec[,7] == 8),
+	                    gleason910 = 1*(stagec[,7] >= 9),
+	                    eet = 1*(stagec[,4] == 2),
+	                    diploid = 1*(stagec[,8] == "diploid"),
+	                    tetraploid = 1*(stagec[,8] == "tetraploid"),
+	                    notAneuploid = 1-1*(stagec[,8] == "aneuploid"))
+	# Remove the incomplete cases
+	dataCancer <- dataCancer[complete.cases(dataCancer),]
+	# Load a pre-stablished data frame with the names and descriptions of all variables
+	data(cancerVarNames)
+	# Get a Cox proportional hazards model using:
+	# - The default parameters
+	md <- FRESA.Model(formula = Surv(pgtime, pgstat) ~ 1,
+	                  data = dataCancer,
+					  var.description = cancerVarNames[,2])
+	# Get a logistic regression model using
+	# - The default parameters
+	md <- FRESA.Model(formula = pgstat ~ 1,
+	                  data = dataCancer,
+					  var.description = cancerVarNames[,2])
+	# Get a logistic regression model using:
+	# - redidual-based optimization
+	md <- FRESA.Model(formula = pgstat ~ 1,
+	                  data = dataCancer,
+	                  OptType = "Residual",
+					  var.description = cancerVarNames[,2])
+	# Get a Cox proportional hazards model using:
+	# - 250 bootstrap loops
+	md <- FRESA.Model(formula = Surv(pgtime, pgstat) ~ 1,
+	                  data = dataCancer,
+	                  loops = 250,
+					  var.description = cancerVarNames[,2])
+	# Get a Cox proportional hazards model using:
+	# - 250 bootstrap loops
+	# - First order interactions in the update procedure
+	md <- FRESA.Model(formula = Surv(pgtime, pgstat) ~ 1,
+	                  data = dataCancer,
+	                  loops = 250,
+	                  interaction = c(1,2),
+					  var.description = cancerVarNames[,2])
+	# Get a Cox proportional hazards model using:
+	# - No bootstrapping
+	# - No cross-validation
+	md <- FRESA.Model(formula = Surv(pgtime, pgstat) ~ 1,
+	                  data = dataCancer,
+	                  CVfolds = 0,
+	                  elimination.bootstrap.steps = 1,
+					  var.description = cancerVarNames[,2])
+	# Get a Cox proportional hazards model using:
+	# - NeRI-based optimization
+	# - 250 bootstrap loops
+	# - First order interactions in the update procedure
+	md <- FRESA.Model(formula = Surv(pgtime, pgstat) ~ 1,
+	                  data = dataCancer,
+	                  OptType = "Residual",
+	                  loops = 250,
+	                  interaction = c(1,2),
+					  var.description = cancerVarNames[,2])
+	# Shut down the graphics device driver
+	dev.off()}
 }
-
-\dontrun{
-## A simple Call for Logistic modeling
-md <- FRESA.Model(pgstat ~ 1 ,dataCancer)
-}
-
-## A simple Call for LM modeling with residual optimization
-
-\dontrun{
-md <- FRESA.Model(pgstat ~ 1 ,dataCancer,OptType="Residual")
-}
-
-\dontrun{
-## A Call for COX modeling with Bagging
-md <- FRESA.Model(Surv(pgtime,pgstat) ~ 1,dataCancer,loops=250)
-}
-
-\dontrun{
-## A Call for COX modeling with Bagging and second order update interaction
-md <- FRESA.Model(Surv(pgtime,pgstat) ~ 1,dataCancer,loops=250,interaction=c(1,2))
-}
-
-\dontrun{
-## A Call for one COX modeling without Bagging nor Cross validation
-md <- FRESA.Model(Surv(pgtime,pgstat) ~ 1,dataCancer,folds=0, 
-elimination.bootstrap.steps=1,filter.p.value=0.1)
-}
-
-\dontrun{
-## A Call for one COX modeling optimizing Matingale residuals with  
-## second order interactions in the update procedure
-mdr <- FRESA.Model(Surv(pgtime,pgstat) ~ 1,dataCancer,
-OptType="Residual",loops=250,interaction=c(1,2))
-}
-
-}
-
-% Add one or more standard keywords, see file 'KEYWORDS' in the
-% R documentation directory.
-\keyword{Model_Inspection}
+\keyword{Model_Generation}

@@ -1,77 +1,60 @@
 \name{rankInverseNormalDataFrame}
 \alias{rankInverseNormalDataFrame}
-%- Also NEED an '\alias' for EACH other topic documented here.
-\title{
-Performs a Z transformation of the data using the Rank Inverse Normal Transform
-%%  ~~function to do ... ~~
-}
+\title{Perform a z-transformation of the data using the rank-based inverse normal transformation}
 \description{
-This function takes a data frame and a reference control population to return a z-transformed data set conditioned to the reference population.
-Each sample data for each feature column in the data frame is conditionally z-transformed using a inverse normal rank transform.
-The rank of the sample in the reference frame is used to get the corresponding z value using the inverse normal transformation.
-%%  ~~ A concise (1-5 lines) description of what the function does. ~~
+	This function takes a data frame and a reference control population to return a \emph{z}-transformed data set conditioned to the reference population.
+	Each sample data for each feature column in the data frame is conditionally \emph{z}-transformed using a rank-based inverse normal transformation, based on the rank of the sample in the reference frame.
 }
 \usage{
-rankInverseNormalDataFrame(varList, dataframe, referenceframe)
+	rankInverseNormalDataFrame(variableList,
+	                           data,
+	                           referenceframe)
 }
-%- maybe also 'usage' for other objects documented here.
 \arguments{
-  \item{varList}{
-  A data frame that list the variables to be z-transformed
-%%     ~~Describe \code{varList} here~~
+	\item{variableList}{
+		A data frame with two columns. The first one must have the names of the candidate variables and the other one the description of such variables
+	}
+	\item{data}{
+		A data frame where all variables are stored in different columns
+	}
+	\item{referenceframe}{
+		A data frame similar to \code{data}, but with only the control population
+	}
 }
-  \item{dataframe}{
-  The data frame to be transformed. Where each row has a subject sample and the columns are features.
-
-}
-  \item{referenceframe}{
-  The reference/control set used to compute the rank of each variable
-%%     ~~Describe \code{referenceframe} here~~
-}
-}
-
-%%\details{
-%%  ~~ If necessary, more details than the description above ~~
-%%}
-
 \value{
-Returns a new data frame were each observation has been conditionally z-transformed given the control data
+	A data frame where each observation has been conditionally \emph{z}-transformed, given control data
 }
-
-%%\references{
-%% ~put references to the literature/web site here ~
-%%}
-
-\author{
-Jose G. Tamez-Pena
-
-}
-
-%%\note{
-%%  ~~further notes~~
-%%}
-
-%% ~Make other sections like Warning with \section{Warning }{....} ~
-
-%%\seealso{
-%% ~~objects to See Also as \code{\link{help}}, ~~~
-%%}
-
+\author{Jose G. Tamez-Pena and Antonio Martinez-Torteya}
 \examples{
-## Use the Prostate cancer data
-require(rpart)
-data(stagec)
-dataCancer <- stagec[complete.cases(stagec),]
-## List the variables to rank inverse
-varlist <- data.frame(c("g2","grade"),c("cells in G2 phase","tumor grade"))
-## Set the group of no progression
-noProgress <- subset(dataCancer,pgstat==0)
-## Rank the variables
-CancerZTransform <- rankInverseNormalDataFrame(varlist,dataCancer,noProgress)
-## show the heatmap
-x <- heatMaps (varlist,outcome='pgstat',dataframe=CancerZTransform,outcomeGain=4)
+	\dontrun{
+	# Start the graphics device driver to save all plots in a pdf format
+	pdf(file = "Example.pdf")
+	# Get the stage C prostate cancer data from the rpart package
+	library(rpart)
+	data(stagec)
+	# Split the stages into several columns
+	dataCancer <- cbind(stagec[,c(1:3,5:6)],
+	                    gleason4 = 1*(stagec[,7] == 4),
+	                    gleason5 = 1*(stagec[,7] == 5),
+	                    gleason6 = 1*(stagec[,7] == 6),
+	                    gleason7 = 1*(stagec[,7] == 7),
+	                    gleason8 = 1*(stagec[,7] == 8),
+	                    gleason910 = 1*(stagec[,7] >= 9),
+	                    eet = 1*(stagec[,4] == 2),
+	                    diploid = 1*(stagec[,8] == "diploid"),
+	                    tetraploid = 1*(stagec[,8] == "tetraploid"),
+	                    notAneuploid = 1-1*(stagec[,8] == "aneuploid"))
+	# Remove the incomplete cases
+	dataCancer <- dataCancer[complete.cases(dataCancer),]
+	# Load a pre-stablished data frame with the names and descriptions of all variables
+	data(cancerVarNames)
+	# Set the group of no progression
+	noProgress <- subset(dataCancer,pgstat==0)
+	# z-transform g2 values using the no-progression group as reference
+	dataCancerZTransform <- rankInverseNormalDataFrame(variableList = cancerVarNames[2,],
+	                                                   data = dataCancer,
+	                                                   referenceframe = noProgress)
+	# Shut down the graphics device driver
+	dev.off()}
 }
-
-% Add one or more standard keywords, see file 'KEYWORDS' in the
-% R documentation directory.
 \keyword{Data_Conditioning}
