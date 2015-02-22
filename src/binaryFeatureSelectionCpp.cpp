@@ -1,4 +1,25 @@
+/* FRESA.CAD: utilities for building and testing formula-based 
+	models (linear, logistic or COX) for Computer Aided Diagnosis/Prognosis 
+	applications.  Utilities include data adjustment, univariate analysis, 
+	model building, model-validation, longitudinal analysis, reporting and visualization.. 
+
+   This program is free software under the terms of the 
+   GPL Lesser General Public License as published by
+   the Free Software Foundation, either version 2 of the License, or
+   (at your option) any later version.
+  
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+   
+   Jose Tamez and Israel Alanis
+  
+*/
+
+
 #include "FRESAcommons.h"
+
+
 struct bootVal{
   	 mat bootmodel;
   	 mat bootmodelmeans;
@@ -12,7 +33,8 @@ struct bootVal{
 	 mat test_zIDI;
 	 mat test_zNRI;
   }redBoot;
- int redCurmodel_S_lastRemoved;
+
+int redCurmodel_S_lastRemoved;
 
 
 //********************************************************************************************
@@ -163,9 +185,9 @@ extern "C" SEXP bootstrapValidationCpp(SEXP _fraction,SEXP _loops,SEXP _datafram
 					}	
 				}
 				tracc = trsen+trspe;
-				tracc = tracc/(double)trainmodel_linear_predictors.n_rows;
-				trsen = trsen/(double)totSamples;
-				trspe = trspe/(double)totSamples;
+				tracc = tracc/static_cast<double>(trainmodel_linear_predictors.n_rows);
+				trsen = trsen/static_cast<double>(totSamples);
+				trspe = trspe/static_cast<double>(totSamples);
 
 				vec wtsIdi = modelReclas.z_IDIs;
 				for (unsigned int n=0;n<wtsIdi.n_elem;n++)
@@ -202,9 +224,9 @@ extern "C" SEXP bootstrapValidationCpp(SEXP _fraction,SEXP _loops,SEXP _datafram
 				smapsen = smapsen + myTestCases.n_rows;
 				gspe = gspe + spe; 
 				smapspe = smapspe + myTestControl.n_rows;
-				acc = acc/(double)testSample.n_rows;
-				sen = sen/(double)myTestCases.n_rows;
-				spe = spe/(double)myTestControl.n_rows;
+				acc = acc/static_cast<double>(testSample.n_rows);
+				sen = sen/static_cast<double>(myTestCases.n_rows);
+				spe = spe/static_cast<double>(myTestControl.n_rows);
 				sumwtdcf = sumwtdcf+(wtsIdi % coef);
 				sumwts = sumwts+wtsIdi;
 
@@ -246,9 +268,9 @@ extern "C" SEXP bootstrapValidationCpp(SEXP _fraction,SEXP _loops,SEXP _datafram
 		}
 		
 		double blindAUC = rocAUC(testoutcome,testprediction,"auto","auc");
-		double BlindAccuracy = gacc/(double)smaptot;
-		double BlindSensitivity = gsen/(double)smapsen;
-		double BlindSpecificity = gspe/(double)smapspe;
+		double BlindAccuracy = gacc/static_cast<double>(smaptot);
+		double BlindSensitivity = gsen/static_cast<double>(smapsen);
+		double BlindSpecificity = gspe/static_cast<double>(smapspe);
 //		Rcout<<"Blind AUC: "<<blindAUC<<"\n";
 		Rcpp::List resul =Rcpp::List::create(
 			Rcpp::Named("test_zNRI")=Rcpp::wrap(test_zNRI), 
@@ -472,7 +494,7 @@ try {   // R_CStackLimit=(uintptr_t)-1;
 		std::vector<std::string> formulas;
 		std::vector<int> mynames;
 		std::vector<std::string> ovnames=as<std::vector<std::string> >(CharacterVector(_variableList)); 
-		double zthr = fabs(qnorm(pvalue,0.0,1.0)); //double zthr = abs(Rf_qnorm5(pvalue,0.0, 1.0, 1, 0));
+		double zthr = abs(qnorm(pvalue,0.0,1.0)); //double zthr = abs(Rf_qnorm5(pvalue,0.0, 1.0, 1, 0));
 		for(int i=0;i<CharacterVector(colnames).size();i++)
 		{
 			lockup[std::string(CharacterVector(colnames)[i])]=i;
@@ -496,7 +518,7 @@ try {   // R_CStackLimit=(uintptr_t)-1;
 		{
 			zthr2 = zthr*sqrt(fraction);
 		}
-		if (zthr2<fabs(qnorm(0.1,0,1))) zthr2 = fabs(qnorm(0.1,0,1)); 
+		if (zthr2<abs(qnorm(0.1,0,1))) zthr2 = abs(qnorm(0.1,0,1)); 
 
 		Rcout<<pvalue<<" <-pv : z-> "<<zthr2<<" Form: "<<  baseForm << "\n";
 

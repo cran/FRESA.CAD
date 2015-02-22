@@ -14,8 +14,8 @@
 	\tabular{ll}{
 		Package: \tab FRESA.CAD\cr
 		Type: \tab Package\cr
-		Version: \tab 2.0\cr
-		Date: \tab 2015-2-19\cr
+		Version: \tab 2.0.2\cr
+		Date: \tab 2015-2-21\cr
 		License: \tab LGPL (>= 2)\cr
 	}
 	Purpose: The design of diagnostic or prognostic multivariate models via the selection of significantly discriminant features.

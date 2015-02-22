@@ -1,4 +1,24 @@
+/* FRESA.CAD: utilities for building and testing formula-based 
+	models (linear, logistic or COX) for Computer Aided Diagnosis/Prognosis 
+	applications.  Utilities include data adjustment, univariate analysis, 
+	model building, model-validation, longitudinal analysis, reporting and visualization.. 
+
+   This program is free software under the terms of the 
+   GPL Lesser General Public License as published by
+   the Free Software Foundation, either version 2 of the License, or
+   (at your option) any later version.
+  
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+   
+   Jose Tamez and Israel Alanis
+  
+*/
+
 #include "FRESAcommons.h"
+
+
 struct NeRIbootVal{
 	mat bootmodel;
 	mat bootmodelmeans;
@@ -11,7 +31,8 @@ struct NeRIbootVal{
 	mat test_wpvalue;
 	mat test_spvalue;
 	mat test_Fpvalue;
-  }NeRIredBoot;
+ }NeRIredBoot;
+
 int redCurmodel_S_lastRemovedNeRI;
 
 
@@ -379,7 +400,7 @@ try {   //R_CStackLimit=(uintptr_t)-1;
 			    baseForm = baseForm+"+"+covari[i];
 		int sizecases   =dataframe.n_rows;
 		int totSamples = (int)(fraction*sizecases);
-		double pthr2 = 1-R::pnorm(std::sqrt(fraction)*fabs(qnorm(pthr,0.0,1.0)),0.0,1.0,1,0);
+		double pthr2 = 1-R::pnorm(std::sqrt(fraction)*abs(qnorm(pthr,0.0,1.0)),0.0,1.0,1,0);
 	    if (pthr2>0.1) pthr2 = 0.1;
 		Rcout<<pvalue<<"pv: "<<pthr2<<"\n";
 		if (size > ovnames.size()) size = ovnames.size();

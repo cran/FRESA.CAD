@@ -1,3 +1,13 @@
+Changes from FRESA.CAD 2.0.1 to FRESA.CAD version 2.0.2
+
+	+variable _X from code was renamed _xmat 
+	+NAN were replaced by nan("") c++ function
+
+Changes from FRESA.CAD 2.0 to FRESA.CAD version 2.0.1
+
+C++ code was reviewed to met section 1.6.4 "Portable C and C++ code" of "Writing R Extensions" manual.
+Dependencies to c-standard libraries removed and round(x) changed to R::fprec(x,0).
+
 Changes from FRESA.CAD 1.0 to FRESA.CAD version 2.0
 
 	+ Added c++ libraries to speed-up feature selection.

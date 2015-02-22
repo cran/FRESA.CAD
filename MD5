@@ -1,6 +1,6 @@
-53951c7269ca45d46c5687a30bfd2321 *DESCRIPTION
+8af05d14bb2e9087449852d66be6dcd5 *DESCRIPTION
 3d5ec151bf6eca0a2a7b497bafe84592 *NAMESPACE
-d3fa6057223ae0ac1f32db1f7378e568 *NEWS
+260bc194920b22c805cba7d7014b5166 *NEWS
 708e7a6256c4c72db4f63fa6c71b1128 *R/FRESA.Model.R
 d2385ead7bc7b8307b20652a49e66826 *R/NeRIBasedFRESA.Model.R
 127a925c61b37bf8d53d8a9ba059391c *R/ReclassificationFRESA.Model.R
@@ -38,7 +38,7 @@ c9b39c046c491d47e91d3030360f1691 *R/updateModel.R
 48465529b61200558a5f2b109d33449e *R/updateNeRImodel.R
 33e621c0195b64f76f839a644e067673 *data/cancerVarNames.rda
 c2619dad77848bf58b21bf362653a3e0 *man/CancerVarNames.Rd
-25bebbd727716ae30a0d725ea518909b *man/FRESA.CAD-package.Rd
+abfb7f2a053ccb4c5f8b2aa7a5eeee8f *man/FRESA.CAD-package.Rd
 c3e5ff92312613c2bf8d5302bae7268e *man/FRESA.Model.Rd
 fb67f40f9d184a10c3891114f67e987c *man/NeRIBasedFRESA.Model.Rd
 3055209c38455631a95b2449562e32cc *man/ReclassificationFRESA.Model.Rd
@@ -74,11 +74,10 @@ e78b027e34a1e537def63d9de5684c85 *man/summaryReport.Rd
 5746373d6f6d7194d18326eeba8c5e36 *man/update.uniRankVar.Rd
 15c06b016f3c6a7533f67b075053e327 *man/updateModel.Rd
 5d3d81adb62455fb7436712bb42c9713 *man/updateNeRImodel.Rd
-5f6fbaebfa715097520d422faa522851 *src/FRESAcommons.cpp
-c515a45e5c121ac763e7678131b865fa *src/FRESAcommons.h
+4b614153d8bd019f60086f135ba9aa29 *src/FRESAcommons.cpp
+3428f9128a5b8165fc4a9b56e1a635e1 *src/FRESAcommons.h
 d79855680ab8149cbb50a64f84cc7c76 *src/Makevars
 3f2ceba2c06ce8a92f4d62a417410d70 *src/Makevars.win
-a26c5f3d045d2c70d0c29b080e15e713 *src/Rinterface.h
-b1924b2776d7bb7bc37efc750da05760 *src/binaryFeatureSelectionCpp.cpp
-2371a678ff6354976392c17a58c06698 *src/rankInverseNormalCpp.cpp
-9516571aa9b914f60a834dea75db51a2 *src/regresionFeatureSelectionCpp.cpp
+6b5fe6a2e81d7c982ef098421f7c4630 *src/binaryFeatureSelectionCpp.cpp
+d10fabe6e5df14c71ff1846702c606ff *src/rankInverseNormalCpp.cpp
+dee48f05e5a8bf21a9bafb60c06ee0cb *src/regresionFeatureSelectionCpp.cpp

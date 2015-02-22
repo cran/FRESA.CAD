@@ -1,8 +1,8 @@
 Package: FRESA.CAD
 Type: Package
 Title: FeatuRE Selection Algorithms for Computer Aided Diagnosis
-Version: 2.0
-Date: 2015-02-19
+Version: 2.0.2
+Date: 2015-02-20
 Author: Jose Gerardo Tamez-Pena, Antonio Martinez-Torteya and Israel Alanis
 Maintainer: Jose Gerardo Tamez-Pena <jose.tamezpena@itesm.mx>
 Description: Contains a set of utilities for building and testing formula-based models (linear, logistic or COX) for Computer Aided Diagnosis/Prognosis applications. Utilities include data adjustment, univariate analysis, model building, model-validation, longitudinal analysis, reporting and visualization.
@@ -11,7 +11,7 @@ Depends: Rcpp (>= 0.10.0),stringr,miscTools,Hmisc,pROC
 LinkingTo: Rcpp, RcppArmadillo
 Suggests:
         nlme,rpart,gplots,RColorBrewer,class,cvTools,glmnet,speedglm,survival
-Packaged: 2015-02-19 16:03:38 UTC; Jose Tamez
+Packaged: 2015-02-22 02:26:03 UTC; Jose Tamez
 NeedsCompilation: yes
 Repository: CRAN
-Date/Publication: 2015-02-19 17:28:16
+Date/Publication: 2015-02-22 08:10:06

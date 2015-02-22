@@ -1,5 +1,19 @@
+/* RankInverseNormalCpp: utility is part of FRESA.CAD
+
+   This program is free software under the terms of the 
+   GPL Lesser General Public License as published by
+   the Free Software Foundation, either version 2 of the License, or
+   (at your option) any later version.
+  
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+   
+   Jose Tamez and Israel Alanis
+  
+*/
 #include <Rcpp.h>
- 
+
 using namespace Rcpp;
 
 extern "C" SEXP rankInverseNormalCpp(SEXP _nrows,SEXP _obs, SEXP _minvalue, SEXP _maxvalue, SEXP _dataframe)
@@ -18,7 +32,7 @@ extern "C" SEXP rankInverseNormalCpp(SEXP _nrows,SEXP _obs, SEXP _minvalue, SEXP
 	NumericVector out(nrows);
 	double range = (max_value-min_value);
 	double zmin = R::qnorm(1.0/(1.0+size), 0.0, 1.0, 1, 0);
-	double zmx = R::qnorm((double)size/(1.0+size), 0.0, 1.0, 1, 0);
+	double zmx = R::qnorm(static_cast<double>(size)/(1.0+size), 0.0, 1.0, 1, 0);
 
 	int i=1;
         for (unsigned int j = 0; j < nrows; ++j)

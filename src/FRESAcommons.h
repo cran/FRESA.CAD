@@ -1,3 +1,21 @@
+/* FRESA.CAD: utilities for building and testing formula-based 
+	models (linear, logistic or COX) for Computer Aided Diagnosis/Prognosis 
+	applications.  Utilities include data adjustment, univariate analysis, 
+	model building, model-validation, longitudinal analysis, reporting and visualization.. 
+
+   This program is free software under the terms of the 
+   GPL Lesser General Public License as published by
+   the Free Software Foundation, either version 2 of the License, or
+   (at your option) any later version.
+  
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+   
+   Jose Tamez and Israel Alanis
+  
+*/
+
 #ifndef Fresa_commons_h
 #define Fresa_commons_h
 
@@ -13,23 +31,11 @@
 #include <iostream>
 #include <iomanip>
 #include <map>
-#ifdef _WIN32
-#include <direct.h>
-#include <stdlib.h>
-#include <stdio.h>
-#elif MACOS
-#include <errno.h>
-#include <unistd.h>
-#include <dlfcn.h>
-#include <sys/param.h>
-#include <sys/sysctl.h>
-#else
-#include <dlfcn.h>
-#include <unistd.h>
-#endif
+#include <cmath>
+
 #define HAVE_UINTPTR_T
 #define CSTACK_DEFNS 7
-#include "Rinterface.h"
+
 using namespace arma;
 using namespace Rcpp;
 static const double THRESH = 36.04365;
@@ -48,6 +54,7 @@ struct getVReclass{
 	 vec tNRIs;
 
   };
+  
  struct gvarNeRI{
 	 vec tP_value;
 	 vec BinP_value;
@@ -60,6 +67,7 @@ struct getVReclass{
 	 vec testData_FP_value;
 	 vec testData_NeRIs;
 	};
+	
  struct improvedRes {
 	double p1;
 	double p2;
@@ -70,8 +78,9 @@ struct getVReclass{
 	double t_test_pValue;
 	double F_test_pValue;
   };
-#include <stdio.h>
-#include <math.h>
+
+
+
 double qnorm(double p, double mu, double sigma);
 void chinv2(mat &matrix , int n);
 int cholesky2(mat &matrix, int n, double toler);
@@ -93,6 +102,7 @@ double ttest(vec x, vec y , double mu, bool paired, bool var_equal, std::string 
 double wilcoxtest(vec x, vec y , double mu, bool paired, std::string tail,bool correct);
 double binomtest(double x, double n, double p , std::string tail);
 gvarNeRI getVarNeRIFunc(mat dataframe, std::string type,mat testdata);
+
 #endif
 // END
 

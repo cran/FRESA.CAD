@@ -1,3 +1,21 @@
+/* FRESA.CAD: utilities for building and testing formula-based 
+	models (linear, logistic or COX) for Computer Aided Diagnosis/Prognosis 
+	applications.  Utilities include data adjustment, univariate analysis, 
+	model building, model-validation, longitudinal analysis, reporting and visualization.. 
+
+   This program is free software under the terms of the 
+   GPL Lesser General Public License as published by
+   the Free Software Foundation, either version 2 of the License, or
+   (at your option) any later version.
+  
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+   
+   Jose Tamez and Israel Alanis
+  
+*/
+
 #include "FRESAcommons.h"
 
 #define EPS 1e-4		
@@ -10,11 +28,11 @@
 #define MAX_TIES 1000
 
 
-extern "C" SEXP modelFittingCpp(SEXP _ymat,SEXP _X,SEXP _type)
+extern "C" SEXP modelFittingCpp(SEXP _ymat,SEXP _xmat,SEXP _type)
 {
 	std::string type = Rcpp::as<std::string>(_type);
 	Rcpp::NumericMatrix rymat(_ymat);
-	Rcpp::NumericMatrix rX(_X);
+	Rcpp::NumericMatrix rX(_xmat);
 	mat ymat(rymat.begin(), rymat.rows(), rymat.cols(),false);
 	mat X(rX.begin(), rX.rows(), rX.cols(),false);
 	vec betas=modelFittingFunc(ymat,X,type);
@@ -252,7 +270,7 @@ vec coxfit(int  maxiter,  vec &time,  vec &status, mat &covar, vec &offset, vec 
 	    	temp =0;
 	    	for (obs=0; obs<nobs; obs++) 
 	    	{    
-				temp += weights(obs) * fabs(covar(obs,i));
+				temp += weights(obs) * abs(covar(obs,i));
 	    	}
 	    	if (temp > 0) temp = temp2/temp;   
 	    	else temp=1.0; 
@@ -354,7 +372,7 @@ vec coxfit(int  maxiter,  vec &time,  vec &status, mat &covar, vec &offset, vec 
 		    { 
 				for (k=0; k<ndead; k++) 
 				{
-				    temp = (double)k/ ndead;
+				    temp = static_cast<double>(k)/ ndead;
 				    wtave = deadwt/ndead;
 				    d2 = denom - temp*efronwt;
 				    loglik(1) -= wtave* log(d2);
@@ -487,7 +505,7 @@ vec coxfit(int  maxiter,  vec &time,  vec &status, mat &covar, vec &offset, vec 
 				{ 
 				    for (k=0; k<ndead; k++) 
 				    {
-						temp = (double)k / ndead;
+						temp = static_cast<double>(k) / ndead;
 						wtave= deadwt/ ndead;
 						d2= denom - temp* efronwt;
 						newlk -= wtave* log(d2);
@@ -510,7 +528,7 @@ vec coxfit(int  maxiter,  vec &time,  vec &status, mat &covar, vec &offset, vec 
 	    }   
 //		flag = cholesky2(imat, nvar, toler);
 		cholesky2(imat, nvar, toler);
-		if (fabs(1-(loglik(1)/newlk))<= eps && halving==0) 
+		if (abs(1-(loglik(1)/newlk))<= eps && halving==0) 
 		{ 
 		    loglik(1) = newlk;
 		    chinv2(imat, nvar);     
@@ -774,7 +792,7 @@ if (type=="COX")
 	
 		if (!((is_finite(XTX)) && (is_finite(XTz))) )  
 		{
-			start[0]=NAN;
+			start[0]=nan("");
 			return start;
 		}
 	    try
@@ -785,7 +803,7 @@ if (type=="COX")
 		{
 			Rcpp::Rcout<<"Exception::: "<<e.what()<<"\n";
 			start = zeros<vec>(X.n_cols);
-			start[0]=NAN; // set to NaN
+			start[0]=nan(""); // set to NaN
 			return start;
 		}
 		if (iter<maxit)
@@ -809,7 +827,7 @@ if (type=="COX")
     catch(std::runtime_error const& e)
 {
     Rcpp::Rcout<<"Exception: "<<e.what()<<"\n";
-	start[0]=NAN; // set to NaN
+	start[0]=nan(""); // set to NaN
     return start;
 } 
 }
@@ -882,25 +900,25 @@ vec improveProbFunc(vec x1, vec x2, vec y)
 	    	if (d(i)<0) ndown_ne++;
 		}	
     }
-    double pup_ev   = (double)nup_ev/(double)n_ev;
-    double pup_ne   = (double)nup_ne/(double)n_ne;
-    double pdown_ev = (double)ndown_ev/(double)n_ev;
-    double pdown_ne = (double)ndown_ne/(double)n_ne;
+    double pup_ev   = static_cast<double>(nup_ev)/static_cast<double>(n_ev);
+    double pup_ne   = static_cast<double>(nup_ne)/static_cast<double>(n_ne);
+    double pdown_ev = static_cast<double>(ndown_ev)/static_cast<double>(n_ev);
+    double pdown_ne = static_cast<double>(ndown_ne)/static_cast<double>(n_ne);
     
-    double v_nri_ev = (double)(nup_ev + ndown_ev)/(double)std::pow(n_ev,2) - ((double)std::pow(nup_ev - ndown_ev,2)/(double)std::pow(n_ev,3));
+    double v_nri_ev = static_cast<double>(nup_ev + ndown_ev)/static_cast<double>(std::pow(n_ev,2)) - (static_cast<double>(std::pow(nup_ev - ndown_ev,2))/static_cast<double>(std::pow(n_ev,3)));
     
-    double v_nri_ne = (double)(ndown_ne + nup_ne)/(double)((n_ne*n_ne) - ((double)std::pow(ndown_ne - nup_ne,2)/(double)std::pow(n_ne,3)));
+    double v_nri_ne = static_cast<double>(ndown_ne + nup_ne)/static_cast<double>((n_ne*n_ne) - (static_cast<double>(std::pow(ndown_ne - nup_ne,2))/static_cast<double>(std::pow(n_ne,3))));
 
     double nri = pup_ev - pdown_ev - (pup_ne - pdown_ne);
     double se_nri = std::sqrt(v_nri_ev + v_nri_ne);
     double z_nri  = nri/se_nri;   
 
-    double improveSens =  sum_ev/(double)n_ev;
-    double improveSpec = sum_ne/(double)n_ne;
+    double improveSens =  sum_ev/static_cast<double>(n_ev);
+    double improveSpec = sum_ne/static_cast<double>(n_ne);
     double idi = improveSens - (improveSpec);
-    double var_ev = ((sse_ev)/(double)(n_ev))-(improveSens*improveSens);//var(a)/n_ev
-    double var_ne = ((sse_ne)/(double)(n_ne))-(improveSpec*improveSpec);//var(b)/n_ne
-    double se_idi = std::sqrt(var_ev/(double)(n_ev) + var_ne/(double)(n_ne));
+    double var_ev = ((sse_ev)/static_cast<double>(n_ev))-(improveSens*improveSens);//var(a)/n_ev
+    double var_ne = ((sse_ne)/static_cast<double>(n_ne))-(improveSpec*improveSpec);//var(b)/n_ne
+    double se_idi = std::sqrt(var_ev/static_cast<double>(n_ev) + var_ne/static_cast<double>(n_ne));
     double z_idi = idi/se_idi;
     z_idi=(mean(da)-mean(db))/std::sqrt((var(da)/da.n_elem)+(var(db)/db.n_elem));
     vec out(4);
@@ -1027,7 +1045,7 @@ vec Fresarank(vec _x)
 			h++;
 			if (i+h==so.n_elem) break;
 		}
-		double in=s/(double)h;
+		double in=s/static_cast<double>(h);
 		unsigned int t=i+h;
 		for (;i<t;i++)
 			sortRankx(i)=in;
@@ -1144,7 +1162,7 @@ double ttest(vec x, vec y , double mu, bool paired, bool var_equal, std::string 
 		x = x-y;
 		y.clear();
     }
-    double nx =(double)x.n_elem;
+    double nx =static_cast<double>(x.n_elem);
     double mx = mean(x);
     double vx = var(x);
     double df;
@@ -1168,7 +1186,7 @@ double ttest(vec x, vec y , double mu, bool paired, bool var_equal, std::string 
     } 
     else 
     {
-		double ny = (double)y.n_elem;
+		double ny = static_cast<double>(y.n_elem);
 		double my = mean(y);
 		double vy = var(y);
 		
@@ -1235,7 +1253,7 @@ double wilcoxtest(vec x, vec y , double mu, bool paired, std::string tail,bool c
         bool zeros = any(x == 0.0);
         if(zeros)
             x = x.elem(find(x != 0));
-        double n = (double)x.n_elem;
+        double n = static_cast<double>(x.n_elem);
         bool exact=FALSE;
         exact = (n < 50);
         vec r = Fresarank(abs(x));
@@ -1298,8 +1316,8 @@ double wilcoxtest(vec x, vec y , double mu, bool paired, std::string tail,bool c
     { 
     //-------------------------- 2-sample case ---------------------------
         vec r = Fresarank(x - y);
-        double nx = (double)x.n_elem;
-        double ny = (double)y.n_elem;
+        double nx = static_cast<double>(x.n_elem);
+        double ny = static_cast<double>(y.n_elem);
         bool exact=FALSE;
              if((nx < 50) && (ny < 50))
              		exact=TRUE;
@@ -1363,8 +1381,8 @@ double wilcoxtest(vec x, vec y , double mu, bool paired, std::string tail,bool c
 
 double binomtest(double x, double n, double p , std::string tail)
 {
-    x = round(x);
-    n = round(n);
+    x = R::fprec(x,0);
+    n = R::fprec(n,0);
     double pvalue=1.0;
     if (tail=="less") pvalue =R::pbinom(x, n, p,1,0);
     else if (tail=="greater") pvalue =R::pbinom(x - 1, n, p, 0,0);
