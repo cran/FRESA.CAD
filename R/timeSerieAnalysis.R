@@ -101,7 +101,7 @@ if (!requireNamespace("nlme", quietly = TRUE)) {
 				sdval <- tapply(timeorderCases[,vnames[j]], timeorderCases[,timevar], sd,na.rm=TRUE)
 				size <- tapply(timeorderCases[,vnames[j]], timeorderCases[,timevar], length)
 				delta <- sdval / sqrt( size)
-				errbar(-tCase,mval,mval-delta,mval+delta,col="red",ylab=vnames[j],xlab="t",type="b",ylim=c(miny,maxy))
+				errbar(-tCase,mval,mval-delta,mval+delta,col="red",ylab=vnames[j],xlab="time",type="b",ylim=c(miny,maxy))
 				lines(-timeorderCases[,contime],predCases,col="red",lty=3)
       
 				mval <- tapply(timeorderControl[,vnames[j]], timeorderControl[,timevar], mean,na.rm=TRUE)
@@ -117,28 +117,28 @@ if (!requireNamespace("nlme", quietly = TRUE)) {
 				{
 					for (lg in 1:length(Ptoshow))
 					{
-						legend(-maxtime+0.65*deltatime,miny + (0.3-0.1*lg)*(maxy-miny),sprintf("p(%s) = %5.3f",plegend[lg],reg$tTable[Ptoshow[lg],4]),bty="n");
+						legend(-maxtime+0.65*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),sprintf("t(%s) = %5.3f",plegend[lg],reg$tTable[Ptoshow[lg],3]),bty="n");
 						if (reg$tTable[Ptoshow[lg],4]<0.0001)
 						{
-							legend(-maxtime+0.9*deltatime,miny + (0.3-0.1*lg)*(maxy-miny),"****",bty="n");
+							legend(-maxtime+0.9*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"****",bty="n");
 						}
 						else
 						{
 							if (reg$tTable[Ptoshow[lg],4]<0.001)
 							{
-								legend(-maxtime+0.9*deltatime,miny + (0.3-0.1*lg)*(maxy-miny),"***",bty="n");
+								legend(-maxtime+0.9*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"***",bty="n");
 							}
 							else
 							{
-								if (reg$tTable[Ptoshow[lg],4]<0.05)
+								if (reg$tTable[Ptoshow[lg],4]<0.01)
 								{
-									legend(-maxtime+0.9*deltatime,miny + (0.3-0.1*lg)*(maxy-miny),"**",bty="n");
+									legend(-maxtime+0.9*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"**",bty="n");
 								}
 								else
 								{
 									if (reg$tTable[Ptoshow[lg],4]<0.05)
 									{
-										legend(-maxtime+0.9*deltatime,miny + (0.3-0.1*lg)*(maxy-miny),"*",bty="n");
+										legend(-maxtime+0.9*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"*",bty="n");
 									}
 								}
 							}
@@ -153,7 +153,7 @@ if (!requireNamespace("nlme", quietly = TRUE)) {
 				size <- tapply(timeorderCases[,vnames[j]], timeorderCases[,timevar], length)
 				delta <- sdval / sqrt( size)
 
-				errbar(tCase,mval,mval-delta,mval+delta,col="red",ylab=vnames[j],xlab="t",type="b",ylim=c(miny,maxy))
+				errbar(tCase,mval,mval-delta,mval+delta,col="red",ylab=vnames[j],xlab="time",type="b",ylim=c(miny,maxy))
 				lines(timeorderCases[,contime],predCases,col="red",lty=3)
 
 				mval <- tapply(timeorderControl[,vnames[j]], timeorderControl[,timevar], mean,na.rm=TRUE)
@@ -170,28 +170,28 @@ if (!requireNamespace("nlme", quietly = TRUE)) {
 				{
 					for (lg in 1:length(Ptoshow))
 					{
-						legend(maxtime-0.45*deltatime,miny + (0.3-0.1*lg)*(maxy-miny),sprintf("p(%s) = %5.3f",plegend[lg],reg$tTable[Ptoshow[lg],4]),bty="n");
+						legend(maxtime-0.45*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),sprintf("t(%s) = %5.3f",plegend[lg],reg$tTable[Ptoshow[lg],3]),bty="n");
 						if (reg$tTable[Ptoshow[lg],4]<0.0001)
 						{
-							legend(maxtime-0.1*deltatime,miny + (0.3-0.1*lg)*(maxy-miny),"****",bty="n");
+							legend(maxtime-0.1*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"****",bty="n");
 						}
 						else
 						{
 							if (reg$tTable[Ptoshow[lg],4]<0.001)
 							{
-								legend(maxtime-0.1*deltatime,miny + (0.3-0.1*lg)*(maxy-miny),"***",bty="n");
+								legend(maxtime-0.1*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"***",bty="n");
 							}
 							else
 							{
-								if (reg$tTable[Ptoshow[lg],4]<0.05)
+								if (reg$tTable[Ptoshow[lg],4]<0.01)
 								{
-									legend(maxtime-0.1*deltatime,miny + (0.3-0.1*lg)*(maxy-miny),"**",bty="n");
+									legend(maxtime-0.1*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"**",bty="n");
 								}
 								else
 								{
 									if (reg$tTable[Ptoshow[lg],4]<0.05)
 									{
-										legend(maxtime-0.1*deltatime,miny + (0.3-0.1*lg)*(maxy-miny),"*",bty="n");
+										legend(maxtime-0.1*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"*",bty="n");
 									}
 								}
 							}
@@ -206,20 +206,70 @@ if (!requireNamespace("nlme", quietly = TRUE)) {
 		{
 			if (timesign=="-")
 			{			
-			  errbar(-t,mval,mval-delta,mval+delta,ylab=vnames[j],xlab="t",type="b",ylim=c(miny,maxy))
+			  errbar(-t,mval,mval-delta,mval+delta,ylab=vnames[j],xlab="time",type="b",ylim=c(miny,maxy))
 			  lines(-timeorder[,contime],predict(obj_s,timeorder,na.action=na.exclude),col="blue",lty=2)      
 			  for (lg in 1:length(Ptoshow))
 				{
-					legend(-maxtime+0.65*deltatime,miny + (0.3-0.1*lg)*(maxy-miny),sprintf("p(%s) = %5.3f",plegend[lg],reg$tTable[Ptoshow[lg],4]),bty="n");
+					legend(-maxtime+0.65*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),sprintf("t(%s) = %5.3f",plegend[lg],reg$tTable[Ptoshow[lg],3]),bty="n");
+						if (reg$tTable[Ptoshow[lg],4]<0.0001)
+						{
+							legend(-maxtime+0.9*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"****",bty="n");
+						}
+						else
+						{
+							if (reg$tTable[Ptoshow[lg],4]<0.001)
+							{
+								legend(-maxtime+0.9*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"***",bty="n");
+							}
+							else
+							{
+								if (reg$tTable[Ptoshow[lg],4]<0.01)
+								{
+									legend(-maxtime+0.9*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"**",bty="n");
+								}
+								else
+								{
+									if (reg$tTable[Ptoshow[lg],4]<0.05)
+									{
+										legend(-maxtime+0.9*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"*",bty="n");
+									}
+								}
+							}
+						}
 				}
 			}
 			else
 			{
-				errbar(t,mval,mval-delta,mval+delta,ylab=vnames[j],xlab="t",type="b",ylim=c(miny,maxy))
+				errbar(t,mval,mval-delta,mval+delta,ylab=vnames[j],xlab="time",type="b",ylim=c(miny,maxy))
 				lines(timeorder[,contime],predict(obj_s,timeorder,na.action=na.exclude),col="blue",lty=2)      
 				for (lg in 1:length(Ptoshow))
 				{
-					legend(maxtime-0.65*deltatime,miny + (0.3-0.1*lg)*(maxy-miny),sprintf("p(%s) = %5.3f",plegend[lg],reg$tTable[Ptoshow[lg],4]),bty="n");
+					legend(maxtime-0.45*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),sprintf("t(%s) = %5.3f",plegend[lg],reg$tTable[Ptoshow[lg],3]),bty="n");
+						if (reg$tTable[Ptoshow[lg],4]<0.0001)
+						{
+							legend(maxtime-0.1*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"****",bty="n");
+						}
+						else
+						{
+							if (reg$tTable[Ptoshow[lg],4]<0.001)
+							{
+								legend(maxtime-0.1*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"***",bty="n");
+							}
+							else
+							{
+								if (reg$tTable[Ptoshow[lg],4]<0.01)
+								{
+									legend(maxtime-0.1*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"**",bty="n");
+								}
+								else
+								{
+									if (reg$tTable[Ptoshow[lg],4]<0.05)
+									{
+										legend(maxtime-0.1*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"*",bty="n");
+									}
+								}
+							}
+						}
 				}
 			}
 		}

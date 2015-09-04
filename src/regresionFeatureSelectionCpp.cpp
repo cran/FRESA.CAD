@@ -39,7 +39,7 @@ int redCurmodel_S_lastRemovedNeRI;
 //********************************************************************************************
 //**==========================================================================================
 //********************************************************************************************
-extern "C" SEXP bootstrapValidationNeRICpp(SEXP _fraction,SEXP _loops,SEXP _dataframe,SEXP _type,SEXP _response)
+extern "C" SEXP bootstrapValidationResCpp(SEXP _fraction,SEXP _loops,SEXP _dataframe,SEXP _type,SEXP _response)
 {
 	try 
 	{  //R_CStackLimit=(uintptr_t)-1;
@@ -98,16 +98,17 @@ extern "C" SEXP bootstrapValidationNeRICpp(SEXP _fraction,SEXP _loops,SEXP _data
 			mat trainingSample;
 			uvec samCases= randi<uvec>(totSamples, distr_param(0,sizecases-1));
 			vec auxcasesample=zeros<vec>(sizecases);
-			for (int i =0;i<totSamples;i++)
+			trainingSample = casesample.row(samCases(0));
+			auxcasesample[samCases(0)]=1;
+			for (int i =1;i<totSamples;i++)
 			{
-				trainingSample=join_cols(trainingSample,casesample.row((samCases(i))));
+				trainingSample=join_cols(trainingSample,casesample.row(samCases(i)));
 				auxcasesample[samCases(i)]=1;
 			}	 
 			vec trainmodel = modelFittingFunc(trainingSample.cols(0,1),trainingSample.cols(2,trainingSample.n_cols-1),type);
 			if (is_finite(trainmodel))
 			{
-				mat testSample=casesample.rows(find(auxcasesample==0));
-				mat testReSampled=testSample.rows(randi<uvec>(totSamples, distr_param(0,testSample.n_rows-1)));
+				mat testSample = casesample.rows(find(auxcasesample==0));
 				vec coef = trainmodel;
 				vec coxmean;
 				if (type == "COX") 
@@ -116,9 +117,9 @@ extern "C" SEXP bootstrapValidationNeRICpp(SEXP _fraction,SEXP _loops,SEXP _data
 					 coxmean = trainmodel.subvec((trainmodel.n_elem/2),trainmodel.n_elem-1);
 				}
 
-				vec residualTrain = residualForNeRIsFunc(trainmodel,trainingSample.cols(2,trainingSample.n_cols-1),"",type,trainingSample.cols(1,1));
-				vec residualTest = residualForNeRIsFunc(trainmodel,testSample.cols(2,testSample.n_cols-1),"",type,testSample.cols(1,1));
-				gvarNeRI modelReclas = getVarNeRIFunc(trainingSample,type,testReSampled);
+				vec residualTrain = residualForFRESAFunc(trainmodel,trainingSample.cols(2,trainingSample.n_cols-1),"",type,trainingSample.cols(1,1));
+				vec residualTest = residualForFRESAFunc(trainmodel,testSample.cols(2,testSample.n_cols-1),"",type,testSample.cols(1,1));
+				gvarNeRI modelReclas = getVarResFunc(trainingSample,type,testSample);
 
 #pragma omp critical
 {
@@ -135,7 +136,7 @@ extern "C" SEXP bootstrapValidationNeRICpp(SEXP _fraction,SEXP _loops,SEXP _data
 					testResiduals.push_back(residualTest(i));
 				}
 				trainSampledRMSE(lastInserted) = std::sqrt(mean(residualTrain%residualTrain));
-				testSampledRMSE(lastInserted) = std::sqrt(mean(residualTrain%residualTrain));
+				testSampledRMSE(lastInserted) = std::sqrt(mean(residualTest%residualTest));
 				bcoef.row(lastInserted) = coef.t();	
 				if (type == "COX") bmeans.row(lastInserted) = coxmean.t();
 				NeRi.row(lastInserted) = modelReclas.NeRIs.t();
@@ -151,7 +152,7 @@ extern "C" SEXP bootstrapValidationNeRICpp(SEXP _fraction,SEXP _loops,SEXP _data
 }
 			}
 		}
-		if (lastInserted<loops)
+		if ((lastInserted>0)&&(lastInserted<loops))
 		{
 			trainSampledRMSE.resize(lastInserted);
 			testSampledRMSE.resize(lastInserted);
@@ -166,13 +167,15 @@ extern "C" SEXP bootstrapValidationNeRICpp(SEXP _fraction,SEXP _loops,SEXP _data
 			test_wpvalue.resize(lastInserted,n_var2);
 			test_spvalue.resize(lastInserted,n_var2);
 			test_Fpvalue.resize(lastInserted,n_var2);
-			Rcout<<"Warning: only "<<lastInserted<<" samples of "<<loops<<" where inserted\n";
+			if ((3*lastInserted)<loops) Rcout<<"Warning: only "<<lastInserted<<" samples of "<<loops<<" where inserted\n";
 		}
 
-	 	rowvec bootmodel = median (bcoef);
+//	 	rowvec bootmodel = median (bcoef);
+	 	rowvec bootmodel = mean (bcoef);
 		if (type == "COX") 
 		{ 
-			rowvec CoxMmodel = median (bmeans);
+//			rowvec CoxMmodel = median (bmeans);
+			rowvec CoxMmodel = mean (bmeans);
 			rowvec aux(bootmodel.n_elem*2);
 			for (unsigned int i=0;i<bootmodel.n_elem;i++)
 			{
@@ -183,8 +186,8 @@ extern "C" SEXP bootstrapValidationNeRICpp(SEXP _fraction,SEXP _loops,SEXP _data
 			bootmodel = aux;
 		}
 	 	vec basemodel = modelFittingFunc(casesample.cols(0,1),casesample.cols(2,casesample.n_cols-1),type);
-		double startRMSE = std::sqrt(mean(square(residualForNeRIsFunc(basemodel,casesample.cols(2,casesample.n_cols-1),"",type,casesample.cols(1,1)))));
-		double bootRMSE = std::sqrt(mean(square(residualForNeRIsFunc(bootmodel.t(),casesample.cols(2,casesample.n_cols-1),"",type,casesample.cols(1,1)))));
+		double startRMSE = std::sqrt(mean(square(residualForFRESAFunc(basemodel,casesample.cols(2,casesample.n_cols-1),"",type,casesample.cols(1,1)))));
+		double bootRMSE = std::sqrt(mean(square(residualForFRESAFunc(bootmodel.t(),casesample.cols(2,casesample.n_cols-1),"",type,casesample.cols(1,1)))));
 		Rcpp::List result = Rcpp::List::create(Rcpp::Named("NeRi")=Rcpp::wrap(NeRi), \
 						Rcpp::Named("tpvalue")=Rcpp::wrap(tpvalue), \
 						Rcpp::Named("wpvalue")=Rcpp::wrap(wpvalue), \
@@ -227,50 +230,72 @@ std::string residualFowardSelection(const unsigned int size,const int totSamples
 									std::map<std::string, int> &lockup,const std::string baseForm,std::vector <int> &mynamesLoc, 
 									const std::vector<std::string> &covari)
 {
+	std::string frm1 = baseForm;
 	unsigned int inserted = 0;
 	double iprob=0;
-	double iprobTrain=0;
-	arma::mat mysample;
-	arma::mat myTestsample;
-	arma::mat mysampleMat;
-	arma::mat myTestsampleMat;
+//	double iprobTrain=0;
+	unsigned int sizecases = dataframe.n_rows;
+
+	
+
+	arma::mat mysample = dataframe;
+	arma::mat myTestsample = dataframe;
+
 	arma::mat mysampleMatbase;
 	arma::mat myTestsampleMatbase;
-	std::string frm1 = baseForm;
 	vec bestmodel;
-	vec bestmodelCoef;
 	vec newmodel;
 	vec bestTrainResiduals;
 	vec bestResiduals;
-	vec testResiduals;
-	vec trainResiduals;
 	std::vector < std::string > vnames = ovnames;
 	std::string inname = "Inserted";
-	mynamesLoc.clear();
-	unsigned int sizecases = dataframe.n_rows;
+
+	int outinx = 0;
+	vec randOutput=zeros<vec>(sizecases);
+	if (Outcome=="RANDOM")
+	{
+		if (type=="LM")
+		{
+			randOutput = randu<vec>(sizecases);
+		}
+		else
+		{
+			randOutput = randi<vec>(sizecases, distr_param(0,1));
+		}
+	}
+	else
+	{
+		outinx=lockup[Outcome];
+	}
+	
+	
+	
 	for(unsigned  int j=0;j<covari.size();j++)
 		for(unsigned int i=0;i<vnames.size();i++)
-			if (covari[j]==vnames[i]) vnames[i]=inname;  	
+			if (covari[j]==vnames[i]) vnames[i]=inname;  
 	if (loops > 1)
 	{
 		uvec samCases= randi<uvec>(totSamples, distr_param(0,sizecases-1));
 		vec auxcasesample=zeros<vec>(sizecases);
-  		mat myTestCases;
-		for (int i =0;i<totSamples;i++)
+		mysample = dataframe.row(samCases(0));
+		auxcasesample[samCases(0)]=1;
+		if (Outcome=="RANDOM") mysample.col(outinx)(0) = randOutput(samCases(0));
+		for (int i = 1;i<totSamples;i++)
 		{
-			mysample=join_cols(mysample,dataframe.row((samCases(i))));
-			auxcasesample[(samCases(i))]=1;
-		}				
-		myTestsample=dataframe.rows(find(auxcasesample==0));
-		myTestsample=myTestsample.rows(randi<uvec>(totSamples, distr_param(0,myTestsample.n_rows-1)));
+			mysample=join_cols(mysample,dataframe.row(samCases(i)));
+			if (Outcome=="RANDOM") mysample.col(outinx)(i) = randOutput(samCases(i));
+			auxcasesample[samCases(i)]=1;
+		}
+		uvec notinserted = find(auxcasesample==0);
+		myTestsample = dataframe.rows(notinserted);
+		if (Outcome=="RANDOM") myTestsample.col(outinx) = randOutput(notinserted);
 	}
-	else
-	{
-		mysample=dataframe;
-  	 	myTestsample=dataframe;
-	}  
+
+	vec train_outcome = mysample.col(outinx);
+	vec test_outcome = myTestsample.col(outinx);
+
     mat myoutcome(mysample.n_rows,2);
-	myoutcome.col(1)=mysample.col(lockup[Outcome]);
+	myoutcome.col(1) = train_outcome;
 	mysampleMatbase.set_size(mysample.n_rows);
 	myTestsampleMatbase.set_size(myTestsample.n_rows);
 	mysampleMatbase.fill(1.0);
@@ -291,14 +316,28 @@ std::string residualFowardSelection(const unsigned int size,const int totSamples
     {
 		bestmodel=mean(myoutcome.col(1));
        	if (type=="LOGIT")
-			bestmodel=log(bestmodel/(1.0-bestmodel));
+		{
+			if ((bestmodel(0)>0)&&(bestmodel(0)<1))
+			{
+				bestmodel=log(bestmodel/(1.0-bestmodel));
+			}
+			else
+			{
+				if (bestmodel(0)==1) bestmodel(0) = THRESH;
+				else bestmodel(0) = -THRESH;
+			}
+		}
     } 
-  	bestTrainResiduals=residualForNeRIsFunc(bestmodel,mysampleMatbase,"",type,mysample.col(lockup[Outcome]));
-  	bestResiduals=residualForNeRIsFunc(bestmodel,myTestsampleMatbase,"",type,myTestsample.col(lockup[Outcome]));
+  	bestTrainResiduals=residualForFRESAFunc(bestmodel,mysampleMatbase,"",type,train_outcome);
+  	if (loops > 1) bestResiduals=residualForFRESAFunc(bestmodel,myTestsampleMatbase,"",type,test_outcome);
 	int changes = 1;
 	double minpiri = 1;
 	int jmax = -1;
   	std::string gfrm1;
+	mat myTestsampleMat;
+	mat mysampleMat;
+	vec testResiduals;
+	vec trainResiduals;
 	while (changes>0)
 	{
 		changes = 0;
@@ -309,32 +348,43 @@ std::string residualFowardSelection(const unsigned int size,const int totSamples
 			if (vnames[j] != inname)
 	  		{
 				mysampleMat=join_rows(mysampleMatbase,mysample.col(lockup[vnames[j]]));
-				myTestsampleMat=join_rows(myTestsampleMatbase,myTestsample.col(lockup[vnames[j]]));
+				if (loops > 1) myTestsampleMat=join_rows(myTestsampleMatbase,myTestsample.col(lockup[vnames[j]]));
 	  			gfrm1 = frm1+" + "+vnames[j];
-	  			testResiduals.clear();
-	  			trainResiduals.clear();
              	if((mysampleMat.n_cols>1)or(type=="COX"))
-             	newmodel =modelFittingFunc(myoutcome,mysampleMat,type);
+					newmodel =modelFittingFunc(myoutcome,mysampleMat,type);
 			    else
 			    {
 					newmodel=mean(myoutcome.col(1));
         			if (type=="LOGIT")
-						newmodel=log(newmodel/(1-newmodel));
+					{
+						if ((newmodel(0)>0)&&(newmodel(0)<1))
+						{
+							newmodel=log(newmodel/(1.0-newmodel));
+						}
+						else
+						{
+							if (newmodel(0)==1) newmodel(0) = THRESH;
+							else newmodel(0) = -THRESH;
+						}
+					}
         		}
 	  			if (is_finite(newmodel))
 	  			{
-					testResiduals = residualForNeRIsFunc(newmodel,myTestsampleMat,"",type,myTestsample.col(lockup[Outcome]));
-					trainResiduals = residualForNeRIsFunc(newmodel,mysampleMat,"",type,mysample.col(lockup[Outcome]));
-					iprob = improvedResidualsFunc(bestResiduals,testResiduals,testType).pvalue;
-			   		iprobTrain = improvedResidualsFunc(bestTrainResiduals,trainResiduals,testType).pvalue;            
-  					if ((is_finite(iprob)) and (is_finite(iprobTrain)))
+					trainResiduals = residualForFRESAFunc(newmodel,mysampleMat,"",type,train_outcome);
+			   		double piri = improvedResidualsFunc(bestTrainResiduals,trainResiduals,testType).pvalue;            
+					if (loops > 1) 
 					{
-						double piri =std::max(iprob,iprobTrain);
-	  					if (piri  < minpiri)
-	  					{
-							jmax = j;
-	  						minpiri = piri;
-	  					}
+						testResiduals = residualForFRESAFunc(newmodel,myTestsampleMat,"",type,test_outcome);
+						iprob = improvedResidualsFunc(bestResiduals,testResiduals,testType,totSamples).pvalue;
+						if ((is_finite(iprob)) and (is_finite(piri)))
+						{
+							piri =std::max(iprob,piri);
+						}
+					}						
+					if (is_finite(piri)&&(piri  < minpiri))
+					{
+						jmax = j;
+						minpiri = piri;
 					}
 	  			}
 	  		}
@@ -343,30 +393,33 @@ std::string residualFowardSelection(const unsigned int size,const int totSamples
 	  	{
 	  		gfrm1 = frm1+" + ";
 	  		gfrm1 = gfrm1+ovnames[jmax];
-	  		mysampleMatbase=join_rows(mysampleMatbase,mysample.col(lockup[vnames[jmax]]));
-			myTestsampleMatbase=join_rows(myTestsampleMatbase,myTestsample.col(lockup[vnames[jmax]]));
-           	bestmodel =modelFittingFunc(myoutcome,mysampleMatbase,type);
-	  		bestResiduals =residualForNeRIsFunc(bestmodel,myTestsampleMatbase,"",type,myTestsample.col(lockup[Outcome]));
-			bestTrainResiduals = residualForNeRIsFunc(bestmodel,mysampleMatbase,"",type,mysample.col(lockup[Outcome]));
+	  		mysampleMatbase = join_rows(mysampleMatbase,mysample.col(lockup[vnames[jmax]]));
+           	bestmodel = modelFittingFunc(myoutcome,mysampleMatbase,type);
+			if (loops > 1) 
+			{
+				myTestsampleMatbase = join_rows(myTestsampleMatbase,myTestsample.col(lockup[vnames[jmax]]));
+				bestResiduals = residualForFRESAFunc(bestmodel,myTestsampleMatbase,"",type,test_outcome);
+			}
+			bestTrainResiduals = residualForFRESAFunc(bestmodel,mysampleMatbase,"",type,train_outcome);
            	frm1 = gfrm1;	
 	  		changes = changes + 1;
 	  		mynamesLoc.push_back(jmax);
 	  		vnames[jmax] = inname;
-	  		jmax = 0;
-	  		minpiri = 0;
 	  		inserted = inserted + 1;
 	  	} 
 	}
 	return frm1;
 }
 
-extern "C" SEXP NeRIBasedFRESAModelCpp(SEXP _size, SEXP _fraction,SEXP _pvalue, SEXP _loops,  SEXP _covariates, SEXP _Outcome, SEXP _variableList, SEXP _maxTrainModelSize, SEXP _type, SEXP _timeOutcome, SEXP _testType,SEXP _loop_threshold, SEXP _interaction, SEXP _dataframe,SEXP _colnames,SEXP _cores)
+extern "C" SEXP ForwardResidualModelCpp(SEXP _size, SEXP _fraction,SEXP _pvalue, SEXP _loops,  SEXP _covariates, SEXP _Outcome, SEXP _variableList, SEXP _maxTrainModelSize, SEXP _type, SEXP _timeOutcome, SEXP _testType,SEXP _loop_threshold, SEXP _interaction, SEXP _dataframe,SEXP _colnames,SEXP _cores)
 {
 try {   //R_CStackLimit=(uintptr_t)-1;
-        #ifdef _OPENMP
-		Rcout<<"::============ Available CPU Cores(Threads) : "<<omp_get_num_procs()<<" ===Requested Threads : " << as<unsigned int>(_cores) <<endl;
-	    omp_set_num_threads(as<unsigned int>(_cores));
-	    #endif	
+		std::string type = as<std::string>(_type);
+		std::string testType = as<std::string>(_testType);
+#ifdef _OPENMP
+//		Rcout<<"::============ Available CPU Cores(Threads) : "<<omp_get_num_procs()<<" ===Requested Threads : " << as<unsigned int>(_cores) <<endl;
+		omp_set_num_threads(as<unsigned int>(_cores));
+#endif	
 		unsigned int size = as<unsigned int>(_size); 
 		double fraction = as<double>(_fraction);
 		double pvalue = as<double>(_pvalue);
@@ -374,9 +427,7 @@ try {   //R_CStackLimit=(uintptr_t)-1;
 		std::string Outcome = as<std::string>(_Outcome); 
 		CharacterVector colnames(_colnames);
 	    int maxTrainModelSize = Rcpp::as<int>(_maxTrainModelSize);
-		std::string type = as<std::string>(_type);
 		std::string timeOutcome = as<std::string>(_timeOutcome);
-		std::string testType = as<std::string>(_testType);
 		Rcpp::NumericMatrix DF(_dataframe);
     	arma::mat dataframe(DF.begin(), DF.rows(), DF.cols(), false);
 		std::vector<std::string>covari=as<std::vector<std::string> >(_covariates);
@@ -394,28 +445,33 @@ try {   //R_CStackLimit=(uintptr_t)-1;
 		{
 		  baseForm = "Surv("+timeOutcome+","+Outcome+")";
 		}
-		baseForm = baseForm+" ~ 1";
-		if (covari[0]!="1")
-			for(unsigned int i=0;i<covari.size();i++)
-			    baseForm = baseForm+"+"+covari[i];
+		baseForm = baseForm + " ~";
+		for(unsigned int i=0;i<covari.size();i++)
+		{
+			baseForm = baseForm+" + "+covari[i];
+		}
 		int sizecases   =dataframe.n_rows;
 		int totSamples = (int)(fraction*sizecases);
-		double pthr2 = 1-R::pnorm(std::sqrt(fraction)*abs(qnorm(pthr,0.0,1.0)),0.0,1.0,1,0);
+		double pthr2 = 1.0-R::pnorm(std::sqrt(fraction)*std::abs(qnorm(pthr,0.0,1.0)),0.0,1.0,1,0);
 	    if (pthr2>0.1) pthr2 = 0.1;
-		Rcout<<pvalue<<"pv: "<<pthr2<<"\n";
+//		Rcout<<pvalue<<"pv: "<<pthr2<<" : "<<baseForm<< "\n";
 		if (size > ovnames.size()) size = ovnames.size();
-#pragma omp parallel for schedule(dynamic) ordered shared (mynames,formulas)
+
+		
+#pragma omp parallel for schedule(dynamic) ordered shared(mynames,formulas)
     	for (int doOver=0; doOver<loops;doOver++)
 	 	{   
 			std::vector <int> mynamesLoc;
 			std::string  frm;
+			mynamesLoc.clear();
 			frm = residualFowardSelection(size,totSamples,pthr2,testType,loops,
 			Outcome,timeOutcome,type,maxTrainModelSize,dataframe,
 			ovnames,lockup,baseForm,mynamesLoc,covari);
-			if ((doOver%10)==0)
+			if ((doOver%10)==1)
 			{				
 #pragma omp critical
-				Rcout<<doOver<<" : "<<frm<<std::endl;	
+				Rcout << ".";	
+//				Rcout<<doOver<<" : "<<frm<<std::endl;	
 			}
 #pragma omp critical
 {

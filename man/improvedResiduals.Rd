@@ -87,7 +87,7 @@
 	# - 10 bootstrap loops
 	# - All variables except for age
 	# - The Wilcoxon rank-sum test as the feature inclusion criterion
-	cancerModel <- NeRIBasedFRESA.Model(loops = 10,
+	cancerModel <- ForwardSelection.Model.Res(loops = 10,
 	                                    Outcome = "pgstat",
 	                                    variableList = cancerVarNames[-1,],
 	                                    data = dataCancer,
@@ -100,11 +100,11 @@
 	# Fit the new formula to the same data
 	cancerModelAge <- modelFitting(formula(frm), dataCancer, "COX")
 	# Get the residuals of the original model
-	cancerModelRes <- residualForNeRIs(object = cancerModel$final.model,
+	cancerModelRes <- residualForFRESA(object = cancerModel$final.model,
 	                                   testData = dataCancer,
 	                                   Outcome = "pgstat")
 	# Get the residuals of the model with the added term
-	cancerModelAgeRes <- residualForNeRIs(object = cancerModelAge,
+	cancerModelAgeRes <- residualForFRESA(object = cancerModelAge,
 	                                      testData = dataCancer,
 	                                      Outcome = "pgstat")
 	# Estimate the significance of the NeRI when adding age to the model

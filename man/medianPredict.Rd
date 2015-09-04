@@ -99,7 +99,7 @@
 	#            update, and backward elimination procedures
 	# - A 10-fold cross-validation in the model validation procedure
 	# - First order interactions in the update procedure
-	cancerModel <- crossValidationFeatureSelection(size = 7,
+	cancerModel <- crossValidationFeatureSelection_Bin(size = 7,
 	                                               loops = 10,
 	                                               Outcome = "pgstat",
 	                                               timeOutcome = "pgtime",

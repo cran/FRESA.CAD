@@ -17,7 +17,7 @@
 		A data frame that contains the results of the \code{univariateRankVariables} function
 	}
 	\item{summaryBootstrap}{
-		A list that contains the results of the \code{summary.bootstrapValidation} function
+		A list that contains the results of the \code{summary.bootstrapValidation_Bin} function
 	}
 	\item{listOfCorrelatedVariables}{
 		A matrix that contains the \code{correlated.variables} value from the results obtained with the \code{listTopCorrelatedVariables} function
@@ -38,7 +38,7 @@
 	}
 }
 \author{Jose G. Tamez-Pena and Antonio Martinez-Torteya}
-\seealso{\code{\link{summary.bootstrapValidation}}}
+\seealso{\code{\link{summary.bootstrapValidation_Bin}}}
 \examples{
 	\dontrun{
 	# Start the graphics device driver to save all plots in a pdf format
@@ -82,7 +82,7 @@
 	# - 10 bootstrap loops
 	# - Age as a covariate
 	# - zIDI as the feature inclusion criterion
-	cancerModel <- ReclassificationFRESA.Model(loops = 10,
+	cancerModel <- ForwardSelection.Model.Bin(loops = 10,
 	                                           covariates = "1 + age",
 	                                           Outcome = "pgstat",
 	                                           variableList = cancerVarNames,
@@ -92,13 +92,13 @@
 	                                           selectionType = "zIDI")
 	# Validate the previous model:
 	# - Using 50 bootstrap loops
-	bootCancerModel <- bootstrapValidation(loops = 50,
+	bootCancerModel <- bootstrapValidation_Bin(loops = 50,
 	                                       model.formula = cancerModel$formula,
 	                                       Outcome = "pgstat",
 	                                       data = dataCancer,
 	                                       type = "COX")
 	# Get the summary of the bootstrapped model
-	sumBootCancerModel <- summary.bootstrapValidation(object = bootCancerModel)
+	sumBootCancerModel <- summary.bootstrapValidation_Bin(object = bootCancerModel)
 	# Get the summary report
 	sumReport <- summaryReport(univariateObject = rankedDataCancer,
 	                           summaryBootstrap = sumBootCancerModel,

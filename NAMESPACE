@@ -2,8 +2,16 @@ useDynLib(FRESA.CAD)
 exportPattern("^[[:alpha:]]+")
 import(stringr,miscTools,Hmisc,pROC)
 importFrom(Rcpp, evalCpp)
-S3method(plot, bootstrapValidation)
-S3method(plot, bootstrapValidationNeRI)
-S3method(summary, bootstrapValidation)
+S3method(plot, bootstrapValidation_Bin)
+S3method(plot, bootstrapValidation_Res)
+S3method(summary, bootstrapValidation_Bin)
 S3method(update, uniRankVar)
+importFrom("grDevices", "colorRampPalette")
+importFrom("graphics", "abline", "barplot", "boxplot", "legend","lines", "par", "plot", "title")
+importFrom("stats", "binom.test", "binomial", "coef", "cor.test",
+     "ecdf", "formula", "ks.test", "lm", "model.frame",
+     "model.matrix", "na.exclude", "na.omit", "pf", "pnorm",
+     "predict", "qnorm", "quantile", "rnorm", "sd", "t.test",
+     "terms", "wilcox.test", "glm", "median", "weighted.mean")
+importFrom("utils", "install.packages")
 

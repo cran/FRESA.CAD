@@ -13,23 +13,31 @@ function (object,pvalue=0.05,data,variableList,Outcome="Class", type = c("LOGIT"
 	outCome = paste(varsList[2]," ~ ");
 	startlist = 3;
 	auxmodel <- object;
-	indexZidi = startlist - 1;
+	indexzVAL = startlist - 1;
 	
 	outvarnames <- vector();
 	outrelated <- vector();
-	outzIDI <- vector();
+	outzVAL <- vector();
 
-	orgzIDI <- as.vector(getVarReclassification(object,data,Outcome,type)$testData.z.IDIs);
-	print (orgzIDI,digits=3);
-	orgzIDI <- eqFrac * orgzIDI;
-	print (orgzIDI,digits=3);
+	if (type != "LM")
+	{
+		orgzVAL <- as.vector(getVar.Bin(object,data,Outcome,type)$testData.z.IDIs);
+	}
+	else
+	{
+		orgzVAL <- -qnorm(as.vector(getVar.Res(object,data,Outcome,type)$FP.value),0,1);
+	}
+
+	print (orgzVAL,digits=3);
+	orgzVAL <- eqFrac * orgzVAL;
+	print (orgzVAL,digits=3);
 
 	 for ( i in startlist:length(varsList))
 	{
 		outvarnames <- append(outvarnames,as.character(varsList[i]));
 		cat(as.character(varsList[i]),"\n");	
 		namelist ="{"; 
-		zIDIlist ="{";
+		zVALlist ="{";
 		for (j in 1:length(vnames))
 		{
 			frm1 = outCome;
@@ -49,26 +57,33 @@ function (object,pvalue=0.05,data,variableList,Outcome="Class", type = c("LOGIT"
       
 			if (orgsize == length(as.list(attr(terms(auxmodel),"variables"))))
 			{
-				zIDI <- as.vector(getVarReclassification(auxmodel,data,Outcome,type)$testData.z.IDIs);
-		##        cat(frm1," : ");
-		##        print(zIDI,digits = 2 );
-				if ((zIDI[i-indexZidi] > cthr) && ( zIDI[i-indexZidi] > orgzIDI[i-indexZidi] ))
+				if (type != "LM")
+				{
+					zVAL <- as.vector(getVar.Bin(auxmodel,data,Outcome,type)$testData.z.IDIs);
+				}
+				else
+				{
+					zVAL <- -qnorm(as.vector(getVar.Res(auxmodel,data,Outcome,type)$FP.value),0,1);
+				}
+#		        cat(frm1," : ");
+#		        print(zVAL,digits = 2 );
+				if ((zVAL[i-indexzVAL] > cthr) && ( zVAL[i-indexzVAL] > orgzVAL[i-indexzVAL] ))
 				{
 				  namelist <- paste(namelist,vnames[j]);
 				  if (description != ".") namelist <- paste(namelist,"[",variableList[j,description],"]");
-				  zIDIlist <- paste(zIDIlist,sprintf("%5.3f",zIDI[i-indexZidi]));
+				  zVALlist <- paste(zVALlist,sprintf("%5.3f",zVAL[i-indexzVAL]));
 				}        
 			}
 		}
 		namelist <- paste(namelist,"}");
-		zIDIlist <- paste(zIDIlist,"}");
+		zVALlist <- paste(zVALlist,"}");
 		cat(namelist,"\n\n");
 		outrelated <- append(outrelated,namelist);
-		outzIDI <- append(outzIDI,zIDIlist);
+		outzVAL <- append(outzVAL,zVALlist);
 	}
 	result <- cbind(outvarnames);
 	result <- cbind(result,outrelated);
-	result <- cbind(result,outzIDI);
+	result <- cbind(result,outzVAL);
 
     return (result)
 }

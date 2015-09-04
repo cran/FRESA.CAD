@@ -1,6 +1,6 @@
-#' @method summary bootstrapValidation
+#' @method summary bootstrapValidation_Bin
 
-summary.bootstrapValidation <- 
+summary.bootstrapValidation_Bin <- 
 function(object, ...) 
 {
 

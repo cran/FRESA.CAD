@@ -1,19 +1,19 @@
-\name{summary.bootstrapValidation}
+\name{summary.bootstrapValidation_Bin}
 \alias{summary}
-\alias{summary.bootstrapValidation}
-\title{Generate a report of the results obtained using the bootstrapValidation function}
+\alias{summary.bootstrapValidation_Bin}
+\title{Generate a report of the results obtained using the bootstrapValidation_Bin function}
 \description{
 	This function prints two tables describing the results of the bootstrap-based validation of binary classification models.
 	The first table reports the accuracy, sensitivity, specificity and area under the ROC curve (AUC) of the train and test data set, along with their confidence intervals.
 	The second table reports the model coefficients and their corresponding integrated discrimination improvement (IDI) and net reclassification improvement (NRI) values.
 }
 \usage{
-	\method{summary}{bootstrapValidation}(object,
+	\method{summary}{bootstrapValidation_Bin}(object,
 	        ...)
 }
 \arguments{
 	\item{object}{
-		An object of class \code{bootstrapValidation}
+		An object of class \code{bootstrapValidation_Bin}
 	}
 	\item{...}{
 		Additional parameters for the generic \code{summary} function
@@ -62,7 +62,7 @@
 	# - 10 bootstrap loops
 	# - Age as a covariate
 	# - zIDI as the feature inclusion criterion
-	cancerModel <- ReclassificationFRESA.Model(loops = 10,
+	cancerModel <- ForwardSelection.Model.Bin(loops = 10,
 	                                           covariates = "1 + age",
 	                                           Outcome = "pgstat",
 	                                           variableList = cancerVarNames,
@@ -72,13 +72,13 @@
 	                                           selectionType = "zIDI")
 	# Validate the previous model:
 	# - Using 50 bootstrap loops
-	bootCancerModel <- bootstrapValidation(loops = 50,
+	bootCancerModel <- bootstrapValidation_Bin(loops = 50,
 	                                       model.formula = cancerModel$formula,
 	                                       Outcome = "pgstat",
 	                                       data = dataCancer,
 	                                       type = "COX")
 	# Get the summary of the bootstrapped model
-	sumBootCancerModel <- summary.bootstrapValidation(object = bootCancerModel)
+	sumBootCancerModel <- summary.bootstrapValidation_Bin(object = bootCancerModel)
 	# Shut down the graphics device driver
 	dev.off()}
 }

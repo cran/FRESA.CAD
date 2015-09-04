@@ -13,9 +13,9 @@ function(modelPredictions,number.of.models=0,specificities=c(0.95,0.90,0.80,0.70
 	auclist <- vector()
 	sumSen <- NULL;
 	blindSen <- NULL;
-	auc1 <- pROC::roc(modelPredictions[,"Outcome"],modelPredictions[,"Blind_Prediction"],col="darkblue",auc=TRUE,plot=TRUE,smooth=FALSE,...)$auc
+	auc1 <- pROC::roc(modelPredictions[,"Outcome"],modelPredictions[,"Prediction"],col="darkblue",auc=TRUE,plot=TRUE,smooth=FALSE,...)$auc
 	par(new=TRUE)
-	ley.names <- c(paste("Blind: Coherence (",sprintf("%.3f",auc1),")"))
+	ley.names <- c(paste("Coherence (",sprintf("%.3f",auc1),")"))
 	ley.colors <- c("darkblue")
 	ley.lty <- c(1)
 
@@ -32,9 +32,9 @@ function(modelPredictions,number.of.models=0,specificities=c(0.95,0.90,0.80,0.70
 		blindmodel <- modelPredictions[which((modelPredictions[,3] %/% theCVfolds)  == mm),];
 		if ( (sum(blindmodel[,"Outcome"]==1) > 3) && (sum(blindmodel[,"Outcome"]==0) > 3))
 		{
-			auclist <- append(auclist,pROC::roc(blindmodel[,"Outcome"],blindmodel[,"Blind_Prediction"],auc=TRUE,plot=TRUE,col="lightgray",lty=4,lwd=1)$auc)
+			auclist <- append(auclist,pROC::roc(blindmodel[,"Outcome"],blindmodel[,"Prediction"],auc=TRUE,plot=TRUE,col="lightgray",lty=4,lwd=1)$auc)
 			par(new=TRUE)
-			sen <- pROC::roc(blindmodel[,"Outcome"],blindmodel[,"Blind_Prediction"],auc=TRUE,plot=FALSE,ci=TRUE,of='se',specificities=specificities,boot.n=100,smooth=FALSE,lty=3,lwd=1)$ci[,2]
+			sen <- pROC::roc(blindmodel[,"Outcome"],blindmodel[,"Prediction"],auc=TRUE,plot=FALSE,ci=TRUE,of='se',specificities=specificities,boot.n=100,smooth=FALSE,lty=3,lwd=1)$ci[,2]
 			if (n == 1) 
 			{
 				blindSen <- sen;
@@ -63,7 +63,7 @@ function(modelPredictions,number.of.models=0,specificities=c(0.95,0.90,0.80,0.70
 		{
 			auc = auc + (spevalues[i-1]-spevalues[i])*(sumSen[i-1]+(sumSen[i]-sumSen[i-1])/2)
 		}
-		ley.names <- append(ley.names,c("Blind: ROCs",paste("Blind: Mean Sensitivities(",sprintf("%.3f",auc),")")));
+		ley.names <- append(ley.names,c("ROCs",paste("Mean Sensitivities(",sprintf("%.3f",auc),")")));
 		ley.colors <- append(ley.colors,c("lightgray","red"));
 		ley.lty <- append(ley.lty,c(4,1));
 	}

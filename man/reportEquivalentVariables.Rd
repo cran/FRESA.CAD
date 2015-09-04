@@ -73,7 +73,7 @@
 	# Get a Cox proportional hazards model using:
 	# - 10 bootstrap loops
 	# - zIDI as the feature inclusion criterion
-	cancerModel <- ReclassificationFRESA.Model(loops = 10,
+	cancerModel <- ForwardSelection.Model.Bin(loops = 10,
 	                                           Outcome = "pgstat",
 	                                           variableList = cancerVarNames,
 	                                           data = dataCancer,

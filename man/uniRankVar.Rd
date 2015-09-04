@@ -33,7 +33,7 @@
 	            raw.dataFrame = NULL,
 	            description = ".",
 	            uniType = c("Binary", "Regression"),
-	            fullAnalysis=TRUE)
+	            FullAnalysis=TRUE)
 }
 \arguments{
 	\item{variableList}{
@@ -69,7 +69,7 @@
 	\item{uniType}{
 		Type of univariate analysis: Binary classification ("Binary") or regression ("Regression")
 	}
-	\item{fullAnalysis}{
+	\item{FullAnalysis}{
 		If FALSE it will only order the features according to its z-statistics of the linear model
 	}
 }

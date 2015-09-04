@@ -94,7 +94,7 @@
 	# - 10 bootstrap loops
 	# - Age as a covariate
 	# - zIDI as the feature inclusion criterion
-	cancerModel <- ReclassificationFRESA.Model(loops = 10,
+	cancerModel <- ForwardSelection.Model.Bin(loops = 10,
 	                                           covariates = "1 + age",
 	                                           Outcome = "pgstat",
 	                                           variableList = rankedDataCancer,

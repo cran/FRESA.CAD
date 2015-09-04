@@ -57,7 +57,7 @@
 	# - Train data
 	# - zIDI as the feature inclusion criterion
 	# - First order interactions
-	cancerModel <- ReclassificationFRESA.Model(loops = 10,
+	cancerModel <- ForwardSelection.Model.Bin(loops = 10,
 	                                           Outcome = "pgstat",
 	                                           variableList = cancerVarNames,
 	                                           data = trainDataCancer,

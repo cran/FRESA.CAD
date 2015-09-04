@@ -42,40 +42,42 @@ extern "C" SEXP modelFittingCpp(SEXP _ymat,SEXP _xmat,SEXP _type)
 	return result;
 }
 
-extern "C" SEXP improvedResidualsCpp(SEXP _oldResiduals,SEXP _newResiduals,SEXP _testType)
+extern "C" SEXP improvedResidualsCpp(SEXP _oldResiduals,SEXP _newResiduals,SEXP _testType,SEXP _samples)
 {
 	std::string testType = Rcpp::as<std::string>(_testType);
 	Rcpp::NumericVector roldResiduals(_oldResiduals);
 	Rcpp::NumericVector rnewResiduals(_newResiduals);
+	unsigned int samples = Rcpp::as<unsigned int>(_samples);
 	vec oldResiduals(roldResiduals.begin(), roldResiduals.size(),false);
 	vec newResiduals(rnewResiduals.begin(), rnewResiduals.size(),false);
-	improvedRes impred = improvedResidualsFunc(oldResiduals,newResiduals,testType);
+	improvedRes impred = improvedResidualsFunc(oldResiduals,newResiduals,testType,samples);
 
 	Rcpp::List result = Rcpp::List::create(Rcpp::Named("p1")=Rcpp::wrap(impred.p1),
 										   Rcpp::Named("p2")=Rcpp::wrap(impred.p2),
 										   Rcpp::Named("NeRI")=Rcpp::wrap(impred.NeRI),
 										   Rcpp::Named("p.value")=Rcpp::wrap(impred.pvalue),
 										   Rcpp::Named("BinP.value")=Rcpp::wrap(impred.binom_pValue),
-										   Rcpp::Named("WilcoxP.valu")=Rcpp::wrap(impred.wilcox_pValue),
+										   Rcpp::Named("WilcoxP.value")=Rcpp::wrap(impred.wilcox_pValue),
 										   Rcpp::Named("tP.value")=Rcpp::wrap(impred.t_test_pValue),
 										   Rcpp::Named("FP.value")=Rcpp::wrap(impred.F_test_pValue)
 										   );
 	return result;
 }
 
-extern "C" SEXP improveProbCpp(SEXP _x1,SEXP _x2,SEXP _y)
+extern "C" SEXP improveProbCpp(SEXP _x1,SEXP _x2,SEXP _y,SEXP _samples)
 {
 	Rcpp::NumericVector rx1(_x1);
 	Rcpp::NumericVector rx2(_x2);
 	Rcpp::NumericVector ry(_y);
+	unsigned int samples = Rcpp::as<unsigned int>(_samples);
+
 	vec x1(rx1.begin(), rx1.size(),false);
 	vec x2(rx2.begin(), rx2.size(),false);
 	vec y(ry.begin(), ry.size(),false);
+	vec imp=improveProbFunc(x1,x2,y,samples);
 	
-	vec imp=improveProbFunc(x1,x2,y);
-	
-	Rcpp::List result = Rcpp::List::create(Rcpp::Named("z_idi")=Rcpp::wrap(imp[0]),
-										   Rcpp::Named("z_nri")=Rcpp::wrap(imp[1]),
+	Rcpp::List result = Rcpp::List::create(Rcpp::Named("z.idi")=Rcpp::wrap(imp[0]),
+										   Rcpp::Named("z.nri")=Rcpp::wrap(imp[1]),
 										   Rcpp::Named("idi")=Rcpp::wrap(imp[2]),
 										   Rcpp::Named("nri")=Rcpp::wrap(imp[3])
 										   );
@@ -193,7 +195,7 @@ int cholesky2(mat &matrix, int n, double toler)
 ** Reference: Therneau T (2014). A Package for Survival Analysis in S. R package version 2.37-7, http://CRAN.R-project.org/package=survival.
 ** calls functions:  cholesky2, chsolve2, chinv2.
 */
-void chsolve2(mat &matrix, int n, vec &y)
+void chsolve2(const mat &matrix, int n, vec &y)
 	{
 	register int i,j;
 	register double temp;
@@ -222,7 +224,7 @@ void chsolve2(mat &matrix, int n, vec &y)
 ** Reference: Therneau T (2014). A Package for Survival Analysis in S. R package version 2.37-7, http://CRAN.R-project.org/package=survival.
 ** calls functions:  cholesky2, chsolve2, chinv2.
 */
-vec coxfit(int  maxiter,  vec &time,  vec &status, mat &covar, vec &offset, vec &weights, vec &strata,   int method, double eps, double toler,    vec &beta,    int doscale) 
+vec coxfit(int  maxiter,const  vec &time,const  vec &status, mat &covar,const vec &offset,const vec &weights,vec &strata,   int method, double eps, double toler,vec &beta,    int doscale) 
 {
     int i,j,k, obs;  
     double  wtave;
@@ -270,7 +272,7 @@ vec coxfit(int  maxiter,  vec &time,  vec &status, mat &covar, vec &offset, vec 
 	    	temp =0;
 	    	for (obs=0; obs<nobs; obs++) 
 	    	{    
-				temp += weights(obs) * abs(covar(obs,i));
+				temp += weights(obs) * std::abs(covar(obs,i));
 	    	}
 	    	if (temp > 0) temp = temp2/temp;   
 	    	else temp=1.0; 
@@ -395,7 +397,7 @@ vec coxfit(int  maxiter,  vec &time,  vec &status, mat &covar, vec &offset, vec 
 	}  
     loglik(0) = loglik(1);
     for (i=0; i<nvar; i++) 
-		maxbeta(i) = 20* sqrt(imat(i,i)/tdeath);
+		maxbeta(i) = 20* std::sqrt(imat(i,i)/tdeath);
     for (i=0; i<nvar; i++) 
 		a(i) = u(i);
 
@@ -528,7 +530,7 @@ vec coxfit(int  maxiter,  vec &time,  vec &status, mat &covar, vec &offset, vec 
 	    }   
 //		flag = cholesky2(imat, nvar, toler);
 		cholesky2(imat, nvar, toler);
-		if (abs(1-(loglik(1)/newlk))<= eps && halving==0) 
+		if (std::abs(1-(loglik(1)/newlk))<= eps && halving==0) 
 		{ 
 		    loglik(1) = newlk;
 		    chinv2(imat, nvar);     
@@ -591,7 +593,7 @@ vec coxfit(int  maxiter,  vec &time,  vec &status, mat &covar, vec &offset, vec 
 ** Part of the R package, http://www.R-project.org
 */
 
-vec logit_link(vec mu)
+vec logit_link(const vec &mu)
 {
     int i, n = mu.n_elem;
     vec rans = mu;
@@ -622,7 +624,7 @@ vec logit_link(vec mu)
 ** Part of the R package, http://www.R-project.org
 */
 
-vec logit_linkinv(vec eta)
+vec logit_linkinv(const vec &eta)
 {
     int i, n = eta.n_elem;
     vec rans = eta;
@@ -640,7 +642,7 @@ vec logit_linkinv(vec eta)
 ** file src/library/stats/src/family.c
 ** Part of the R package, http://www.R-project.org
 */
-vec logit_mu_eta(vec eta)
+vec logit_mu_eta(const vec &eta)
 {
     int i, n = eta.n_elem; 
     vec rans = eta;
@@ -659,7 +661,7 @@ vec logit_mu_eta(vec eta)
 ** file src/library/stats/src/family.c
 ** Part of the R package, http://www.R-project.org
 */
-vec binomial_dev_resids(vec y, vec mu, vec wt)
+vec binomial_dev_resids(const vec &y,const vec &mu,const vec &wt)
 {
     int i, n = y.n_elem, lmu = mu.n_elem, lwt = wt.n_elem;
     double mui, yi; 
@@ -687,9 +689,10 @@ vec binomial_dev_resids(vec y, vec mu, vec wt)
        
 	  
 	   
-vec modelFittingFunc(mat ymat, mat X,std::string type)
+vec modelFittingFunc(const mat &ymat,const mat &XP,std::string type)
 {
   int  nobs = ymat.n_rows;
+  mat X=XP;
   mat WX = X;
   vec start = zeros<vec>(X.n_cols); 
     if (X.n_cols==1)  
@@ -832,7 +835,7 @@ if (type=="COX")
 } 
 }
 
-vec predictForFresaFunc(vec cf,mat newdata,std::string typ, std::string opc) 
+vec predictForFresaFunc(const vec &cf,const mat &newdata,std::string typ, std::string opc) 
 {
 	vec out;
 	if(opc=="COX")
@@ -845,6 +848,11 @@ vec predictForFresaFunc(vec cf,mat newdata,std::string typ, std::string opc)
 	      for(unsigned int i=0;i<out.n_elem;i++)
 	       out(i) = 1.0/(1.0+exp(-out(i)));
 	    }
+	     if(typ =="risk")  
+		{
+	      for(unsigned int i=0;i<out.n_elem;i++)
+	       out(i) = exp(out(i));
+		}
 	}
 	else
 	{	 
@@ -859,68 +867,108 @@ vec predictForFresaFunc(vec cf,mat newdata,std::string typ, std::string opc)
     return out;
 }
 
+vec improveProbFunc(const vec &x1,const vec &x2,const vec &y, unsigned int samples)
+{
+	if ((samples == 0) || (x1.n_elem >= samples))
+	{
+		return improveProbFunc(x1,x2,y);
+	}
+	else
+	{	
+		const unsigned int trials=5; // set to number of estimations
+		vec imp=improveProbFunc(x1,x2,y);			// imp has the initial estimation
+		mat imppart(imp.n_elem,trials);
+		vec vecx1(samples),vecx2(samples),vecy(samples);
+		vec impt(imp.n_elem);
+		unsigned int i,j,n,nj;
+		unsigned int elem=x1.n_elem;
+		for (j=0;j<imp.n_elem;j++) imppart(j,0)=imp[j];
+		double sd1 = stddev(x1);
+		double sd2 = stddev(x2);
+		if (sd1>sd2) sd1=sd2;
+//		double pchange = 0.25*sd1/samples;
+		for (n=0;n<elem;n++) // fill the first elements with the original data
+		{
+			vecx1[n]=x1[n];
+			vecx2[n]=x2[n];
+			vecy[n]=y[n];
+		}
+		n=elem;
+		for (i=0;i<trials;i++)	
+		{
+			unsigned int off = (randi<imat>(1))[0] % elem;
+			do 
+			{
+//				nj = (randi<imat>(1))[0] % elem;
+				nj = (n+off) % elem;
+				vecx1[n]=x1[nj];	// + pchange*((randn<vec>(1))[0]); // plus some noise ;
+				vecx2[n]=x2[nj];	// + pchange*((randn<vec>(1))[0]); // plus some noise 
+				vecy[n]=y[nj];
+				++n;
+			}
+			while (n<samples);
+			n=0;
+			impt = improveProbFunc(vecx1,vecx2,vecy);
+			for (j=0;j<impt.n_elem;j++) imppart(j,i) = impt[j];
+		}
+		
+		imp = median(imppart,1);
+//		imp = mean(imppart,1);
+		return imp;
+	}
+}
+
+
 /* 
 ** This code is based on the improveProb function from Hmisc package 
 ** Reference: Frank E Harrell Jr. URL: http://biostat.mc.vanderbilt.edu/wiki/Main/Hmisc 
 ** R package version 2.37-7, http://CRAN.R-project.org/package=Hmisc.
 */
 
-vec improveProbFunc(vec x1, vec x2, vec y)
+vec improveProbFunc(const vec &x1,const vec &x2,const vec &y)
   {
-    unsigned int  n = y.n_elem;
-    int n_ev=0;
-    int n_ne=0;
     vec d  = x2 - x1;
     vec da=d.elem(find(y==1));
     vec db=d.elem(find(y==0));
-    int nup_ev=0;
-    int nup_ne =0; 
-    int ndown_ev =0;
-    int ndown_ne=0;
-    double sum_ev=0.0;
-    double sum_ne=0.0;
-    double sse_ev=0.0;
-    double sse_ne=0.0;
-    for(unsigned int i=0;i<n;i++)
+    double n_ev=0;
+    double n_ne=0;
+    double nup_ev = 0;
+    double nup_ne = 0; 
+    double ndown_ev = 0;
+    double ndown_ne = 0;
+    for(unsigned int i=0;i<y.n_elem;i++)
     {
     	if (y(i)==1)
     	{
     		n_ev++;
-    		sum_ev+=d(i);
-    		sse_ev+=(d(i)*d(i));
-	    	if (d(i)>0) nup_ev++;
-	    	if (d(i)<0) ndown_ev++;
+	    	nup_ev += (d(i)>0);
+	    	ndown_ev += (d(i)<0);
 		}
 		if (y(i)==0)
     	{
 	    	n_ne++;
-	    	sum_ne+=d(i);
-	    	sse_ne+=(d(i)*d(i));
-	    	if (d(i)>0) nup_ne++;
-	    	if (d(i)<0) ndown_ne++;
+	    	nup_ne += (d(i)>0);
+	    	ndown_ne += (d(i)<0);
 		}	
     }
-    double pup_ev   = static_cast<double>(nup_ev)/static_cast<double>(n_ev);
-    double pup_ne   = static_cast<double>(nup_ne)/static_cast<double>(n_ne);
-    double pdown_ev = static_cast<double>(ndown_ev)/static_cast<double>(n_ev);
-    double pdown_ne = static_cast<double>(ndown_ne)/static_cast<double>(n_ne);
+    double pup_ev   = nup_ev/n_ev;
+    double pup_ne   = nup_ne/n_ne;
+    double pdown_ev = ndown_ev/n_ev;
+    double pdown_ne = ndown_ne/n_ne;
     
-    double v_nri_ev = static_cast<double>(nup_ev + ndown_ev)/static_cast<double>(std::pow(n_ev,2)) - (static_cast<double>(std::pow(nup_ev - ndown_ev,2))/static_cast<double>(std::pow(n_ev,3)));
-    
-    double v_nri_ne = static_cast<double>(ndown_ne + nup_ne)/static_cast<double>((n_ne*n_ne) - (static_cast<double>(std::pow(ndown_ne - nup_ne,2))/static_cast<double>(std::pow(n_ne,3))));
+    double v_nri_ev = (nup_ev + ndown_ev)/(n_ev*n_ev) - std::pow(nup_ev - ndown_ev,2.0)/std::pow(n_ev,3.0);
+    double v_nri_ne = (ndown_ne + nup_ne)/(n_ne*n_ne) - std::pow(ndown_ne - nup_ne,2.0)/std::pow(n_ne,3.0);
 
     double nri = pup_ev - pdown_ev - (pup_ne - pdown_ne);
     double se_nri = std::sqrt(v_nri_ev + v_nri_ne);
     double z_nri  = nri/se_nri;   
-
-    double improveSens =  sum_ev/static_cast<double>(n_ev);
-    double improveSpec = sum_ne/static_cast<double>(n_ne);
-    double idi = improveSens - (improveSpec);
-    double var_ev = ((sse_ev)/static_cast<double>(n_ev))-(improveSens*improveSens);//var(a)/n_ev
-    double var_ne = ((sse_ne)/static_cast<double>(n_ne))-(improveSpec*improveSpec);//var(b)/n_ne
-    double se_idi = std::sqrt(var_ev/static_cast<double>(n_ev) + var_ne/static_cast<double>(n_ne));
-    double z_idi = idi/se_idi;
-    z_idi=(mean(da)-mean(db))/std::sqrt((var(da)/da.n_elem)+(var(db)/db.n_elem));
+	double idi = 0.0;
+	double z_idi = 1.0;	
+	if ((db.size()>0)&&(da.size()>0))
+	{
+		idi = mean(da) - mean(db);
+		z_idi = idi/std::sqrt((var(da)/da.n_elem)+(var(db)/db.n_elem));
+	}
     vec out(4);
     	out(0)=z_idi;
     	out(1)=z_nri;
@@ -929,7 +977,7 @@ vec improveProbFunc(vec x1, vec x2, vec y)
     return out;
   }
   
-getVReclass getVarReclassificationFunc(mat dataframe,std::string type, mat independentFrame) 
+getVReclass getVarBinFunc(const mat &dataframe,std::string type,const mat &independentFrameP) 
 {
 	const int z_idi=0;
 	const int z_nri=1;
@@ -938,6 +986,7 @@ getVReclass getVarReclassificationFunc(mat dataframe,std::string type, mat indep
 	unsigned int i=3;
 	int nzero=0;
 	int n_var=dataframe.n_cols-3;
+	mat independentFrame=independentFrameP;
 	if (type=="COX")
 	{
 		n_var=dataframe.n_cols-2;
@@ -956,10 +1005,11 @@ getVReclass getVarReclassificationFunc(mat dataframe,std::string type, mat indep
 	vec t_model_znri(n_var);
 	vec t_model_idi(n_var);
 	vec t_model_nri(n_var);
-	vec fullModel = modelFittingFunc(dataframe.cols(0,1),dataframe.cols(2,dataframe.n_cols-1),type);
+	unsigned int samples=dataframe.n_rows;
+	vec FullModel = modelFittingFunc(dataframe.cols(0,1),dataframe.cols(2,dataframe.n_cols-1),type);
 	{
-		vec fullPredict_train = predictForFresaFunc(fullModel,dataframe.cols(2,dataframe.n_cols-1),"prob",type);
-		vec fullPredict = predictForFresaFunc(fullModel,independentFrame.cols(2,independentFrame.n_cols-1),"prob",type);
+		vec FullPredict_train = predictForFresaFunc(FullModel,dataframe.cols(2,dataframe.n_cols-1),"prob",type);
+		vec FullPredict = predictForFresaFunc(FullModel,independentFrame.cols(2,independentFrame.n_cols-1),"prob",type);
 		for (int  j=0; i<dataframe.n_cols; i++,j++)
 		{
 			mat dataframe_sh=dataframe;
@@ -970,8 +1020,8 @@ getVReclass getVarReclassificationFunc(mat dataframe,std::string type, mat indep
 				independentFrame_sh.shed_col(i);
 			}
 			vec redModel= modelFittingFunc(dataframe_sh.cols(0,1),dataframe_sh.cols(2,dataframe_sh.n_cols-1),type);
-			vec iprob = improveProbFunc(predictForFresaFunc(redModel,independentFrame_sh.cols(2,independentFrame_sh.n_cols-1),"prob",type),fullPredict,independentFrame.col(1));
-			vec iprob_t = improveProbFunc(predictForFresaFunc(redModel,dataframe_sh.cols(2,dataframe_sh.n_cols-1),"prob",type), fullPredict_train ,dataframe.col(1));
+			vec iprob = improveProbFunc(predictForFresaFunc(redModel,independentFrame_sh.cols(2,independentFrame_sh.n_cols-1),"prob",type),FullPredict,independentFrame.col(1),samples);
+			vec iprob_t = improveProbFunc(predictForFresaFunc(redModel,dataframe_sh.cols(2,dataframe_sh.n_cols-1),"prob",type), FullPredict_train ,dataframe.col(1));
 			model_zidi(j)=iprob(z_idi);
 			model_idi(j)=iprob(idi);
 			model_nri(j)=iprob(nri);
@@ -994,7 +1044,7 @@ getVReclass getVarReclassificationFunc(mat dataframe,std::string type, mat indep
     return result;
 }
 
-double rocAUC( vec response, vec predictor, std::string direction,std::string r) 
+double rocAUC(const vec &response,const vec &predictor, std::string direction,std::string r) 
 {
 	int dir = 1;
 	if (direction == "auto")
@@ -1027,36 +1077,36 @@ double rocAUC( vec response, vec predictor, std::string direction,std::string r)
 }
 
 
-vec Fresarank(vec _x)
+vec Fresarank(const vec &xi)
 {
-	vec so=sort(_x);
-	int n=so.n_elem;
-    uvec si_x=sort_index(_x);
-    vec sortRankx(n);
-    int s;
-	for(unsigned i=0;i<so.n_elem;)
+    vec x(xi.n_elem);
+	vec so=sort(xi);
+	unsigned int n=xi.n_elem;
+    uvec si_x=sort_index(xi);
+    vec sortRankx(n+1);
+    unsigned int s;
+	for(unsigned int i=0;i<n;)
 	{
 		s=i+1;
-		int h=1;
-		if (i+h<so.n_elem)
-		while(so(i)==so(i+h))
+		unsigned int h=1;
+		if ( (i+h) < n )
 		{
-			s=s+(i+1+h);
-			h++;
-			if (i+h==so.n_elem) break;
+			while(so(i)==so(i+h))
+			{
+				s=s+(i+1+h);
+				h++;
+				if (i+h == n) break;
+			}
 		}
-		double in=s/static_cast<double>(h);
+		double in = s/(double)(h);
 		unsigned int t=i+h;
-		for (;i<t;i++)
-			sortRankx(i)=in;
+		for (;i<t;i++) sortRankx(i)=in;
 	}
-    vec x(n);
-	for(int i=0;i<n;i++)
-		x(si_x(i))=sortRankx(i);
+	for(unsigned int i=0;i<n;i++) x(si_x(i))=sortRankx(i);
 	return(x);
 }
 
-vec residualForNeRIsFunc(vec cf,mat newdata,std::string typ, std::string type,vec outcome) 
+vec residualForFRESAFunc(const vec &cf,const mat &newdata,std::string typ, std::string type,const vec &outcome) 
 {
 	vec out;
 	if(type=="COX")
@@ -1088,22 +1138,101 @@ vec residualForNeRIsFunc(vec cf,mat newdata,std::string typ, std::string type,ve
     return (out);
 }
 
-improvedRes improvedResidualsFunc(vec oldResiduals,vec newResiduals, std::string testType)
+improvedRes improvedResidualsFunc(const vec &oldResiduals,const vec &newResiduals, std::string testType,unsigned int samples)
 {
+	if ((samples == 0) || (oldResiduals.n_elem >= samples))
+	{
+		improvedRes imp = improvedResidualsFunc(oldResiduals,newResiduals,testType);
+		return imp;
+	}
+	else
+	{	
+		unsigned int trials=5; // set to number of estimations
+		improvedRes impt,imp=improvedResidualsFunc(oldResiduals,newResiduals,testType);			// imp has the initial estimation
+		mat imppart(8,trials);
+		
+		vec vecx1(samples),vecx2(samples);
+		unsigned int i,n,nj;
+		unsigned int elem=oldResiduals.n_elem;
+		imppart(0,0)=imp.p1;
+		imppart(1,0)=imp.p2;
+		imppart(2,0)=imp.NeRI;
+		imppart(3,0)=imp.pvalue;
+		imppart(4,0)=imp.binom_pValue;
+		imppart(5,0)=imp.wilcox_pValue;
+		imppart(6,0)=imp.t_test_pValue;
+		imppart(7,0)=imp.F_test_pValue;
+		for (n=0;n<elem;n++) // fill the first elements with the original data
+		{
+			vecx1[n]=oldResiduals[n];
+			vecx2[n]=newResiduals[n];
+		}
+		double sd1 = stddev(oldResiduals);
+		double sd2 = stddev(newResiduals);
+		if (sd1>sd2) sd1=sd2;
+//		double pchange = 0.25*sd1/samples;
+		int startelement=elem;
+		for (i=0;i<trials;i++)	
+		{
+			unsigned int off = (randi<imat>(1))[0] % elem;
+			for (n=startelement;n<samples;n++)
+			{
+//				nj = (randi<imat>(1))[0] % elem;
+				nj = (n+off) % elem;
+				vecx1[n]=oldResiduals[nj];	// + pchange*((randn<vec>(1))[0]); // plus some noise ;
+				vecx2[n]=newResiduals[nj];	// + pchange*((randn<vec>(1))[0]); // plus some noise 
+			}
+			startelement=0;
+			impt = improvedResidualsFunc(vecx1,vecx2,testType);
+			imppart(0,i)=impt.p1;
+			imppart(1,i)=impt.p2;
+			imppart(2,i)=impt.NeRI;
+			imppart(3,i)=impt.pvalue;
+			imppart(4,i)=impt.binom_pValue;
+			imppart(5,i)=impt.wilcox_pValue;
+			imppart(6,i)=impt.t_test_pValue;
+			imppart(7,i)=impt.F_test_pValue;
+		}
+		
+		vec medimp = median(imppart,1);
+		imp.p1=medimp[0];
+		imp.p2=medimp[1];
+		imp.NeRI=medimp[2];
+		imp.pvalue = medimp[3];
+		imp.binom_pValue = medimp[4];
+		imp.wilcox_pValue = medimp[5];
+		imp.t_test_pValue = medimp[6];
+		imp.F_test_pValue = medimp[7];
+		
+		return imp;
+	}
+}
+
+improvedRes improvedResidualsFunc(const vec &oldResiduals,const vec &newResiduals, std::string testType)
+{
+    improvedRes result;
+
 	double pwil = 1.0;
 	double pbin = 1.0;
 	double ptstu = 1.0;
 	double f_test = 1.0;
 	double p1=0.0;
 	double p2=0.0;
-	double pvalue = 0.0;
+	double pvalue = 1.0;
 	double size = oldResiduals.n_elem;
-	double size1 = size - 1;
+
+	if (size==0) 
+	{
+		Rcpp::Rcout<<"Zero Elements:ImproveResiduals \n";
+	}
+
+
+	double size1 = size ;	//Based on estimation of test residuals not training. There is no mean estimation just RMSE estimation
+	double reduction = 0.0;
+	double increase  = 0.0;
 	vec oldres = abs(oldResiduals);
 	vec newres = abs(newResiduals);
 	vec delta = newres - oldres;
-	double reduction = 0.0;
-	double increase  = 0.0;
 	for (int i=0; i< size;i++)
 	{
 		reduction += (delta[i]<0.0);
@@ -1111,41 +1240,66 @@ improvedRes improvedResidualsFunc(vec oldResiduals,vec newResiduals, std::string
 	}
 	double improved = (reduction-increase)/size; 									//			# the net improvement in residuals
 	p1 = reduction/size;															//	#proportion of subjects with improved residuals
-	p2 = increase/size;																//#proportion of subjects with worst residuals
-	double rss1 = sum(square(oldResiduals));
-	double rss2 = sum(square(newResiduals))/size1;
-	f_test = 1-R::pf(rss1/rss2-size1,1.0,size1,1,0);
-	bool paired = TRUE;
-	bool var_equal = TRUE;
+	p2 = increase/size;											//#proportion of subjects with worst residuals
+	int sw=0;
 	std::string tail="greater";
-	double mu=0.0;
-	double t_pvalue = ttest(oldres, newres,mu, paired,var_equal, tail);
-	if (is_finite(t_pvalue))
+
+	if (testType=="Binomial") sw=1; else
+	if (testType=="Ftest") sw=2; else
+	if (testType=="Wilcox") sw=3; else
+	if (testType=="tStudent") sw=4;
+	if (reduction>=increase) pbin = binomtest(reduction,size,0.5,tail);
+	switch (sw)
 	{
-		ptstu = t_pvalue;   	
+		case 1:
+		{
+			pvalue = pbin;	
+			break;
+		}
+		case 2:
+		{
+			double rss1 = sum(square(oldResiduals));
+			double rss2 = sum(square(newResiduals))/size1;
+			if (rss2==0) rss2=DOUBLEEPS;
+			pvalue = f_test = 1.0-R::pf(rss1/rss2-size1,1.0,size1,1,0);
+			break;
+		}
+		case 3:
+		{
+			if (reduction>=increase)
+			{
+				pvalue = pwil = wilcoxtest(oldres, newres,0.0,TRUE,tail,TRUE);
+			}
+			break;
+		}
+		case 4:
+		{
+			pvalue = ptstu = ttest(oldres, newres,0.0,TRUE,TRUE,tail);
+			break;
+		}
+		default:
+		{
+			double rss1 = sum(square(oldResiduals));
+			double rss2 = sum(square(newResiduals))/size1;
+			if (rss2==0) rss2=DOUBLEEPS;
+			f_test = 1.0-R::pf(rss1/rss2-size1,1.0,size1,1,0);
+			pvalue =  pbin;
+			pwil = wilcoxtest(oldres, newres,0.0,TRUE,tail,TRUE);
+			ptstu = ttest(oldres, newres,0.0,TRUE,TRUE,tail);
+			break;
+		}
 	}
-	else 
-	{
-		ptstu = 1.0;
-	}
-	if (improved>=0)
-	{
-		pbin = binomtest(reduction,size,0.5,tail);					// Lets do a sign test to test a significant improvement in residual variance
-		pwil = wilcoxtest(oldres, newres,mu, paired,tail ,TRUE);  		// let compute that the probability that the new residuals are better than the old residuals via wilcoxon
-	}
-	if(testType=="Binomial") pvalue = pbin;
-	if(testType=="Wilcox")   pvalue = pwil;
-	if(testType=="tStudent") pvalue = ptstu;
-	if(testType=="Ftest")    pvalue = f_test;
-    improvedRes result;
-	result.p1=p1;
-	result.p2=p2;
-	result.NeRI=improved;
+	
+
+	result.p1 = p1;
+	result.p2 = p2;
+	result.NeRI = improved;
 	result.pvalue = pvalue;
 	result.binom_pValue = pbin;
 	result.wilcox_pValue = pwil;
 	result.t_test_pValue = ptstu;
 	result.F_test_pValue = f_test;
+	
 	return (result);
 }
 
@@ -1155,49 +1309,56 @@ improvedRes improvedResidualsFunc(vec oldResiduals,vec newResiduals, std::string
 ** Part of the R package, http://www.R-project.org
 */
 
-double ttest(vec x, vec y , double mu, bool paired, bool var_equal, std::string tail)
+double ttest(const vec &xt, const vec &y, double mu, bool paired, bool var_equal, std::string tail)
 {
+    double pval=1.0;
+	vec x=xt;
     if (paired) 
     {
 		x = x-y;
-		y.clear();
     }
-    double nx =static_cast<double>(x.n_elem);
+    double nx = x.n_elem;
     double mx = mean(x);
     double vx = var(x);
-    double df;
+    double df=1.0;
     double tstat;
     double stderrr; 
-    if(y.empty()) 
+    if(y.empty() || paired) 
     {
-        if(nx < 2.0) stop("not enough 'x' observations");
-		df = nx-1.0;
-		stderrr = std::sqrt(vx/nx);
-	        if(stderrr < (10.0 * DOUBLEEPS* std::abs(mx)))
-			{
-				
-//	            stop("data are essentially constant");
-				tstat = 0.0;
-			}
+        if(nx < 2.0) 
+		{
+//			stop("not enough 'x' observations");
+			tstat = 100.0;	// let's make it a large tstat
+		}
 		else
 		{
-			tstat = (mx-mu)/stderrr;
+			df = nx-1.0;
+			stderrr = std::sqrt(vx/nx);
+				if(stderrr < (10.0 * DOUBLEEPS* std::abs(mx)))
+				{
+	//	            stop("data are essentially constant");
+					tstat = 0.0; // we assume that they are the same
+				}
+			else
+			{
+				tstat = (mx-mu)/stderrr;
+			}
 		}
     } 
     else 
     {
-		double ny = static_cast<double>(y.n_elem);
+		double ny = y.n_elem;
 		double my = mean(y);
 		double vy = var(y);
 		
 		if(var_equal) 
 		{
-		    df = nx+ny-2;
+		    df = nx+ny-2.0;
 	            double v = 0.0;
 	            if(nx > 1) v = v + (nx-1.0)*vx;
 	            if(ny > 1) v = v + (ny-1.0)*vy;
 		    v = v/df;
-		    stderrr = std::sqrt(v*(1/nx+1/ny));
+		    stderrr = std::sqrt(v*(1.0/nx+1.0/ny));
 		} 
 		else 
 		{
@@ -1216,7 +1377,6 @@ double ttest(vec x, vec y , double mu, bool paired, bool var_equal, std::string 
 				tstat = (mx - my - mu)/stderrr;
 			}
     }
-    double pval;
     if (tail == "less") 
     {
 		pval = R::pt(tstat, df,1,0);
@@ -1227,9 +1387,9 @@ double ttest(vec x, vec y , double mu, bool paired, bool var_equal, std::string 
 			pval = R::pt(tstat, df, 0,0);
     	}
    		else 
-   		{
-			pval = 2 * R::pt(-std::abs(tstat), df,1,0);
-		}
+			{
+				pval = 2.0 * R::pt(-std::abs(tstat), df,1,0);
+			}
     return(pval);
 }
 /* 
@@ -1238,45 +1398,42 @@ double ttest(vec x, vec y , double mu, bool paired, bool var_equal, std::string 
 ** Part of the R package, http://www.R-project.org
 */
 
-double wilcoxtest(vec x, vec y , double mu, bool paired, std::string tail,bool correct)
+double wilcoxtest(const vec &xt,const vec &y , double mu, bool paired, std::string tail,bool correct)
 { 	
-    if(paired) 
-    {
-        x = x - y;
-        y.clear(); 
-    }
-    double pvalue;
+    double pvalue=1.0;
+	vec x=xt;
     double  correc = 0.0;
-    if(y.empty() ) 
+    if(y.empty() || paired ) 
     {
+        if (!y.empty()) x = x - y;
         x = x - mu;
         bool zeros = any(x == 0.0);
-        if(zeros)
-            x = x.elem(find(x != 0));
-        double n = static_cast<double>(x.n_elem);
-        bool exact=FALSE;
-        exact = (n < 50);
-        vec r = Fresarank(abs(x));
-        double stat = sum(r.elem(find(x > 0)));
-        bool ties=FALSE;
-        vec ur=unique(r);
-        if (r.n_elem != ur.n_elem) ties = TRUE;
+        if (zeros) x = x.elem(find(x != 0.0));
+        double n = x.n_elem;
+		if (n>1.0)
+		{
+			vec r = Fresarank(abs(x));
+//			bool exact = (n < 50.0);
+			double stat = sum(r.elem(find(x > 0.0)));
+//			vec un = unique(r);
+//			bool ties = (r.n_elem != un.n_elem);
+//			un.clear();
 
-        if(exact && !ties && !zeros) 
-        {
-           if(tail=="greater") pvalue=R::psignrank(stat - 1.0, n,0,0);
-           else if(tail=="less") pvalue=R::psignrank(stat, n,1,0);
-           else
-            {
-            	double p;
-                if(stat > (n * (n + 1)/4.0)) p =R::psignrank(stat - 1, n, 0,0);
-               	else p =R::psignrank(stat, n,1,0);
-               	pvalue= std::min(2.0 * p, 1.0);
-            }
-        } 
-        else 
-        { 
-             std::map <double, double> rtiesm; 	
+			// if(exact && !ties && !zeros) 
+			// {
+			   // // if (tail=="greater") pvalue=R::psignrank(stat - 1.0, n,0,0);
+			   // // else if (tail=="less") pvalue=R::psignrank(stat, n,1,0);
+				   // // else
+					// // {
+						// // double p;
+						// // if (stat > (n * (n + 1.0)/4.0)) p = R::psignrank(stat - 1.0, n, 0,0);
+						// // else p = R::psignrank(stat, n,1,0);
+						// // pvalue= std::min(2.0 * p, 1.0);
+					// // }
+			// } 
+			// else 
+			{ 
+				std::map <double, double> rtiesm; 	
                 for(unsigned int i=0;i<r.n_elem;i++)
                 {
                 	rtiesm[r(i)]++;
@@ -1288,45 +1445,40 @@ double wilcoxtest(vec x, vec y , double mu, bool paired, std::string tail,bool c
 				   	   rtiesv(i)=(*ii).second;
 				   	   i++;
 				   }
-            double z = stat - n * (n + 1)/4.0;
-            double sigma = std::sqrt(n * (n + 1) * (2 * n + 1)/24.0 - sum(pow(rtiesv,3) - rtiesv)/48.0);
-            if(correct) 
-            {
-               if(tail=="greater") correc=0.5;
-	           else if(tail=="less") correc=-0.5;
-	           else 
-	           {
-		           	if (z!=0)
-		            	correc=(z/std::abs(z)) * 0.5;
-		            else
-		            	correc=0.5;
-		        }
-	           
-            }
-	     	z = (z - correc)/sigma;
-	  
-		   if(tail=="less")pvalue= R::pnorm5(z,0.0,1.0,1,0);
-		   else if(tail=="greater")pvalue = R::pnorm5(z,0.0,1.0,0,0);
-		   else pvalue = 2 * std::min(R::pnorm5(z,0.0,1.0,1,0),R::pnorm5(z,0.0,1.0,0,0));
-           
-			
+				double z = stat - n * (n + 1.0)/4.0;
+				double sigma = std::sqrt(n * (n + 1.0) * (2.0 * n + 1.0)/24.0 - sum(pow(rtiesv,3) - rtiesv)/48.0);
+				if(correct) 
+				{
+				   if(tail=="greater") correc=0.5;
+					else if(tail=="less") correc=-0.5;
+						else 
+						{
+							if (z!=0) correc=(z/std::abs(z)) * 0.5;
+								else correc=0.5;
+						}
+				}
+				if (sigma>0.0) z = (z - correc)/sigma; else z=10.0;
+		  
+				if(tail=="less") pvalue= R::pnorm5(z,0.0,1.0,1,0);
+					else if(tail=="greater") pvalue = R::pnorm5(z,0.0,1.0,0,0);
+						else pvalue = 2.0 * std::min(R::pnorm5(z,0.0,1.0,1,0),R::pnorm5(z,0.0,1.0,0,0));
+			}
 		}
     }
     else 
     { 
     //-------------------------- 2-sample case ---------------------------
         vec r = Fresarank(x - y);
-        double nx = static_cast<double>(x.n_elem);
-        double ny = static_cast<double>(y.n_elem);
-        bool exact=FALSE;
-             if((nx < 50) && (ny < 50))
-             		exact=TRUE;
+		x.clear();
+        double nx = x.n_elem;
+        double ny = y.n_elem;
+        bool exact= ((nx < 50) && (ny < 50));
 
-        double stat =  sum(r) - nx * (nx + 1) / 2.0;
-        bool ties=FALSE;
-         vec ur=unique(r);
-        if (r.n_elem != ur.n_elem) ties = TRUE;
-     
+        double stat =  sum(r) - nx * (nx + 1.0) / 2.0;
+        vec ur=unique(r);
+        bool ties=(r.n_elem != ur.n_elem);
+		ur.clear();
+		
         if(exact && !ties) 
         {
         	 if(tail=="greater")
@@ -1344,24 +1496,24 @@ double wilcoxtest(vec x, vec y , double mu, bool paired, std::string tail,bool c
         }
         else 
         {
-            std::map <double, double> rtiesm; 	
-                for(unsigned int i=0;i<r.n_elem;i++)
-                {
-                	rtiesm[r(i)]++;
-                }
-                vec rtiesv(rtiesm.size());
-                std::map<double,double>::iterator ii=rtiesm.begin();
-                 for(unsigned int i=0 ; ii!=rtiesm.end(); ++ii)
-				   {
-				   	   rtiesv(i)=(*ii).second;
-				   	   i++;
-				   }
+			std::map <double, double> rtiesm; 	
+            for(unsigned int i=0;i<r.n_elem;i++)
+            {
+                rtiesm[r(i)]++;
+            }
+            vec rtiesv(rtiesm.size());
+            std::map<double,double>::iterator ii=rtiesm.begin();
+            for(unsigned int i=0 ; ii!=rtiesm.end(); ++ii)
+			{
+			   rtiesv(i)=(*ii).second;
+				i++;
+			}
             double z = stat - nx * ny/2.0;
             double sigma = std::sqrt((nx * ny/12.0) * ((nx + ny + 1)- sum(pow(rtiesv,3) - rtiesv)/((nx + ny) * (nx + ny - 1.0))));
             if(correct) 
             {
-               if(tail=="greater") correc=0.5;
-	           else if(tail=="less") correc=-0.5;
+               if (tail=="greater") correc=0.5;
+	           else if (tail=="less") correc=-0.5;
 	           else 
 	           {
 		           	if (z!=0)
@@ -1371,9 +1523,9 @@ double wilcoxtest(vec x, vec y , double mu, bool paired, std::string tail,bool c
 		        }
             }
 		    z = (z - correc) / sigma;
-		    if(tail=="less")pvalue= R::pnorm5(z,0.0,1.0,1,0);
-		    else if(tail=="greater")pvalue = R::pnorm5(z,0.0,1.0,0,0);
-		    else pvalue = 2 * std::min(R::pnorm5(z,0.0,1.0,1,0),R::pnorm5(z,0.0,1.0,0,0));
+		    if (tail=="less")pvalue= R::pnorm5(z,0.0,1.0,1,0);
+				else if (tail=="greater")pvalue = R::pnorm5(z,0.0,1.0,0,0);
+					else pvalue = 2 * std::min(R::pnorm5(z,0.0,1.0,1,0),R::pnorm5(z,0.0,1.0,0,0));
         }
     }
     return(pvalue);
@@ -1381,16 +1533,18 @@ double wilcoxtest(vec x, vec y , double mu, bool paired, std::string tail,bool c
 
 double binomtest(double x, double n, double p , std::string tail)
 {
-    x = R::fprec(x,0);
-    n = R::fprec(n,0);
+    x = R::fround(x,0);
+    n = R::fround(n,0);
     double pvalue=1.0;
     if (tail=="less") pvalue =R::pbinom(x, n, p,1,0);
     else if (tail=="greater") pvalue =R::pbinom(x - 1, n, p, 0,0);
-return(pvalue);
+	return(pvalue);
 }
 
-gvarNeRI getVarNeRIFunc(mat dataframe, std::string type,mat testdata) 
+gvarNeRI getVarResFunc(const mat &dataframe, std::string type,const mat &testdataP) 
 {
+	gvarNeRI result;
+	mat testdata = testdataP;
 	if (testdata.n_elem<=1)
 	{
 		testdata = dataframe;
@@ -1404,9 +1558,9 @@ gvarNeRI getVarNeRIFunc(mat dataframe, std::string type,mat testdata)
 		nzero=1;
 		i=2;
 	}
-	vec fullModel = modelFittingFunc(dataframe.cols(0,1),dataframe.cols(2,dataframe.n_cols-1),type);
-	vec fullResiduals = residualForNeRIsFunc(fullModel,dataframe.cols(2,dataframe.n_cols-1)," ",type,dataframe.cols(1,1));
-	vec testResiduals = residualForNeRIsFunc(fullModel,testdata.cols(2,dataframe.n_cols-1)," ",type,testdata.cols(1,1));
+	vec FullModel = modelFittingFunc(dataframe.cols(0,1),dataframe.cols(2,dataframe.n_cols-1),type);
+	vec FullResiduals = residualForFRESAFunc(FullModel,dataframe.cols(2,dataframe.n_cols-1)," ",type,dataframe.cols(1,1));
+	vec testResiduals = residualForFRESAFunc(FullModel,testdata.cols(2,dataframe.n_cols-1)," ",type,testdata.cols(1,1));
 	vec model_tpvalue(nvar);
 	vec model_bpvalue(nvar);
 	vec model_neri(nvar);
@@ -1417,6 +1571,7 @@ gvarNeRI getVarNeRIFunc(mat dataframe, std::string type,mat testdata)
 	vec testmodel_neri(nvar);
 	vec testmodel_wpvalue(nvar);
 	vec testmodel_fpvalue(nvar);
+	unsigned int samples = dataframe.n_rows;
 	if (nvar>1)
 	{
 		for (int  j=0; i<dataframe.n_cols; i++,j++)
@@ -1431,27 +1586,38 @@ gvarNeRI getVarNeRIFunc(mat dataframe, std::string type,mat testdata)
 		}
 			vec redModel = modelFittingFunc(dataframe_sh.cols(0,1),dataframe_sh.cols(2,dataframe_sh.n_cols-1),type);
 
-			if ( !is_finite(redModel))
+			if ( is_finite(redModel))
 			{
-				redModel = fullModel;
+				vec redResiduals = residualForFRESAFunc(redModel,dataframe_sh.cols(2,dataframe_sh.n_cols-1)," ",type,dataframe_sh.cols(1,1));
+				vec redTestResiduals = residualForFRESAFunc(redModel,testdata_sh.cols(2,testdata_sh.n_cols-1)," ",type,testdata_sh.cols(1,1));
+				improvedRes iprob = improvedResidualsFunc(redResiduals,FullResiduals," ");
+				improvedRes testiprob = improvedResidualsFunc(redTestResiduals,testResiduals," ",samples);
+				model_tpvalue(j) = iprob.t_test_pValue;
+				model_bpvalue(j) = iprob.binom_pValue;
+				model_wpvalue(j) = iprob.wilcox_pValue;
+				model_fpvalue(j) = iprob.F_test_pValue;
+				model_neri(j) = iprob.NeRI;
+				testmodel_tpvalue(j) = testiprob.t_test_pValue;
+				testmodel_bpvalue(j) = testiprob.binom_pValue;
+				testmodel_wpvalue(j) = testiprob.wilcox_pValue;
+				testmodel_fpvalue(j) = testiprob.F_test_pValue;
+				testmodel_neri(j) = testiprob.NeRI;
 			}
-			vec redResiduals = residualForNeRIsFunc(redModel,dataframe_sh.cols(2,dataframe_sh.n_cols-1)," ",type,dataframe_sh.cols(1,1));
-			vec redTestResiduals = residualForNeRIsFunc(redModel,testdata_sh.cols(2,testdata_sh.n_cols-1)," ",type,testdata_sh.cols(1,1));
-			improvedRes iprob = improvedResidualsFunc(redResiduals,fullResiduals," ");
-			improvedRes testiprob = improvedResidualsFunc(redTestResiduals,testResiduals," ");
-			model_tpvalue(j) = iprob.t_test_pValue;
-			model_bpvalue(j) = iprob.binom_pValue;
-			model_wpvalue(j) = iprob.wilcox_pValue;
-			model_fpvalue(j) = iprob.F_test_pValue;
-			model_neri(j) = iprob.NeRI;
-			testmodel_tpvalue(j) = testiprob.t_test_pValue;
-			testmodel_bpvalue(j) = testiprob.binom_pValue;
-			testmodel_wpvalue(j) = testiprob.wilcox_pValue;
-			testmodel_fpvalue(j) = testiprob.F_test_pValue;
-			testmodel_neri(j) = testiprob.NeRI;
+			else
+			{
+				model_tpvalue(j) = 1;
+				model_bpvalue(j) = 1;
+				model_wpvalue(j) = 1;
+				model_fpvalue(j) = 1;
+				model_neri(j) = 0;
+				testmodel_tpvalue(j) = 1;
+				testmodel_bpvalue(j) = 1;
+				testmodel_wpvalue(j) = 1;
+				testmodel_fpvalue(j) = 1;
+				testmodel_neri(j) = 0;
+			}
 		}
 	}
-	 gvarNeRI result;
 	 result.tP_value=model_tpvalue;
 	 result.BinP_value=model_bpvalue;
 	 result.WilcoxP_value=model_wpvalue;

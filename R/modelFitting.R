@@ -4,9 +4,9 @@ function (model.formula,data,type = c("LOGIT", "LM","COX"),fast=FALSE,...)
 
 	type <- match.arg(type);
 	
-if (!requireNamespace("speedglm", quietly = TRUE)) {
-   install.packages("speedglm", dependencies = TRUE)
-} 
+#if (!requireNamespace("speedglm", quietly = TRUE)) {
+#   install.packages("speedglm", dependencies = TRUE)
+#} 
 
 	if (!fast)
 	{
@@ -18,16 +18,16 @@ if (!requireNamespace("speedglm", quietly = TRUE)) {
 			 },
 			LOGIT =
 			{
-	#          fittedModel <- try(glm(model.formula,data=data,na.action=na.exclude,family=binomial(link=logit),...));
-			  fittedModel <- try(speedglm::speedglm(model.formula,data=data,na.action=na.exclude,family=binomial(link=logit)));
+	          fittedModel <- try(glm(model.formula,data=data,na.action=na.exclude,family=binomial(link=logit),...));
+#			  fittedModel <- try(speedglm::speedglm(model.formula,data=data,na.action=na.exclude,family=binomial(link=logit)));
 			},
 			COX =
 			{
 			  fittedModel <- try(survival::coxph(model.formula,data=data,,na.action=na.exclude,model=TRUE,...));
 			},
 			{
-	#          fittedModel <- try(glm(model.formula,data=data,na.action=na.exclude,...));
-			  fittedModel <- try(speedglm::speedglm(model.formula,data=data,na.action=na.exclude,family=binomial(link=logit)));
+	          fittedModel <- try(glm(model.formula,data=data,na.action=na.exclude,...));
+#			  fittedModel <- try(speedglm::speedglm(model.formula,data=data,na.action=na.exclude,family=binomial(link=logit)));
 			}
 		)
 		if (!inherits(fittedModel, "try-error"))

@@ -5,7 +5,7 @@
 \title{FeatuRE Selection Algorithms for Computer-Aided Diagnosis (FRESA.CAD)}
 \description{
 	Contains a set of utilities for building and testing formula-based models for Computer Aided Diagnosis/prognosis applications via feature selection.
-	Algorithms control the false selection rate (FSR) for linear, logistic, or Cox proportional hazards regression models.
+	Bootstrapped Stage Wise Model Selection (B:SWiMS) controls the false selection (FS) for linear, logistic, or Cox proportional hazards regression models.
 	Utilities include functions for: univariate/longitudinal analysis, data conditioning (i.e. covariate adjustment and normalization), model validation and visualization.
 }	
 
@@ -14,16 +14,16 @@
 	\tabular{ll}{
 		Package: \tab FRESA.CAD\cr
 		Type: \tab Package\cr
-		Version: \tab 2.0.2\cr
-		Date: \tab 2015-2-21\cr
+		Version: \tab 2.1.3\cr
+		Date: \tab 2015-9-3\cr
 		License: \tab LGPL (>= 2)\cr
 	}
 	Purpose: The design of diagnostic or prognostic multivariate models via the selection of significantly discriminant features.
-	The models are selected via the step-wise selection of features that offer a significant improvement in subject classification/error.
-	The false selection rate (FSR) is empirically controlled via bootstrapped samples. 
+	The models are selected via the bootstrapped step-wise selection of model features that offer a significant improvement in subject classification/error.
+	The false selection control is achieved by train-test partitions, where train sets are used to select variables and test sets used to evaluate model performance.
 	Variables that do not improve subject classification/error on the blind test are not included in the models.
 
-	The main function of this package is the selection and cross-validation of an FSR controlled diagnostic/prognostic linear, logistic, or Cox proportional hazards regression model constructed from a large set of candidate features.
+	The main function of this package is the selection and cross-validation of diagnostic/prognostic linear, logistic, or Cox proportional hazards regression model constructed from a large set of candidate features.
 	The variable selection may start by conditioning all variables via a covariate-adjustment and a \emph{z}-inverse-rank-transformation. 
 	In order to integrate features with partial discriminant power, the package can be used to categorize the continuous variables and rank their discriminant power.
 	Once ranked, each feature is bootstrap-tested in a multivariate model, and its blind performance is evaluated.
@@ -89,7 +89,7 @@ Maintainer: <jose.tamezpena@itesm.mx>
 	# - 10 bootstrap loops
 	# - Age as a covariate
 	# - zIDI as the feature inclusion criterion
-	cancerModel <- ReclassificationFRESA.Model(loops = 10,
+	cancerModel <- ForwardSelection.Model.Bin(loops = 10,
 	                                           covariates = "1 + age",
 	                                           Outcome = "pgstat",
 	                                           variableList = rankedDataCancer,
@@ -98,7 +98,7 @@ Maintainer: <jose.tamezpena@itesm.mx>
 	                                           timeOutcome = "pgtime",
 	                                           selectionType = "zIDI")
 	# Update the model
-	uCancerModel <- updateModel(Outcome = "pgstat",
+	uCancerModel <- updateModel.Bin(Outcome = "pgstat",
 	                            VarFrequencyTable = cancerModel$ranked.var,
 	                            variableList = rankedDataCancer,
 	                            data = dataCancer,
@@ -106,20 +106,20 @@ Maintainer: <jose.tamezpena@itesm.mx>
 	                            timeOutcome = "pgtime")
 	# Remove not significant variables from the previous model:
 	# - Using zIDI as the feature removal criterion
-	reducedCancerModel <- backVarElimination(object = uCancerModel$final.model,
+	reducedCancerModel <- backVarElimination_Bin(object = uCancerModel$final.model,
 	                                         Outcome = "pgstat",
 	                                         data = dataCancer,
 	                                         type = "COX",
 	                                         selectionType = "zIDI")
 	# Validate the previous model:
 	# - Using 50 bootstrap loops
-	bootCancerModel <- bootstrapValidation(loops = 50,
+	bootCancerModel <- bootstrapValidation_Bin(loops = 50,
 	                                       model.formula = reducedCancerModel$back.formula,
 	                                       Outcome = "pgstat",
 	                                       data = dataCancer,
 	                                       type = "COX")	
 	# Get the summary of the bootstrapped model
-	sumBootCancerModel <- summary.bootstrapValidation(object = bootCancerModel)
+	sumBootCancerModel <- summary.bootstrapValidation_Bin(object = bootCancerModel)
 	# Plot the bootstrap results
 	plot(bootCancerModel)
 	# Scale the C prostate cancer data
@@ -148,7 +148,7 @@ Maintainer: <jose.tamezpena@itesm.mx>
 	# - A 2-fold cross-validation in the feature selection and update procedures
 	# - A 10-fold cross-validation in the model validation procedure
 	# - An elimination p-value of 0.1
-	cancerModelCV <- crossValidationFeatureSelection(size = 5,
+	cancerModelCV <- crossValidationFeatureSelection_Bin(size = 5,
 	                                                 loops = 1,
 	                                                 covariates = "1 + age",
 	                                                 Outcome = "pgstat",

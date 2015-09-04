@@ -40,7 +40,7 @@ int redCurmodel_S_lastRemoved;
 //********************************************************************************************
 //**==========================================================================================
 //********************************************************************************************
-extern "C" SEXP bootstrapValidationCpp(SEXP _fraction,SEXP _loops,SEXP _dataframe,SEXP _type,SEXP _response)
+extern "C" SEXP bootstrapValidationBinCpp(SEXP _fraction,SEXP _loops,SEXP _dataframe,SEXP _type,SEXP _response)
 {
 	try 
 	{  //R_CStackLimit=(uintptr_t)-1;
@@ -83,19 +83,19 @@ extern "C" SEXP bootstrapValidationCpp(SEXP _fraction,SEXP _loops,SEXP _datafram
 		std::vector<double> testprediction;
 
 		vec trainRoc=ones<vec>(loops);
-		vec accuracy(loops);
-		vec sensitivity(loops);
-		vec specificity(loops);
-		vec taccuracy(loops);
-		vec tsensitivity(loops);
-		vec tspecificity(loops);
-		mat bcoef(loops,n_var); 	  
-		mat zNRI(loops,n_var2); 
-		mat zIDI(loops,n_var2); 
-		mat test_zNRI(loops,n_var2); 
-		mat test_zIDI(loops,n_var2); 
-		mat NRI(loops,n_var2); 
-		mat IDI(loops,n_var2); 
+		vec accuracy=zeros<vec>(loops);
+		vec sensitivity=zeros<vec>(loops);
+		vec specificity=zeros<vec>(loops);
+		vec taccuracy=ones<vec>(loops);
+		vec tsensitivity=zeros<vec>(loops);
+		vec tspecificity=zeros<vec>(loops);
+		mat bcoef=zeros<mat>(loops,n_var); 	  
+		mat zNRI=zeros<mat>(loops,n_var2); 
+		mat zIDI=zeros<mat>(loops,n_var2); 
+		mat test_zNRI=zeros<mat>(loops,n_var2); 
+		mat test_zIDI=zeros<mat>(loops,n_var2); 
+		mat NRI=zeros<mat>(loops,n_var2); 
+		mat IDI=zeros<mat>(loops,n_var2); 
 		vec sumwtdcf=zeros<vec>(n_var);
 		vec sumwts = sumwtdcf;
 		double gacc = 0.0; 
@@ -113,7 +113,6 @@ extern "C" SEXP bootstrapValidationCpp(SEXP _fraction,SEXP _loops,SEXP _datafram
 		for (int doOver=0;doOver<loops;doOver++)
 		{ 
 			mat trainingSample;
-			mat testSample;
 			mat myTestCases;
 			mat myTestControl;
 			uvec samCases= randi<uvec>(totSamples, distr_param(0,sizecases-1));
@@ -139,20 +138,42 @@ extern "C" SEXP bootstrapValidationCpp(SEXP _fraction,SEXP _loops,SEXP _datafram
    					  coef=coefaux;
 				}
 
-				// Getting the test set
+//				Getting the test set
+
 				myTestCases=casesample.rows(find(auxcasesample==0));
 				myTestControl=controlsample.rows(find(auxcontrolsample==0));
-				testSample=join_cols(myTestCases,myTestControl);
-				mat indpendentSample= join_cols(myTestCases.rows(randi<uvec>(totSamples, distr_param(0,myTestCases.n_rows-1)))  ,  myTestControl.rows(randi<uvec>(totSamples, distr_param(0,myTestControl.n_rows-1))));
+
+//				mat testSample = join_cols(myTestCases,myTestControl);
+
+				int ncases = myTestCases.n_rows;
+				int ncontrol = myTestControl.n_rows;
+				int ntesmin = std::min(ncases,ncontrol);
+				int randnum = (randi<imat>(1))[0];
+				
+// forcing to have the same number of cases and controls
+				mat testSample(2*ntesmin,myTestCases.n_cols);
+				for (int i=0;i<ntesmin;i++)
+				{
+					testSample.row(2*i) =  myTestCases.row((i + randnum) % ncases);
+					testSample.row(2*i+1) = myTestControl.row((i + randnum) % ncontrol);
+				}
+				ncases = ntesmin;
+				ncontrol = ntesmin;
+
+				
+				
+//				mat indpendentSample= join_cols(myTestCases.rows(randi<uvec>(totSamples, distr_param(0,myTestCases.n_rows-1)))  ,  myTestControl.rows(randi<uvec>(totSamples, distr_param(0,myTestControl.n_rows-1))));
+
 
 				// predicting the test
 				vec p = predictForFresaFunc(trainmodel,testSample.cols(2,testSample.n_cols-1),"prob",type);
 				// predicting the training
-				vec trainmodel_linear_predictors = predictForFresaFunc(trainmodel,trainingSample.cols(2,trainingSample.n_cols-1),"linear",type);
+				vec trainmodel_predictors = predictForFresaFunc(trainmodel,trainingSample.cols(2,trainingSample.n_cols-1),"prob",type);
 
 				// performance AUC and NRI/IDI
-				double auul = rocAUC(trainingSample.col(1), trainmodel_linear_predictors,"auto","auc");
-				getVReclass modelReclas = getVarReclassificationFunc(trainingSample,type,indpendentSample);
+				double auul = rocAUC(trainingSample.col(1), trainmodel_predictors,"auto","auc");
+				getVReclass modelReclas = getVarBinFunc(trainingSample,type,testSample);
+//				getVReclass modelReclas = getVarBinFunc(trainingSample,type,indpendentSample);
 				
 				double acc = 0.0;
 				double sen = 0.0;
@@ -173,21 +194,21 @@ extern "C" SEXP bootstrapValidationCpp(SEXP _fraction,SEXP _loops,SEXP _datafram
 				double trsen=0;
 				double trspe=0;
 				double tracc=0;
-				for(unsigned int i=0;i<trainmodel_linear_predictors.n_rows;i++)
+				for(unsigned int i=0;i<trainingSample.n_rows;i++)
 				{
 					if (trainingSample(i,1)>0)
 					{
-					 	if (trainmodel_linear_predictors(i)>=0) trsen++;
+					 	if (trainmodel_predictors(i)>=0.5) trsen++;
 					}
 					if (trainingSample(i,1)==0)
 					{
-				    	if (trainmodel_linear_predictors(i)<0) trspe++;
+				    	if (trainmodel_predictors(i)<0.5) trspe++;
 					}	
 				}
 				tracc = trsen+trspe;
-				tracc = tracc/static_cast<double>(trainmodel_linear_predictors.n_rows);
-				trsen = trsen/static_cast<double>(totSamples);
-				trspe = trspe/static_cast<double>(totSamples);
+				tracc = tracc/trainingSample.n_rows;
+				trsen = trsen/totSamples;
+				trspe = trspe/totSamples;
 
 				vec wtsIdi = modelReclas.z_IDIs;
 				for (unsigned int n=0;n<wtsIdi.n_elem;n++)
@@ -219,14 +240,14 @@ extern "C" SEXP bootstrapValidationCpp(SEXP _fraction,SEXP _loops,SEXP _datafram
 					testprediction.push_back(p(i));
 				}
 				gacc = gacc + acc;
-				smaptot = smaptot+testSample.n_rows;
+				smaptot = smaptot + testSample.n_rows;
 				gsen = gsen + sen; 
-				smapsen = smapsen + myTestCases.n_rows;
+				smapsen = smapsen + ncases;
 				gspe = gspe + spe; 
-				smapspe = smapspe + myTestControl.n_rows;
-				acc = acc/static_cast<double>(testSample.n_rows);
-				sen = sen/static_cast<double>(myTestCases.n_rows);
-				spe = spe/static_cast<double>(myTestControl.n_rows);
+				smapspe = smapspe + ncontrol;
+				acc = acc/testSample.n_rows;
+				sen = sen/ncases;
+				spe = spe/ncontrol;
 				sumwtdcf = sumwtdcf+(wtsIdi % coef);
 				sumwts = sumwts+wtsIdi;
 
@@ -248,7 +269,7 @@ extern "C" SEXP bootstrapValidationCpp(SEXP _fraction,SEXP _loops,SEXP _datafram
 }
 			}
 		}
-		if (lastInserted<loops)
+		if ((lastInserted>0)&&(lastInserted<loops))
 		{
 			trainRoc.resize(lastInserted);
 			accuracy.resize(lastInserted);
@@ -264,13 +285,19 @@ extern "C" SEXP bootstrapValidationCpp(SEXP _fraction,SEXP _loops,SEXP _datafram
 			test_zIDI.resize(lastInserted,n_var2);
 			NRI.resize(lastInserted,n_var2);
 			IDI.resize(lastInserted,n_var2);
-			Rcout<<"Warning: only "<<lastInserted<<" samples of "<<loops<<" where inserted\n";
+			if ((3*lastInserted)<loops) Rcout<<"Warning: only "<<lastInserted<<" samples of "<<loops<<" where inserted\n";
 		}
-		
-		double blindAUC = rocAUC(testoutcome,testprediction,"auto","auc");
-		double BlindAccuracy = gacc/static_cast<double>(smaptot);
-		double BlindSensitivity = gsen/static_cast<double>(smapsen);
-		double BlindSpecificity = gspe/static_cast<double>(smapspe);
+		double blindAUC=0.5;
+		double BlindAccuracy=0.5;
+		double BlindSensitivity=0;
+		double BlindSpecificity=0;
+		if (lastInserted>0)
+		{
+			blindAUC = rocAUC(testoutcome,testprediction,"auto","auc");
+			BlindAccuracy = gacc/static_cast<double>(smaptot);
+			BlindSensitivity = gsen/static_cast<double>(smapsen);
+			BlindSpecificity = gspe/static_cast<double>(smapspe);
+		}
 //		Rcout<<"Blind AUC: "<<blindAUC<<"\n";
 		Rcpp::List resul =Rcpp::List::create(
 			Rcpp::Named("test_zNRI")=Rcpp::wrap(test_zNRI), 
@@ -343,33 +370,73 @@ std::string binaryFowardSelection(const unsigned int size,const int totSamples,c
   	const int z_nri=1;
 	int sizecases = casesample.n_rows;
 	int sizecontrol = controlsample.n_rows;
+	int trainsize = totSamples*2;
+
+	vec outRandomCases;
+	vec outRandomControl;
+	int outcomeidx =  0;
+	if (Outcome=="RANDOM")
+	{
+		outRandomCases = randi<vec>(sizecases,distr_param(0,1));
+		outRandomControl = randi<vec>(sizecontrol,distr_param(0,1));
+	}
+	else
+	{
+		outcomeidx = lockup[Outcome];
+	}
+
+
+	
 	if (loops > 1)
 	{
-		uvec samCases= randi<uvec>(totSamples, distr_param(0,sizecases-1));
-		uvec samControl=randi<uvec>(totSamples, distr_param(0,sizecontrol-1));
+		uvec samCases = randi<uvec>(totSamples, distr_param(0,sizecases-1));
+		uvec samControl = randi<uvec>(totSamples, distr_param(0,sizecontrol-1));
 		vec auxcasesample=zeros<vec>(sizecases);
-   		vec auxcontrolsample=zeros<vec>(sizecontrol);
+  		vec auxcontrolsample=zeros<vec>(sizecontrol);
   		mat myTestCases;
-  		mat myTestControl;
+ 		mat myTestControl;
 		for (int i =0;i<totSamples;i++)
 		{
 			mysample=join_cols(mysample,casesample.row((samCases(i))));
 			mysample=join_cols(mysample,controlsample.row((samControl(i))));
 			auxcasesample[(samCases(i))]=1;
 			auxcontrolsample[(samControl(i))]=1;
+			if (Outcome=="RANDOM")
+			{
+				mysample.col(outcomeidx)(2*i) = outRandomCases(samCases(i));
+				mysample.col(outcomeidx)(2*i+1) = outRandomControl(samControl(i));
+			}
 		}				
 		myTestCases=casesample.rows(find(auxcasesample==0));
 		myTestControl=controlsample.rows(find(auxcontrolsample==0));
-		myTestsample=join_cols(myTestCases,myTestControl);
+		if (Outcome=="RANDOM") 
+		{
+			myTestCases.col(outcomeidx) = outRandomCases(find(auxcasesample==0));
+			myTestControl.col(outcomeidx) = outRandomControl(find(auxcontrolsample==0));
+		}
+
+		int ncases = myTestCases.n_rows;
+		int ncontrol = myTestControl.n_rows;
+		int ntesmin = std::min(ncases,ncontrol);
+		int randnum = (randi<imat>(1))[0];
+
+		myTestsample = zeros<mat>(2*ntesmin,myTestCases.n_cols);
+		for (int i=0;i<ntesmin;i++)
+		{
+			myTestsample.row(2*i) =  myTestCases.row((i + randnum) % ncases);
+			myTestsample.row(2*i+1) = myTestControl.row((i + randnum) % ncontrol);
+		}
 	}
 	else
 	{
 		mysample=join_cols(casesample,controlsample);
   	  	myTestsample=join_cols(casesample,controlsample);
 	}
+
+	
 			
     mat myoutcome(mysample.n_rows,2);
-	myoutcome.col(1)=mysample.col(lockup[Outcome]);
+	myoutcome.col(1)=mysample.col(outcomeidx);
        
 	mysampleMatbase.set_size(mysample.n_rows);
 	myTestsampleMatbase.set_size(myTestsample.n_rows);
@@ -395,9 +462,9 @@ std::string binaryFowardSelection(const unsigned int size,const int totSamples,c
        if (type=="LOGIT") bestmodel=log(bestmodel/(1-bestmodel));
 	}
   	bestpredict_train=predictForFresaFunc(bestmodel,mysampleMatbase,"prob",type);
-  	bestpredict=predictForFresaFunc(bestmodel,myTestsampleMatbase,"prob",type);
+  	if (loops > 1) bestpredict=predictForFresaFunc(bestmodel,myTestsampleMatbase,"prob",type);
 	int changes = 1;
-	unsigned int jmax = -1;
+	int jmax = -1;
   	unsigned int j;
 	std::string inname = "Inserted";
 	while (changes>0)
@@ -412,7 +479,7 @@ std::string binaryFowardSelection(const unsigned int size,const int totSamples,c
 	  		if (vnames[j] != inname)
 	  		{
 				mysampleMat=join_rows(mysampleMatbase,mysample.col(lockup[vnames[j]]));
-				myTestsampleMat=join_rows(myTestsampleMatbase,myTestsample.col(lockup[vnames[j]]));
+				if (loops > 1) myTestsampleMat=join_rows(myTestsampleMatbase,myTestsample.col(lockup[vnames[j]]));
 	  			gfrm1 = frm1+" + "+vnames[j];
 	  			singleTrainPredict.clear();
 	  			singleTestPredict.clear();
@@ -426,24 +493,39 @@ std::string binaryFowardSelection(const unsigned int size,const int totSamples,c
 				if (is_finite(newmodel)) 
 	  			{
   					singleTrainPredict=predictForFresaFunc(newmodel,mysampleMat,"prob",type);
-					singleTestPredict=predictForFresaFunc(newmodel,myTestsampleMat,"prob",type);
-					iprob_t = improveProbFunc(bestpredict_train,singleTrainPredict,mysample.col(lockup[Outcome]));            
-  					iprob = improveProbFunc(bestpredict,singleTestPredict,myTestsample.col(lockup[Outcome]));            
-  					if ((is_finite(iprob)) and (is_finite(iprob_t)))
+					iprob_t = improveProbFunc(bestpredict_train,singleTrainPredict,mysample.col(outcomeidx));            
+					if (loops > 1) 
 					{
+						singleTestPredict=predictForFresaFunc(newmodel,myTestsampleMat,"prob",type);
+						iprob = improveProbFunc(bestpredict,singleTestPredict,myTestsample.col(outcomeidx),trainsize);
+						if ((is_finite(iprob)) and (is_finite(iprob_t)))
+						{
+							if (selType=="zIDI") 
+							{
+								zmin = std::min(iprob(z_idi),iprob_t(z_idi));
+							}
+							else
+							{
+								zmin = std::min(iprob(z_nri),iprob_t(z_nri));
+							}
+						}
+					}
+					else
+					{
+//						Rcout << iprob_t(z_idi) <<":"<<iprob_t(z_nri)<< endl;
 						if (selType=="zIDI") 
-		  				{
-		  					zmin = std::min(iprob(z_idi),iprob_t(z_idi));
-		  				}
-		  				else
-		  				{
-		  					zmin = std::min(iprob(z_nri),iprob_t(z_nri));
-		  				}
-	  					if (zmin  > maxrec)
-	  					{
-	  						jmax = j;
-							maxrec = zmin;
-	  					}
+						{
+							zmin=iprob_t(z_idi);
+						}
+						else
+						{
+							zmin=iprob_t(z_nri);
+						}
+					}
+					if (zmin  > maxrec)
+					{
+						jmax = j;
+						maxrec = zmin;
 					}
 	  			}
 			}
@@ -453,10 +535,13 @@ std::string binaryFowardSelection(const unsigned int size,const int totSamples,c
 			gfrm1 = frm1+" + ";
 	  		gfrm1 = gfrm1+ovnames[jmax];
 	  		mysampleMatbase=join_rows(mysampleMatbase,mysample.col(lockup[vnames[jmax]]));
-			myTestsampleMatbase=join_rows(myTestsampleMatbase,myTestsample.col(lockup[vnames[jmax]]));
            	bestmodel =modelFittingFunc(myoutcome,mysampleMatbase,type);
-	  		bestpredict_train=predictForFresaFunc(bestmodel,mysampleMatbase,"prob",type);
-			bestpredict=predictForFresaFunc(bestmodel,myTestsampleMatbase,"prob",type);
+			if (loops > 1) 
+			{
+				myTestsampleMatbase=join_rows(myTestsampleMatbase,myTestsample.col(lockup[vnames[jmax]]));
+				bestpredict = predictForFresaFunc(bestmodel,myTestsampleMatbase,"prob",type);
+			}
+	  		bestpredict_train = predictForFresaFunc(bestmodel,mysampleMatbase,"prob",type);
            	frm1 = gfrm1;	
 	  		changes = changes + 1;
 	  		mynamesLoc.push_back(jmax);
@@ -464,7 +549,8 @@ std::string binaryFowardSelection(const unsigned int size,const int totSamples,c
 	  		jmax = 0;
 	  		maxrec = 0;
 	  		inserted = inserted + 1;
-	  	} 
+	  	}
+//		if (loops==1) Rcout << endl << frm1 << endl;		
 	}
 	return frm1;
 }
@@ -473,7 +559,7 @@ extern "C" SEXP ReclassificationFRESAModelCpp(SEXP _size, SEXP _fraction,SEXP _p
 {
 try {   // R_CStackLimit=(uintptr_t)-1;
  		#ifdef _OPENMP
-		Rcout<<"::============ Available CPU Cores(Threads) : "<<omp_get_num_procs()<<" ===Requested Threads : "<< as<unsigned int>(_cores) << endl;
+//		Rcout<<"::============ Available CPU Cores(Threads) : "<<omp_get_num_procs()<<" ===Requested Threads : "<< as<unsigned int>(_cores) << endl;
 	    omp_set_num_threads(as<unsigned int>(_cores));
 		#endif	
 		unsigned int size = as<unsigned int>(_size); 
@@ -494,7 +580,7 @@ try {   // R_CStackLimit=(uintptr_t)-1;
 		std::vector<std::string> formulas;
 		std::vector<int> mynames;
 		std::vector<std::string> ovnames=as<std::vector<std::string> >(CharacterVector(_variableList)); 
-		double zthr = abs(qnorm(pvalue,0.0,1.0)); //double zthr = abs(Rf_qnorm5(pvalue,0.0, 1.0, 1, 0));
+		double zthr = std::abs(qnorm(pvalue,0.0,1.0)); //double zthr = abs(Rf_qnorm5(pvalue,0.0, 1.0, 1, 0));
 		for(int i=0;i<CharacterVector(colnames).size();i++)
 		{
 			lockup[std::string(CharacterVector(colnames)[i])]=i;
@@ -503,24 +589,29 @@ try {   // R_CStackLimit=(uintptr_t)-1;
 		{
 		  baseForm = "Surv("+timeOutcome+","+Outcome+")";
 		}
-		baseForm = baseForm+" ~ 1";
-		if (covari[0]!="1")
-			for(unsigned int i=0;i<covari.size();i++)
-			    baseForm = baseForm+"+"+covari[i];
-		mat casesample=dataframe.rows(find(dataframe.col(lockup[Outcome])==1));
-	    mat controlsample=dataframe.rows(find(dataframe.col(lockup[Outcome])==0));
-		int sizecases   =casesample.n_rows;
-		int sizecontrol =controlsample.n_rows;
+		baseForm = baseForm+" ~ ";
+		for(unsigned int i=0;i<covari.size();i++)
+		{
+			baseForm = baseForm+"+"+covari[i];
+		}
+		
+
+		int indoutcome=lockup[Outcome];
+		mat casesample = dataframe.rows(find(dataframe.col(indoutcome)==1));
+		mat controlsample = dataframe.rows(find(dataframe.col(indoutcome)==0));
+		int sizecases   = casesample.n_rows;
+		int sizecontrol = controlsample.n_rows;
 		int minsize = std::min(sizecases,sizecontrol);
 		int totSamples = (int)(fraction*minsize+0.49);
+
 		double zthr2 = zthr;
 		if (fraction<1) 
 		{
-			zthr2 = zthr*sqrt(fraction);
+			zthr2 = zthr*std::sqrt(fraction);
 		}
-		if (zthr2<abs(qnorm(0.1,0,1))) zthr2 = abs(qnorm(0.1,0,1)); 
+		if (zthr2<std::abs(qnorm(0.1,0,1))) zthr2 = std::abs(qnorm(0.1,0,1)); 
 
-		Rcout<<pvalue<<" <-pv : z-> "<<zthr2<<" Form: "<<  baseForm << "\n";
+//		Rcout<<pvalue<<" <-pv : z-> "<<zthr2<<" Form: "<<  baseForm << "\n";
 
 		if (size > ovnames.size()) size = ovnames.size();
 		std::string inname = "Inserted";
@@ -529,7 +620,9 @@ try {   // R_CStackLimit=(uintptr_t)-1;
 					 if (covari[j]==ovnames[i]) ovnames[i]=inname;  	
 #pragma omp parallel for schedule(dynamic) ordered shared (mynames,formulas)  
     	for (int doOver=0; doOver<loops;doOver++)
-	 	{   
+	 	{
+
+	
 			std::vector <int> mynamesLoc;
 			std::string  frm = binaryFowardSelection(size,totSamples,zthr2,selType,loops,
 			Outcome,timeOutcome,type,maxTrainModelSize,casesample,controlsample,
@@ -538,7 +631,8 @@ try {   // R_CStackLimit=(uintptr_t)-1;
 			if ((doOver%10)==0) 
 				{
 #pragma omp critical
-					Rcout << doOver <<" : "<< frm << std::endl;	
+					Rcout << ".";	
+//					Rcout << doOver <<" : "<< frm << std::endl;	
 				}
 #pragma omp critical
 {

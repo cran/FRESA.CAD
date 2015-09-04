@@ -1,7 +1,51 @@
-Changes from FRESA.CAD 2.0.1 to FRESA.CAD version 2.0.2
+Changes from FRESA.CAD 2.0.1 to FRESA.CAD version 2.1.3
 
-	+variable _X from code was renamed _xmat 
-	+NAN were replaced by nan("") c++ function
+	FRESA.CAD suffered mayor changes from the previous version.
+	The new version is more effective in handling memory, some functions and outputs
+	were renamed.
+
+	-Function Name Changes
+		+backVarElimination to backVarElimination_Bin
+		+backVarNeRiElimination to backVarElimination_Res
+		+bootstrapValidation to bootstrapValidation_Bin
+		+bootstrapNeRiValidation to bootstrapValidation_Res
+		+bootstrapVarElimination to bootstrapVarEliminiation_Bin
+		+bootstrapVarNeRiElimination to bootstrapVarEliminiation_Res
+		+crossValidationFeatureSelection to +crossValidationFeatureSelection_Bin
+		+crossValidationNeRiFeatureSelection to +crossValidationFeatureSelection_Res
+		+ReclassificationFRESA.Model to ForwardModel_Res
+		+NeRIBasedFRESA.Model to ForwardModel_Res
+		+getVarReclassification to getVar_Bin
+		+getVarNeRI to getVar_Res 
+		+plot.bootstrapValidation to plot.bootstrapValidation_Bin
+		+plot.bootstrapValidationNeRI to plot.bootstrapValidation_Res
+		+updateModel to updateModel_Bin
+		+updateNeRImodel to updateModel_Res
+
+	-Renamed Outputs
+		Model created form forward models followed by back elimination renamed BSWiMS models
+		enet renamed LASSO
+
+	-Enhancements 
+		+cross-validation now stores ID of sampled subject as well as training fits
+		+cross-validation now reports the ensemble estimations 
+		+Update model added model-size-based Benjamini–Hochberg procedure (BH)
+		+Timeseriesanalysis chaged the presentation of p values to t values
+		+beforeFSC formulas produced before the BH correction
+
+	+Minor bugs:
+		+report equivalent variables for regression models
+		+removed first term of formula list of cross-validation process
+		+removed exact wilcoxon test 
+		+other minor bugs
+	-Code reviews 
+		+NAN were replaced by nan("") c++ function
+		+cpp code revision to remove abs and sign warnings
+		+median predict revised to work with the new structure of the formula list provided by cross-validation
+		+speedglm removed from dependencies
+
+Changes from FRESA.CAD 2.0.1 to FRESA.CAD version 2.0.2
+		+variable _X from code was renamed _xmat 
 
 Changes from FRESA.CAD 2.0 to FRESA.CAD version 2.0.1
 
@@ -21,16 +65,16 @@ Changes from FRESA.CAD 1.0 to FRESA.CAD version 2.0
 
     + Improvements and bug-fix across the FRESA.CAD package to deal with exceptions and zero size models.
 	+ Interface changes:
-		*in bootstrapValidation(...,dataframe,...) 
+		*in bootstrapValidation_Bin(...,dataframe,...) 
 			"dataframe" argument renamed "data"
-		*in bootstrapValidationNeRI(...,dataframe,...) 
+		*in bootstrapValidation_Res(...,dataframe,...) 
 			"dataframe" argument renamed "data"
 		*in bootVarNeRIElimination(...,bootLoops=250,bootFraction=1.0,...) 
 			"bootLoops" and "bootFraction" arguments renamed "loops" and "fraction" respectively.
-		*in crossValidationFeatureSelection(...,dataframe,...,backBootLoops,...,bootEstimations,...) 
+		*in crossValidationFeatureSelection_Bin(...,dataframe,...,backBootLoops,...,bootEstimations,...) 
 			"dataframe", "backBootLoops" and "bootEstimations" arguments renamed 
 			"data", "elimination.bootstrap.steps" and "bootstrap.steps" respectively
-		*in crossValidationNeRIFeatureSelection(...,dataframe,...,backBootLoops,...) 
+		*in crossValidationFeatureSelection_Res(...,dataframe,...,backBootLoops,...) 
 			"dataframe" and "backBootLoops" arguments renamed 
 			"data" and "elimination.bootstrap.steps" respectively
 		*in featureAdjustment(...,dataframe,...) 
@@ -39,9 +83,9 @@ Changes from FRESA.CAD 1.0 to FRESA.CAD version 2.0
 			"k" argument renamed "nk"
 		*getKNNpredictionFromFormula(modelFormula,...,k,...) 
 			"modelFormula" and "k"  arguments renamed "model.formula" and "nk" respectively
-		*getVarNeRI(...,dataframe,...) 
+		*getVar.Res(...,dataframe,...) 
 			"dataframe" argument renamed "data"
-		*getVarReclassification(...,dataframe,...)
+		*getVar.Bin(...,dataframe,...)
 			"dataframe" argument renamed "data"
 		*heatMaps(...,dataframe,...)
 			"dataframe" argument renamed "data"
@@ -51,17 +95,17 @@ Changes from FRESA.CAD 1.0 to FRESA.CAD version 2.0
 			"newdata" and "k" arguments renamed "testdata" and "nk" respectively
 		*modelFitting(model,dataframe,...)
 			"model" and "dataframe" arguments renamed "mode.formula" and "data" respectively
-		*NeRIBasedFRESA.Model(...,dataframe,...)
+		*ForwardSelection.Model.Res(...,dataframe,...)
 			"dataframe" argument renamed "data"
 		*predictForFresa(...,newdata,type,...) -> 
 			"newdata"  and "type" arguments renamed "testdata" and "predictType" respectively
 		*rankInverseNormalDataFrame(varList, dataframe,..)
 			"varList" and "dataframe" arguments renamed "variableList" and "data" respectively
-		*ReclassificationFRESA.Model(...,dataframe,...)
+		*ForwardSelection.Model.Bin(...,dataframe,...)
 			"dataframe" argument renamed "data"
 		*reportEquivalentVariables(...,dataframe,...)
 			"dataframe" argument renamed "data"
-		*residualForNeRIs(...,newdata,...)
+		*residualForFRESA(...,newdata,...)
 			"newdata" argument renamed "testData"
 		*timeSerieAnalysis(...,dataframe,...)
 			"dataframe" argument renamed "data"
@@ -69,9 +113,9 @@ Changes from FRESA.CAD 1.0 to FRESA.CAD version 2.0
 			"dataframe" and "FitType" arguments renamed "data" and "type" respectively
 		*univariateRankVariables(...,dataframe,...,FitType,..)
 			"dataframe" and "FitType" arguments renamed "data" and "type" respectively
-		*updateModel(...,dataframe,...)
+		*updateModel.Bin(...,dataframe,...)
 			"dataframe" argument renamed "data"
-		*updateNeRImodel(...,dataframe,...)
+		*updateModel.Res(...,dataframe,...)
 			"dataframe" argument renamed "data"
 			
 		

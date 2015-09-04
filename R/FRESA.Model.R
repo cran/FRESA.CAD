@@ -5,7 +5,7 @@ function(formula,data,OptType=c("Binary","Residual"),pvalue=0.05,filter.p.value=
 	categorizationType <- match.arg(categorizationType);
 
 	
-	relaxedUpdatePvalue = 2.0;
+	GainUpdatePvalue = 0.5;
 	cvObject <-  NULL;
 	univariate <- NULL;
 	if (class(formula)=="character")
@@ -48,15 +48,17 @@ function(formula,data,OptType=c("Binary","Residual"),pvalue=0.05,filter.p.value=
 		}
 		
 		termslist <- attr(terms(formula),"term.labels");
-		cat (termslist,"\n")
+#		cat (termslist,"\n")
+		acovariates <- covariates[1];
 		if (length(termslist)>0)
 		{
 			for (i in 1:length(termslist))
 			{
 				covariates <- paste(covariates," + ",termslist[i]);
+				acovariates <- append(acovariates,termslist[i]);
 			}
 		}
-		cat (covariates,"\n")
+#		cat (covariates,"\n")
 
 		startOffset = length(termslist);
 		variables <- vector();
@@ -100,7 +102,7 @@ function(formula,data,OptType=c("Binary","Residual"),pvalue=0.05,filter.p.value=
 		
 		trainFraction <- 1.0-1.0/CVfolds;
 		trainRepetition <- repeats*CVfolds;
-		fraction = 1.0;
+		fraction = 1.0000;					# will be working with 1.0000 fraction of the samples for bootstrap training 
 		varMax = nrow(variables);
 		baseModel <- paste(dependentout,"~",covariates);
 		cvObject = NULL;
@@ -117,8 +119,8 @@ function(formula,data,OptType=c("Binary","Residual"),pvalue=0.05,filter.p.value=
 			}
 
 			selectionType = match.arg(testType);
-			elimination.pValue <- pvalue; 	# To test if the reduced model is inferior to the full model
-			pvalue = pvalue/2;  			# To test that the feature adds statistical power to the model
+			elimination.pValue <- pvalue; 	# To test if the variable is part of the model
+			pvalue = pvalue;  			# To test if the variable can be added to the model
 			if (filter.p.value<0.5)
 			{
 				unirank <- uniRankVar(variables,baseModel,Outcome,data,categorizationType,type,rankingTest="Ztest",cateGroups,raw.dataFrame,description="Description")
@@ -131,35 +133,46 @@ function(formula,data,OptType=c("Binary","Residual"),pvalue=0.05,filter.p.value=
 				univariate <- variables;
 				varMax <- nrow(variables);
 			} 
-			cat("Z: ",filter.z.value," Var Max: ",varMax,"\n");
+#			cat("Z: ",filter.z.value," Var Max: ",varMax,"\n");
 			if (CVfolds>1)
 			{
-				cvObject <- crossValidationFeatureSelection(varMax,fraction,pvalue,loops,covariates,Outcome,timeOutcome,univariate,data,maxTrainModelSize,
+				cvObject <- crossValidationFeatureSelection_Bin(varMax,fraction,pvalue,loops,acovariates,Outcome,timeOutcome,univariate,data,maxTrainModelSize,
 				type,selectionType,loop.threshold,startOffset,elimination.bootstrap.steps,
 				trainFraction,trainRepetition,elimination.pValue,CVfolds,bootstrap.steps,interaction,nk,unirank,print=print,plots=plots);
-				firstModel <- cvObject$varIDISelection;
-				UpdatedModel <- cvObject$updateIDISelection;
-				reducedModel <- cvObject$backIDIElimination;
-				bootstrappedModel <- cvObject$FullModel.bootstrapped;
+				firstModel <- cvObject$forwardSelection;
+				UpdatedModel <- cvObject$updateforwardSelection;
+				reducedModel <- cvObject$BiSWiMS;
+				bootstrappedModel <- cvObject$FullBWiMS.bootstrapped;
 			}
 			else
 			{
-				firstModel <- ReclassificationFRESA.Model(varMax,fraction,pvalue,loops,covariates,Outcome,univariate,data,maxTrainModelSize,type,timeOutcome,selectionType,loop.threshold,interaction[1]);
+				firstModel <- ForwardSelection.Model.Bin(varMax,fraction,pvalue,loops,acovariates,Outcome,univariate,data,maxTrainModelSize,type,timeOutcome,selectionType,loop.threshold,interaction[1]);
 				if (length(firstModel$var.names)>0)
 				{
 					if (elimination.bootstrap.steps>1)
 					{
 #						cat ("Update\n");
-						UpdatedModel <- updateModel(Outcome=Outcome,covariates=covariates,pvalue=c(pvalue,relaxedUpdatePvalue*pvalue),VarFrequencyTable=firstModel$ranked.var,variableList=univariate,data=data,type=type,lastTopVariable= 0,timeOutcome=timeOutcome,selectionType=selectionType,interaction=interaction[2],numberOfModels=1)
+#						UpdatedModel <- updateModel.Bin(Outcome=Outcome,covariates=covariates,pvalue=c(pvalue*pvalue,pvalue),VarFrequencyTable=firstModel$ranked.var,variableList=univariate,data=data,type=type,lastTopVariable= 0,timeOutcome=timeOutcome,selectionType=selectionType,interaction=interaction[2],numberOfModels=0,bootLoops=loops)
+						UpdatedModel <- updateModel.Bin(Outcome=Outcome,covariates=covariates,pvalue=pvalue,VarFrequencyTable=firstModel$ranked.var,variableList=univariate,data=data,type=type,lastTopVariable= 0,timeOutcome=timeOutcome,selectionType=selectionType,interaction=interaction[2],numberOfModels=0,bootLoops=elimination.bootstrap.steps)
 #						cat ("Elimination \n");
-						reducedModel <- bootstrapVarElimination(object=UpdatedModel$final.model,pvalue=elimination.pValue,Outcome=Outcome,data=data,startOffset=startOffset,type=type,selectionType=selectionType,loops=elimination.bootstrap.steps,fraction=1.0,print=print,plots=plots);
+						modsize <- length(as.list(attr(terms(UpdatedModel$formula),'term.labels')));
+						adjsize <- min(0.5*firstModel$average.formula.size,modsize)/pvalue;
+						if (adjsize<2) adjsize=2;
+						reducedModel <- bootstrapVarElimination_Bin(object=UpdatedModel$final.model,pvalue=elimination.pValue,Outcome=Outcome,data=data,startOffset=startOffset,type=type,selectionType=selectionType,loops=elimination.bootstrap.steps,fraction=1.0,print=print,plots=plots,adjsize=adjsize);
 						bootstrappedModel <- reducedModel$bootCV;
 					}
 					else
 					{
-						UpdatedModel <- updateModel(Outcome=Outcome,covariates=covariates,pvalue=pvalue,VarFrequencyTable=firstModel$ranked.var,variableList=univariate,data=data,type=type,lastTopVariable= 0,timeOutcome=timeOutcome,selectionType=selectionType,interaction=interaction[2],numberOfModels=1)
-						reducedModel <- backVarElimination(object=UpdatedModel$final.model,pvalue=elimination.pValue,Outcome=Outcome,data=data,startOffset=startOffset,type=type,selectionType=selectionType);
-						bootstrappedModel <- bootstrapValidation(fraction,bootstrap.steps,reducedModel$back.formula,Outcome,data,type,plots=plots);
+#						UpdatedModel <- updateModel.Bin(Outcome=Outcome,covariates=covariates,pvalue=c(pvalue*pvalue,pvalue),VarFrequencyTable=firstModel$ranked.var,variableList=univariate,data=data,type=type,lastTopVariable= 0,timeOutcome=timeOutcome,selectionType=selectionType,interaction=interaction[2],numberOfModels=0,bootLoops=loops)
+						UpdatedModel <- updateModel.Bin(Outcome=Outcome,covariates=covariates,pvalue=pvalue,VarFrequencyTable=firstModel$ranked.var,variableList=univariate,data=data,type=type,lastTopVariable= 0,timeOutcome=timeOutcome,selectionType=selectionType,interaction=interaction[2],numberOfModels=0,bootLoops=elimination.bootstrap.steps)
+						modsize <- length(as.list(attr(terms(UpdatedModel$formula),'term.labels')));
+						adjsize <- min(0.5*firstModel$average.formula.size,modsize)/pvalue;
+						if (adjsize<2) adjsize=2;
+						reducedModel <- backVarElimination_Bin(object=UpdatedModel$final.model,pvalue=elimination.pValue,Outcome=Outcome,data=data,startOffset=startOffset,type=type,selectionType=selectionType,adjsize=adjsize);
+						if (bootstrap.steps>0)
+						{
+							bootstrappedModel <- bootstrapValidation_Bin(fraction,bootstrap.steps,reducedModel$back.formula,Outcome,data,type,plots=plots);
+						}
 					}				
 				}
 			}
@@ -167,8 +180,8 @@ function(formula,data,OptType=c("Binary","Residual"),pvalue=0.05,filter.p.value=
 		}
 		if (OptType == "Residual")
 		{	
-			elimination.pValue <- pvalue; 	# To test if the reduced model is inferior to the full model
-			pvalue = pvalue/2;				# To test that the feature adds statistical power to the model
+			elimination.pValue <- pvalue; 	# To test if the variable is part of the model
+			pvalue = pvalue;				# To test that the added feature creates a superior model
 			testType = match.arg(testType);
 			if (testType=="zIDI") 
 			{
@@ -198,48 +211,62 @@ function(formula,data,OptType=c("Binary","Residual"),pvalue=0.05,filter.p.value=
 			}
 			else
 			{
-				if (length(table(data[,Outcome]))>2) 
+				if (length(dependent)==1)
 				{
-					type = "LM";
-				}
-				else 
-				{
-					type = "LOGIT";
+					if (length(table(data[,Outcome]))>2) 
+					{
+						type = "LM";
+					}
+					else 
+					{
+						type = "LOGIT";
+					}
 				}
 				unirank <- NULL;
 				univariate <- variables;
 				varMax <- nrow(variables);
 			}
 			bootstrappedModel = NULL;
-			cat("Z: ",filter.z.value," Var Max: ",varMax,"FitType: ",type," Test Type: ",testType,"\n");
+#			cat("Z: ",filter.z.value," Var Max: ",varMax,"FitType: ",type," Test Type: ",testType,"\n");
 			if (CVfolds>1)
 			{
-				cvObject <- crossValidationNeRIFeatureSelection(size=varMax,fraction=fraction,pvalue=pvalue,loops=loops,covariates=covariates,Outcome=Outcome,timeOutcome=timeOutcome,variableList=univariate,
+				cvObject <- crossValidationFeatureSelection_Res(size=varMax,fraction=fraction,pvalue=pvalue,loops=loops,covariates=acovariates,Outcome=Outcome,timeOutcome=timeOutcome,variableList=univariate,
 				data=data,maxTrainModelSize=maxTrainModelSize,type=type,testType=testType,
 				loop.threshold=loop.threshold,startOffset=startOffset,elimination.bootstrap.steps=elimination.bootstrap.steps,trainFraction=trainFraction,trainRepetition=trainRepetition,
-				elimination.pValue=elimination.pValue,setIntersect=setIntersect,interaction=interaction,update.pvalue= c(pvalue,relaxedUpdatePvalue*pvalue),unirank=unirank,print=print,plots=plots);
-				firstModel <- cvObject$varNeRISelection;
-				UpdatedModel <- cvObject$updateNeRISelection;
-				reducedModel <- cvObject$backNeRIElimination;
+				elimination.pValue=elimination.pValue,setIntersect=setIntersect,interaction=interaction,update.pvalue= pvalue,unirank=unirank,print=print,plots=plots);
+				firstModel <- cvObject$forwardSelection;
+				UpdatedModel <- cvObject$updatedforwardModel;
+				reducedModel <- cvObject$BSWiMS;
 			}
 			else
 			{
-				firstModel <- NeRIBasedFRESA.Model(size=varMax,fraction=fraction,pvalue=pvalue,loops=loops,covariates=covariates,Outcome=Outcome,variableList=univariate,data=data,maxTrainModelSize=maxTrainModelSize,type=type,testType=testType,timeOutcome=timeOutcome,loop.threshold=loop.threshold,interaction=interaction[1]);
+				firstModel <- ForwardSelection.Model.Res(size=varMax,fraction=fraction,pvalue=pvalue,loops=loops,covariates=acovariates,Outcome=Outcome,variableList=univariate,data=data,maxTrainModelSize=maxTrainModelSize,type=type,testType=testType,timeOutcome=timeOutcome,loop.threshold=loop.threshold,interaction=interaction[1]);
 				if (length(firstModel$var.names)>0)
 				{
 					if (elimination.bootstrap.steps>1)
 					{
-						cat ("Update\n");
-						UpdatedModel <- updateNeRIModel(Outcome=Outcome,covariates=covariates,pvalue=c(pvalue,relaxedUpdatePvalue*pvalue),VarFrequencyTable=firstModel$ranked.var,variableList=univariate,data=data,type=type,testType=testType,timeOutcome=timeOutcome,interaction=interaction[2])
-						cat ("Elimination\n");
-						reducedModel <- bootstrapVarNeRIElimination(object=UpdatedModel$final.model,pvalue=elimination.pValue,Outcome=Outcome,data=data,startOffset=startOffset,type=type,testType=testType,loops=elimination.bootstrap.steps,setIntersect=setIntersect,print=print,plots=plots);
+#						cat ("Update\n");
+#						UpdatedModel <- updateModel.Res(Outcome=Outcome,covariates=covariates,pvalue=c(pvalue*pvalue,pvalue),VarFrequencyTable=firstModel$ranked.var,variableList=univariate,data=data,type=type,testType=testType,timeOutcome=timeOutcome,interaction=interaction[2],bootLoops=loops)
+						UpdatedModel <- updateModel.Res(Outcome=Outcome,covariates=covariates,pvalue=pvalue,VarFrequencyTable=firstModel$ranked.var,variableList=univariate,data=data,type=type,testType=testType,timeOutcome=timeOutcome,interaction=interaction[2],bootLoops=elimination.bootstrap.steps)
+#						cat ("Elimination\n");
+						modsize <- length(as.list(attr(terms(UpdatedModel$formula),'term.labels')));
+						adjsize <- min(firstModel$average.formula.size,modsize)/pvalue;
+						if (adjsize<2) adjsize=2;
+						reducedModel <- bootstrapVarElimination_Res(object=UpdatedModel$final.model,pvalue=elimination.pValue,Outcome=Outcome,data=data,startOffset=startOffset,type=type,testType=testType,loops=elimination.bootstrap.steps,setIntersect=setIntersect,print=print,plots=plots,adjsize=adjsize);
 						bootstrappedModel <- reducedModel$bootCV;
 					}
 					else
 					{
-						UpdatedModel <- updateNeRIModel(Outcome=Outcome,covariates=covariates,pvalue=pvalue,VarFrequencyTable=firstModel$ranked.var,variableList=univariate,data=data,type=type,testType=testType,timeOutcome=timeOutcome,interaction=interaction[2])
-						reducedModel <- backVarNeRIElimination(object=UpdatedModel$final.model,pvalue=elimination.pValue,Outcome=Outcome,data=data,startOffset=startOffset,type=type,testType=testType,setIntersect=setIntersect);
-						bootstrappedModel  <- bootstrapValidationNeRI(fraction,bootstrap.steps,reducedModel$back.formula,Outcome,data,type,plots=plots)
+#						UpdatedModel <- updateModel.Res(Outcome=Outcome,covariates=covariates,pvalue=c(pvalue*pvalue,pvalue),VarFrequencyTable=firstModel$ranked.var,variableList=univariate,data=data,type=type,testType=testType,timeOutcome=timeOutcome,interaction=interaction[2],bootLoops=loops)
+						UpdatedModel <- updateModel.Res(Outcome=Outcome,covariates=covariates,pvalue=pvalue,VarFrequencyTable=firstModel$ranked.var,variableList=univariate,data=data,type=type,testType=testType,timeOutcome=timeOutcome,interaction=interaction[2],bootLoops=elimination.bootstrap.steps)
+						modsize <- length(as.list(attr(terms(UpdatedModel$formula),'term.labels')));
+						adjsize <- min(firstModel$average.formula.size,modsize)/pvalue;
+						if (adjsize<2) adjsize=2;
+						reducedModel <- backVarElimination_Res(object=UpdatedModel$final.model,pvalue=elimination.pValue,Outcome=Outcome,data=data,startOffset=startOffset,type=type,testType=testType,setIntersect=setIntersect,adjsize=adjsize);
+						if (bootstrap.steps>0)
+						{
+							bootstrappedModel  <- bootstrapValidation_Res(fraction,bootstrap.steps,reducedModel$back.formula,Outcome,data,type,plots=plots)
+						}
 					}
 				}
 			}
@@ -251,22 +278,22 @@ function(formula,data,OptType=c("Binary","Residual"),pvalue=0.05,filter.p.value=
 	}
 	if (is.null(reducedModel))
 	{
-		result <- list(final.model = NULL,
+		result <- list(BSWiMS.model = NULL,
 		reducedModel = reducedModel,
 		univariateAnalysis=univariate,
-		firstModel=firstModel,
-		updatedModel=UpdatedModel,
+		forwardModel=firstModel,
+		updatedforwardModel=UpdatedModel,
 		bootstrappedModel=bootstrappedModel,
 		cvObject=cvObject,
 		used.variables=varMax);
 	}
 	else
 	{
-		result <- list(final.model = reducedModel$back.model,
+		result <- list(BSWiMS.model = reducedModel$back.model,
 		reducedModel = reducedModel,
 		univariateAnalysis=univariate,
-		firstModel=firstModel,
-		updatedModel=UpdatedModel,
+		forwardModel=firstModel,
+		updatedforwardModel=UpdatedModel,
 		bootstrappedModel=bootstrappedModel,
 		cvObject=cvObject,
 		used.variables=varMax);

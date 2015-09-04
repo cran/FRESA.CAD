@@ -108,11 +108,11 @@
 \details{
 This is the main function of FRESA.CAD given an outcome formula, and a data.frame this function will do an univariate analysis of the data (\code{univariateRankVariables}),
 then it will select the top ranked variables; after that it will select the model that best describes the outcome. At output it will return the bootstrapped performance of the model 
-(\code{bootstrapValidation} or \code{bootstrapValidationNeRI}). It can be set to report the cross-validation performance of the selection process which will return either 
-a  \code{crossValidationFeatureSelection} or a \code{crossValidationNeRIFeatureSelection} object.
+(\code{bootstrapValidation_Bin} or \code{bootstrapValidation_Res}). It can be set to report the cross-validation performance of the selection process which will return either 
+a  \code{crossValidationFeatureSelection_Bin} or a \code{crossValidationFeatureSelection_Res} object.
 }
 \value{
-	\item{final.model}{
+	\item{BSWiMS.model}{
 		An object of class \code{lm}, \code{fastglm}, or \code{coxph} containing the final model
 	}
 	\item{reducedModel}{
@@ -121,10 +121,10 @@ a  \code{crossValidationFeatureSelection} or a \code{crossValidationNeRIFeatureS
 	\item{univariateAnalysis}{
 		A data frame with the results from the univariate analysis
 	}
-	\item{firstModel}{
+	\item{forwardModel}{
 		The resulting object of the feature selection function.
 	}
-	\item{updatedModel}{
+	\item{updatedforwardModel}{
 		The resulting object of the the update procedure
 	}
 	\item{bootstrappedModel}{

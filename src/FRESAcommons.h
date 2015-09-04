@@ -82,26 +82,28 @@ struct getVReclass{
 
 
 double qnorm(double p, double mu, double sigma);
-void chinv2(mat &matrix , int n);
-int cholesky2(mat &matrix, int n, double toler);
-void chsolve2(mat &matrix, int n, vec &y);
-vec coxfit(int  maxiter,  vec &time,  vec &status, mat &covar, vec &offset, vec &weights, vec &strata,   int method, double eps, double toler,    vec &beta,    int doscale);
-vec logit_link(vec mu);
-vec logit_linkinv(vec eta);
-vec logit_mu_eta(vec eta);
-vec binomial_dev_resids(vec y, vec mu, vec wt);
-vec modelFittingFunc(mat ymat, mat X,std::string type);
-vec predictForFresaFunc(vec cf,mat newdata,std::string typ, std::string opc);		
-vec improveProbFunc(vec x1, vec x2, vec y); 
-getVReclass getVarReclassificationFunc(mat dataframe,std::string type, mat independentFrame);
-double rocAUC( vec controls, vec cases, std::string direction,std::string r);
-vec Fresarank(vec _x);
-vec residualForNeRIsFunc(vec cf,mat newdata,std::string typ, std::string type,vec outcome);
-improvedRes improvedResidualsFunc(vec oldResiduals,vec newResiduals, std::string testType);
-double ttest(vec x, vec y , double mu, bool paired, bool var_equal, std::string tail);
-double wilcoxtest(vec x, vec y , double mu, bool paired, std::string tail,bool correct);
+void chinv2(const mat &matrix , int n);
+int cholesky2(const mat &matrix, int n, double toler);
+void chsolve2(const mat &matrix, int n, vec &y);
+vec coxfit(int  maxiter,const  vec &time,const  vec &status,mat &covar,const vec &offset,const vec &weights,vec &strata,   int method, double eps, double toler,vec &beta,    int doscale);
+vec logit_link(const vec &mu);
+vec logit_linkinv(const vec &eta);
+vec logit_mu_eta(const vec &eta);
+vec binomial_dev_resids(const vec &y,const vec &mu,const vec &wt);
+vec modelFittingFunc(const mat &ymat,const mat &XP,std::string type);
+vec predictForFresaFunc(const vec &cf,const mat &newdata,std::string typ, std::string opc);		
+vec improveProbFunc(const vec &x1,const vec &x2,const vec &y,unsigned int samples); 
+vec improveProbFunc(const vec &x1,const vec &x2,const vec &y); 
+getVReclass getVarBinFunc(const mat &dataframe,std::string type, const mat &independentFrame);
+double rocAUC(const vec &controls,const vec &cases, std::string direction,std::string r);
+vec Fresarank(const vec &xi);
+vec residualForFRESAFunc(const vec &cf,const mat &newdata,std::string typ, std::string type,const vec &outcome);
+improvedRes improvedResidualsFunc(const vec &oldResiduals,const vec &newResiduals, std::string testType,unsigned int samples);
+improvedRes improvedResidualsFunc(const vec &oldResiduals,const vec &newResiduals, std::string testType);
+double ttest(const vec &x, const vec &y , double mu, bool paired, bool var_equal, std::string tail);
+double wilcoxtest(const vec &xt,const vec &y , double mu, bool paired, std::string tail,bool correct);
 double binomtest(double x, double n, double p , std::string tail);
-gvarNeRI getVarNeRIFunc(mat dataframe, std::string type,mat testdata);
+gvarNeRI getVarResFunc(const mat &dataframe, std::string type,const mat &testdataP);
 
 #endif
 // END

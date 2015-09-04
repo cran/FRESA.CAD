@@ -15,7 +15,7 @@
 }
 \arguments{
 	\item{modelPredictions}{
-		A data frame returned by the \code{crossValidationFeatureSelection} function, either the \code{Models.testPrediction}, the \code{FullModel.testPrediction},\cr the \code{Models.CVtestPredictions}, the \code{TestRetrained.blindPredictions},\cr the \code{KNN.testPrediction}, or the \code{enet.testPredictions} value
+		A data frame returned by the \code{crossValidationFeatureSelection_Bin} function, either the \code{Models.testPrediction}, the \code{FullBWiMS.testPrediction},\cr the \code{Models.CVtestPredictions}, the \code{TestRetrained.blindPredictions},\cr the \code{KNN.testPrediction}, or the \code{LASSO.testPredictions} value
 	}
 	\item{number.of.models}{
 		The maximum number of models to plot
@@ -91,7 +91,7 @@
 	#            update, and backward elimination procedures
 	# - A 10-fold cross-validation in the model validation procedure
 	# - First order interactions in the update procedure
-	cancerModel <- crossValidationFeatureSelection(size = 7,
+	cancerModel <- crossValidationFeatureSelection_Bin(size = 7,
 	                                               loops = 10,
 	                                               Outcome = "pgstat",
 	                                               timeOutcome = "pgtime",
