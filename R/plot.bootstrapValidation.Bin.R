@@ -3,7 +3,7 @@ plot.bootstrapValidation_Bin <-
 function(x,xlab = "Years", ylab="Survival",strata.levels=c(0),...) 
 {
 
-	par(mfrow=c(1,1))
+	par(mfrow=c(1,1),pty='m')
 	classlen=length(class(x$boot.model))
 	
 	cobj <- substr(class(x$boot.model)[classlen], 1, 2);

@@ -97,7 +97,7 @@ vec improveProbFunc(const vec &x1,const vec &x2,const vec &y);
 getVReclass getVarBinFunc(const mat &dataframe,std::string type, const mat &independentFrame);
 double rocAUC(const vec &controls,const vec &cases, std::string direction,std::string r);
 vec Fresarank(const vec &xi);
-vec residualForFRESAFunc(const vec &cf,const mat &newdata,std::string typ, std::string type,const vec &outcome);
+vec residualForFRESAFunc(const vec &cf,const mat &newdata,std::string typ, std::string type,const mat &outcome);
 improvedRes improvedResidualsFunc(const vec &oldResiduals,const vec &newResiduals, std::string testType,unsigned int samples);
 improvedRes improvedResidualsFunc(const vec &oldResiduals,const vec &newResiduals, std::string testType);
 double ttest(const vec &x, const vec &y , double mu, bool paired, bool var_equal, std::string tail);
@@ -107,4 +107,3 @@ gvarNeRI getVarResFunc(const mat &dataframe, std::string type,const mat &testdat
 
 #endif
 // END
-

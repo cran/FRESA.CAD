@@ -1,3 +1,24 @@
+Changes from FRESA.CAD 2.1.3 to FRESA.CAD version 2.2.0
+
+	FRESA.CAD expanded its capabilities.
+	Now it provided Bagged models and ensemble analysis from the list of formulas created by:
+		+ ForwardSelections.Models.Bin
+		+ ForwardSelections.Models.Res
+		+ crossValidationFeatureSelection.Bin
+		+ crossValidationFeatureSelection.Res
+	The baggedModel function bag the formula coefficients and creates a single model from the list of formulas.
+	The plotModels.ROC ensemble the model predictions and creates an unique test evaluation of the ensembled models.
+	
+	-Added function:
+		baggedModel.R function for coefficient bagging, and variable frequency analysis
+	-Enhanced function:
+		plotModels.ROC.R: This function provides ensemble predictions and confusion analysis table
+		heatMaps.R can accept a list of five colors for its display
+	-c++ code revised and minor bugs corrected.
+	-r code revised and bugs corrected. 
+
+	
+
 Changes from FRESA.CAD 2.0.1 to FRESA.CAD version 2.1.3
 
 	FRESA.CAD suffered mayor changes from the previous version.

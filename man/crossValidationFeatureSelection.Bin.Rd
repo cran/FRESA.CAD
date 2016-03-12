@@ -18,7 +18,7 @@
 	                                data,
 	                                maxTrainModelSize = 10,
 	                                type = c("LM", "LOGIT", "COX"),
-	                                selectionType = c("zIDI", "zNRI"),
+	                                selectionType = c("zIDI", "zNRI","Both"),
 	                                loop.threshold = 10,
 	                                startOffset = 0,
 	                                elimination.bootstrap.steps = 25,
@@ -129,7 +129,7 @@
 		A list containing objects of class \code{formula} with the formulas used to fit the models found at each cycle
 	}
 	\item{Models.testPrediction}{
-		A data frame with the blind test set predictions made at each fold of the cross validation, where the models used to generate such predictions (\code{formula.list}) were generated via a feature selection process which included only the train set.
+		A data frame with the blind test set predictions (Full B:SWiMS,Median,Bagged,Forward,Backwards Eliminations) made at each fold of the cross validation, where the models used to generate such predictions (\code{formula.list}) were generated via a feature selection process which included only the train set.
 		It also includes a column with the \code{Outcome} of each prediction, and a column with the number of the fold at which the prediction was made.
 	}
 	\item{FullBWiMS.testPrediction}{
@@ -246,6 +246,16 @@
 	\item{BSWiMS.ensemble.prediction}{
 		The ensemble prediction by all models on the test data
 	}
+	\item{BeforeBHFormulas.list}{
+		The list of formulas before the BH FDR
+	}
+	\item{ForwardFormulas.list}{
+		The list of formulas produced by the forward procedure
+	}
+	\item{baggFormulas.list}{
+		The list of the bagged models
+	}
+
 }
 \references{Pencina, M. J., D'Agostino, R. B., & Vasan, R. S. (2008). Evaluating the added predictive ability of a new marker: from area under the ROC curve to reclassification and beyond. \emph{Statistics in medicine} \bold{27}(2), 157-172.}
 \author{Jose G. Tamez-Pena and Antonio Martinez-Torteya}

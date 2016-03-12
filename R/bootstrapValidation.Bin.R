@@ -54,11 +54,6 @@ function(fraction=1.00,loops=200,model.formula,Outcome,data,type=c("LM","LOGIT",
 		baseSen = sen/sizecases;
 		baseSpe = spe/sizecontrol;
 		bootmodel <- basemodel;
-		bootmodelPond <- basemodel;
-#		bootmodel$coefficients <-  apply(output$bcoef,2,mean,trim = 0.25, na.rm = TRUE)
-
-#		wt <- exp(-(((1.0-output$accuracy)/0.25)^2)); # the weights
-#		wt <- (0.5+output$accuracy)^2; # the weights
 		wt <- 2.0*(output$accuracy-0.5); 			# the linear weights
 		wt <- 0.1+wt*(wt > 0);
 
@@ -84,64 +79,43 @@ function(fraction=1.00,loops=200,model.formula,Outcome,data,type=c("LM","LOGIT",
 				}
 			}
 		}
-		bootmodelPond$coefficients <- as.vector(output$sumwtdcf * (1.0 / output$sumwts));
-		names(bootmodelPond$coefficients) <- names(basemodel$coefficients);
-		names(bootmodel$coefficients) <- names(basemodel$coefficients);
 
 		pr <- predictForFresa(bootmodel,testData=data,predictType = 'linear');
 		bootmodel$linear.predictors <- pr;
 		p <- predictForFresa(bootmodel,testData=data,predictType = 'prob');
 		bootmodel$fitted.values <- p;
-		p <- predictForFresa(bootmodelPond,testData=data,predictType = 'linear');
-		bootmodelPond$linear.predictors <- p;
-		p <- predictForFresa(bootmodelPond,testData=data,predictType = 'prob');
-		bootmodelPond$fitted.values <- p;
-		ponacc = 0.0;
-		ponsen = 0.0;
-		ponspe = 0.0;
 		sen <- sum( 1*((data[,Outcome] > 0)*( bootmodel$linear.predictors >= 0 )) , na.rm = TRUE)
 		spe <- sum( 1*((data[,Outcome] == 0)*( bootmodel$linear.predictors < 0 )) , na.rm = TRUE)
 		acc <- sen+spe;
-		ponsen <- sum( 1*((data[,Outcome] > 0)*( bootmodelPond$linear.predictors >= 0 )) , na.rm = TRUE)
-		ponspe <- sum( 1*((data[,Outcome] == 0)*( bootmodelPond$linear.predictors < 0 )) , na.rm = TRUE)
-		ponacc <- ponsen+ponspe;
 		acc = acc/framesize;
 		sen = sen/sizecases;
 		spe = spe/sizecontrol;
-		ponacc = ponacc/framesize;
-		ponsen = ponsen/sizecases;
-		ponspe = ponspe/sizecontrol;
 		blidRoc = NULL;
 		bootRoc = NULL;
 		if (plots)
 		{
 			par(mfrow=c(2,2))
-			pROC::roc(data[,Outcome], bootmodelPond$linear.predictors,col="purple",auc=TRUE,plot=TRUE,smooth=FALSE)
+			pROC::roc( data[,Outcome], basemodel$linear.predictors, col="blue",plot=TRUE,smooth=FALSE,progress= 'none');
 			par(new=TRUE)
-			pROC::roc( data[,Outcome], basemodel$linear.predictors, col="blue",plot=TRUE,smooth=FALSE);
+			blidRoc <- pROC::roc(output$testoutcome,output$testprediction,col="red",auc=TRUE,print.auc=TRUE,plot=TRUE,smooth=FALSE,progress= 'none')
 			par(new=TRUE)
-			blidRoc <- pROC::roc(output$testoutcome,output$testprediction,col="red",auc=TRUE,print.auc=TRUE,plot=TRUE,smooth=FALSE)
-			par(new=TRUE)
-			bootRoc <- pROC::roc( data[,Outcome], bootmodel$linear.predictors,plot=TRUE,ci=plots,auc=TRUE,of='se',specificities=c(0.95,0.90,0.80,0.70,0.60,0.50,0.40,0.30,0.20,0.10,0.05),boot.n=200,smooth=FALSE);
+			bootRoc <- pROC::roc( data[,Outcome], bootmodel$linear.predictors,plot=TRUE,ci=plots,auc=TRUE,of='se',specificities=c(0.95,0.90,0.80,0.70,0.60,0.50,0.40,0.30,0.20,0.10,0.05),boot.n=200,smooth=FALSE,progress= 'none');
 				plot(ecdf(output$taccuracy),main="Accuracy",xlim=c(0.5, 1.0),col="black",lwd = 2,verticals = TRUE, do.points = FALSE);
 				abline(v=output$BlindAccuracy,col = "red");
 				abline(v=acc,col = "blue");
-				abline(v=ponacc,col = "green");
 				plot(ecdf(output$tsensitivity),main="Sensitivity",xlim=c(0.5, 1.0),col="black",lwd = 2,verticals = TRUE, do.points = FALSE);
 				abline(v=output$BlindSensitivity,col = "red");
 				abline(v=sen,col = "blue");
-				abline(v=ponsen,col = "green");
 				plot(ecdf(output$tspecificity),main="Specificity",xlim=c(0.5, 1.0),col="black",lwd = 2,verticals = TRUE, do.points = FALSE);
 				abline(v=output$BlindSpecificity,col = "red");
 				abline(v=spe,col = "blue");
-				abline(v=ponspe,col = "green");
 			par(mfrow=c(1,1))
-			cat("Mean Wt:",mean(wt)," Max Wt:",max(wt)," Min wt:",min(wt),"\n")
+#			cat("Mean Wt:",mean(wt)," Max Wt:",max(wt)," Min wt:",min(wt),"\n")
 		}
 		else
 		{
 			blidRoc <- llist(auc=output$resul$blindAUC);
-			bootRoc <- pROC::roc( data[,Outcome], bootmodel$linear.predictors,plot=FALSE,auc=TRUE,smooth=FALSE);
+			bootRoc <- pROC::roc( data[,Outcome], bootmodel$linear.predictors,plot=FALSE,auc=TRUE,smooth=FALSE,progress= 'none');
 		}
 		colnames(output$IDI) <- attr(terms(model.formula),'term.labels');
 		colnames(output$zIDI) <- attr(terms(model.formula),'term.labels');
@@ -172,7 +146,6 @@ function(fraction=1.00,loops=200,model.formula,Outcome,data,type=c("LM","LOGIT",
 		train.specificity=output$tspecificity,
 		s.coef=output$bcoef,
 		boot.model=bootmodel,
-		mboot.model=bootmodelPond,
 		boot.accuracy=acc,
 		boot.sensitivity=sen,
 		boot.specificity=spe,

@@ -4,14 +4,15 @@ bootstrapVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data
 
 
 
-	boot.var.IDISelection <- function (object,pvalue=0.05,Outcome="Class",data,startOffset=0, type = c("LOGIT", "LM","COX"),selectionType=c("zIDI","zNRI"),loops,fraction,idiCV=NULL) 
+#	boot.var.IDISelection <- function (object,pvalue=0.05,Outcome="Class",data,startOffset=0, type = c("LOGIT", "LM","COX"),selectionType=c("zIDI","zNRI"),loops,fraction,idiCV=NULL) 
+	boot.var.IDISelection <- function (object,pvalue=0.05,Outcome="Class",data,startOffset=0, type = c("LOGIT", "LM","COX"),selectionType=c("zIDI","zNRI"),loops,fraction) 
 	{
 		seltype <- match.arg(selectionType)
 		type <- match.arg(type);
 	  
 		varsList <- as.list(attr(terms(object),"variables"))
 		
-		climpvalue = max(5*pvalue,0.35); #
+		climpvalue = 0.4999; #
 		cthr = abs(qnorm(pvalue));
 		removeID = 0;
 
@@ -28,8 +29,7 @@ bootstrapVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data
 			ftmp <- formula(frm1);
 		
 #			cat ("Formula ",frm1,"\n")
-			if (is.null(idiCV)) idiCV <- bootstrapValidation_Bin(fraction,loops,ftmp,Outcome,data,type,plots=plots)
-	#		summary(idiCV);
+			idiCV <- bootstrapValidation_Bin(fraction,loops,ftmp,Outcome,data,type,plots=plots)
 			startSearch = startlist + startOffset;
 			frm1 = outCome;
 			if ((startSearch-1) >= startlist)
@@ -62,12 +62,13 @@ bootstrapVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data
 						ci2 <- as.vector(quantile(idiCV$test.z.NRIs[,idlist], probs = c(climpvalue, 0.5, 1-climpvalue), na.rm = TRUE,names = FALSE, type = 7));
 					}
 					cmin = min(ci[2],ci2[2]);
+#					cmin = ci2[2];
 					if (cmin <= minlcl) 
 					{
 						minlcl = cmin;
 						who = i;
 					}
-					if ((ci[1] < cthr)&&(minlcl == cthr))
+					if (ci[1] < minlcl)
 					{
 						who = i;
 					}
@@ -77,7 +78,7 @@ bootstrapVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data
 			}
 			if ((length(varsList) == startSearch) && (who == startSearch)) 
 			{
-				who = -1;
+#				who = -1;
 				removeID = -1;
 			}
 			for ( i in startSearch:length(varsList))
@@ -104,8 +105,10 @@ bootstrapVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data
 		{
 			cat("Warning: Model fitting error\n"); 
 		}
-		if (removeID>0) idiCV <- bootstrapValidation_Bin(fraction,loops,ftmp,Outcome,data,type,plots=plots)
-		result <- list(Model=FullModel,Removed=removeID,BootModel=idiCV,backfrm=frm1);
+
+		idiCV <- bootstrapValidation_Bin(fraction,loops,ftmp,Outcome,data,type,plots=plots)
+		
+		result <- list(Removed=removeID,BootModelAUC=idiCV$blind.ROCAUC$auc,backfrm=frm1);
 
 		return (result)
 	}
@@ -117,14 +120,11 @@ bootstrapVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data
 	if (adjsize>1)
 	{
 		bkobj <- bootstrapVarElimination_Bin(object,pvalue,Outcome,data,startOffset,type,selectionType,loops,fraction,print,plots,adjsize=1); 
-		object <- bkobj$back.model;
+		object <- modelFitting(bkobj$back.formula,data,type);
 		adjsize = floor(adjsize);
-		adjsize <- min(adjsize,ncol(data)-1);
-		if (!is.null(bkobj$bootCV)) 
-		{
-			maxROCAUC <- bkobj$bootCV$blind.ROCAUC$auc;
-		}
-		stopROCACU <- 0.80;	# threshold for stop for decrease in AUC
+		maxROCAUC <- bkobj$bootCV$blind.ROCAUC$auc;
+		stopROCACU <- 0.90;	# threshold for stop for decrease in AUC
+#		cat(" Adjust size:",adjsize,"\n");
 	}
 	else
 	{
@@ -147,9 +147,12 @@ bootstrapVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data
 	outCome = paste(varsList[2]," ~ 1");
 	startlist = 3 ;
 	frm1 = outCome;
-	for ( i in startlist:length(varsList))
+	if (length(varsList) >= startlist)
 	{
-		frm1 <- paste(frm1,paste(" + ",varsList[i]));
+		for ( i in startlist:length(varsList))
+		{
+			frm1 <- paste(frm1,paste(" + ",varsList[i]));
+		}
 	}
 	beforeFSCmodel.formula <- frm1;
 	model.formula <- frm1;
@@ -159,8 +162,8 @@ bootstrapVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data
 
 	wts <- rep(1,length(beforeFSCmodel$coefficients));
 	names(wts) <- names(beforeFSCmodel$coefficients);
-	lastboot = NULL;
 #	cat ("Start AUC :",startAUC,"\n")
+	changed <- 0;
 	while ((changes>0) && (loopsAux<100))
 	{
 		p.elimin <- pvalue;
@@ -168,39 +171,41 @@ bootstrapVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data
 		{
 			modsize <- length(as.list(attr(terms(model),"term.labels")));	
 			if (modsize<1) modsize=1;
-			p.elimin <- min(pvalue,2*modsize*pvalue/adjsize) # # BH alpha  the elimination p-value
+			qvalue <- 4*pvalue;
+			if (qvalue < 0.1) qvalue=0.1 # lests keep a the minimum q-value to 0.1
+			p.elimin <- min(pvalue,modsize*qvalue/adjsize) # # BH alpha  the elimination p-value
 		}
 
-		bk <- boot.var.IDISelection(model,p.elimin,Outcome=myOutcome,data=mydataFrame,startOffset,type,seltype,loops,fraction,lastboot);
+		bk <- boot.var.IDISelection(model,p.elimin,Outcome=myOutcome,data=mydataFrame,startOffset,type,seltype,loops,fraction);
 #		cat("Used p :",p.elimin,"Formula <- ", bk$backfrm,"\n");
+		nmodel = modelFitting(formula(bk$backfrm),data,type);
 
-		if (!inherits(bk$Model, "try-error"))
+		if (!inherits(nmodel, "try-error"))
 		{
-			lastboot <- bk$BootModel;
 			changes = as.integer(bk$Removed);
-			weight <- 1.0/2.0;
-#			cat ("AUC :",bk$BootModel$blind.ROCAUC$auc,"\n")
-			if (!is.null(bk$BootModel))
+			weight <- 1.0;
+#			cat ("AUC :",bk$BootModelAUC,"\n")
+			if (!is.null(bk$BootModelAUC))
 			{			
-				if (bk$BootModel$blind.ROCAUC$auc < stopROCACU*maxROCAUC)
+				if (bk$BootModelAUC < stopROCACU*maxROCAUC)
 				{
 					changes = 0;
 				}
-				if (bk$BootModel$blind.ROCAUC$auc <= maxROCAUC)
+				if (bk$BootModelAUC <= maxROCAUC)
 				{
 					weight <- 1.0;
 				}
 				else
 				{
-					maxROCAUC <- bk$BootModel$blind.ROCAUC$auc;
+					maxROCAUC <- bk$BootModelAUC;
 					weight <- 0.0;
 				}
 			}
 			if (changes>0)
 			{
 				loopsAux = loopsAux + 1;
-				changes2<- as.character(as.list(attr(terms(model),"variables")))[which(!(as.character(as.list(attr(terms(model),"variables")))%in%as.character(as.list(attr(terms(bk$Model),"variables")))))]
-				model = bk$Model;
+				changes2<- as.character(as.list(attr(terms(model),"variables")))[which(!(as.character(as.list(attr(terms(model),"variables")))%in%as.character(as.list(attr(terms(nmodel),"variables")))))]
+				model <- nmodel;
 				model.formula <- bk$backfrm;
 
 				if (length(changes2)>1)
@@ -209,21 +214,25 @@ bootstrapVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data
 				}
 				if (adjsize>1)
 				{
-					for (i in 1:length(beforeFSCmodel$coefficients))
+					changed <- 1;
+					if ((length(beforeFSCmodel$coefficients)>0)&&(length(model$coefficients)>0))
 					{
-						notadded = TRUE;
-						for (j in 1:length(model$coefficients))
+						for (i in 1:length(beforeFSCmodel$coefficients))
 						{
-							if (names(beforeFSCmodel$coefficients)[i] == names(model$coefficients)[j])
+							notadded = TRUE;
+							for (j in 1:length(model$coefficients))
 							{
-								beforeFSCmodel$coefficients[i] <- (weight*beforeFSCmodel$coefficients[i] + (1.0-weight)*model$coefficients[j]); # it will average the two
-								notadded=FALSE;
+								if (names(beforeFSCmodel$coefficients)[i] == names(model$coefficients)[j])
+								{
+									beforeFSCmodel$coefficients[i] <- (weight*beforeFSCmodel$coefficients[i] + (1.0-weight)*model$coefficients[j]); # it will average the two
+									notadded=FALSE;
+								}
 							}
-						}
-						if (notadded)
-						{
-							beforeFSCmodel$coefficients[i] <- weight*beforeFSCmodel$coefficients[i]/2; # it will average with zero
-							wts[i] = wts[i]/2;
+							if (notadded)
+							{
+								beforeFSCmodel$coefficients[i] <- weight*beforeFSCmodel$coefficients[i]; # it will average with zero
+								wts[i] = wts[i]*weight;
+							}
 						}
 					}
 				}
@@ -251,6 +260,8 @@ bootstrapVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data
 		cat("Adjust size:",adjsize,"\n");
 		cat("Start AUC:",startAUC,"last AUC:",idiCV$blind.ROCAUC$auc,"Max AUC:",maxROCAUC,"\n")
 	}
+
+
 	result <- list(back.model=model,
 	loops=loopsAux,
 	reclas.info=modelReclas,

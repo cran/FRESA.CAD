@@ -7,11 +7,12 @@
 	Furthermore, it will plot the mean sensitivity for a given set of specificities.
 }
 \usage{
-	plotModels.ROC(modelPredictions,
-	        number.of.models=0,
-	        specificities=c(0.95,0.90,0.80,0.70,0.60,0.50,0.40,0.30,0.20,0.10,0.05),
-	        theCVfolds=1,
-            ...)
+   plotModels.ROC(modelPredictions,
+    number.of.models=0,
+    specificities=c(0.975,0.95,0.90,0.80,0.70,0.60,0.50,0.40,0.30,0.20,0.10,0.05),
+    theCVfolds=1,
+    predictor="Prediction",
+    ...)
 }
 \arguments{
 	\item{modelPredictions}{
@@ -25,6 +26,9 @@
 	}
 	\item{theCVfolds}{
 		the number of folds performed in a Cross-validation experiment
+	}
+	\item{predictor}{
+		the name of the column to be ploted
 	}
 	\item{...}{
 		Additional parameters for the \code{roc} function (\code{pROC} package)
@@ -45,6 +49,12 @@
 	}
 	\item{senAUC}{
 		The AUC of the ROC curve that resulted from using \code{mean.sensitivities}
+	}
+	\item{predictionTable}{
+		The confusion matrix between the outcome and the ensembled prediction
+	}
+	\item{ensemblePrediction}{
+		The ensembled (median prediction) of the repeated predictions
 	}
 }
 \author{Jose G. Tamez-Pena and Antonio Martinez-Torteya}

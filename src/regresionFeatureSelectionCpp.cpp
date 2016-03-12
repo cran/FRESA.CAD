@@ -83,32 +83,38 @@ extern "C" SEXP bootstrapValidationResCpp(SEXP _fraction,SEXP _loops,SEXP _dataf
 		mat bcoef(loops,dataframe.n_cols); 	  
 		mat bmeans(loops,dataframe.n_cols); 
 		mat	NeRi(loops,n_var2); 
-		mat	tpvalue(loops,n_var2); 
-		mat	wpvalue(loops,n_var2); 
-		mat	spvalue(loops,n_var2); 
-		mat	Fpvalue(loops,n_var2); 
-		mat	test_tpvalue(loops,n_var2); 
-		mat	test_wpvalue(loops,n_var2); 
-		mat	test_spvalue(loops,n_var2); 
-		mat	test_Fpvalue(loops,n_var2);
+		mat	tpvalue=ones<mat>(loops,n_var2);  
+		mat	wpvalue=ones<mat>(loops,n_var2);  
+		mat	spvalue=ones<mat>(loops,n_var2);  
+		mat	Fpvalue=ones<mat>(loops,n_var2);  
+		mat	test_tpvalue=ones<mat>(loops,n_var2); 
+		mat	test_wpvalue=ones<mat>(loops,n_var2); 
+		mat	test_spvalue=ones<mat>(loops,n_var2); 
+		mat	test_Fpvalue=ones<mat>(loops,n_var2);
 		int lastInserted=0;		
 #pragma omp parallel for schedule(dynamic) ordered shared(lastInserted,trainOutcome,trainPrediction,trainResiduals,testOutcome,testPrediction,testResiduals,trainSampledRMSE,testSampledRMSE,bcoef,bmeans,NeRi,tpvalue,wpvalue,spvalue,Fpvalue,test_tpvalue,test_wpvalue,test_spvalue,test_Fpvalue)
 		for (int doOver=0;doOver<loops;doOver++)
 		{ 
 			mat trainingSample;
-			uvec samCases= randi<uvec>(totSamples, distr_param(0,sizecases-1));
-			vec auxcasesample=zeros<vec>(sizecases);
-			trainingSample = casesample.row(samCases(0));
-			auxcasesample[samCases(0)]=1;
-			for (int i =1;i<totSamples;i++)
+			uvec ntestSample;
+			unsigned int mintestSample = 0.2*totSamples;
+			do
 			{
-				trainingSample=join_cols(trainingSample,casesample.row(samCases(i)));
-				auxcasesample[samCases(i)]=1;
-			}	 
+				uvec samCases= randi<uvec>(totSamples, distr_param(0,sizecases-1));
+				vec auxcasesample=zeros<vec>(sizecases);
+				trainingSample = casesample.row(samCases(0));
+				auxcasesample[samCases(0)]=1;
+				for (int i =1;i<totSamples;i++)
+				{
+					trainingSample=join_cols(trainingSample,casesample.row(samCases(i)));
+					auxcasesample[samCases(i)]=1;
+				}
+				ntestSample=find(auxcasesample==0);
+			} while (ntestSample.n_elem<mintestSample);			
 			vec trainmodel = modelFittingFunc(trainingSample.cols(0,1),trainingSample.cols(2,trainingSample.n_cols-1),type);
 			if (is_finite(trainmodel))
 			{
-				mat testSample = casesample.rows(find(auxcasesample==0));
+				mat testSample = casesample.rows(ntestSample);
 				vec coef = trainmodel;
 				vec coxmean;
 				if (type == "COX") 
@@ -117,18 +123,17 @@ extern "C" SEXP bootstrapValidationResCpp(SEXP _fraction,SEXP _loops,SEXP _dataf
 					 coxmean = trainmodel.subvec((trainmodel.n_elem/2),trainmodel.n_elem-1);
 				}
 
-				vec residualTrain = residualForFRESAFunc(trainmodel,trainingSample.cols(2,trainingSample.n_cols-1),"",type,trainingSample.cols(1,1));
-				vec residualTest = residualForFRESAFunc(trainmodel,testSample.cols(2,testSample.n_cols-1),"",type,testSample.cols(1,1));
+				vec residualTrain = residualForFRESAFunc(trainmodel,trainingSample.cols(2,trainingSample.n_cols-1),"",type,trainingSample.cols(0,1));
+				vec residualTest = residualForFRESAFunc(trainmodel,testSample.cols(2,testSample.n_cols-1),"",type,testSample.cols(0,1));
 				gvarNeRI modelReclas = getVarResFunc(trainingSample,type,testSample);
 
 #pragma omp critical
 {
 				for (unsigned int i=0;i<residualTrain.n_elem;i++)
 				{
-					trainOutcome.push_back(trainingSample(i,1));
-					trainPrediction.push_back(trainingSample(i,1)+residualTrain(i));
 					trainResiduals.push_back(residualTrain(i));
 				}
+
 				for (unsigned int i=0;i<residualTest.n_elem;i++)
 				{
 					testOutcome.push_back(testSample(i,1));
@@ -159,22 +164,12 @@ extern "C" SEXP bootstrapValidationResCpp(SEXP _fraction,SEXP _loops,SEXP _dataf
 			bcoef.resize(lastInserted,dataframe.n_cols);	
 			if (type == "COX") bmeans.resize(lastInserted,dataframe.n_cols);
 			NeRi.resize(lastInserted,n_var2);
-			tpvalue.resize(lastInserted,n_var2);
-			wpvalue.resize(lastInserted,n_var2);
-			spvalue.resize(lastInserted,n_var2);
-			Fpvalue.resize(lastInserted,n_var2);
-			test_tpvalue.resize(lastInserted,n_var2);
-			test_wpvalue.resize(lastInserted,n_var2);
-			test_spvalue.resize(lastInserted,n_var2);
-			test_Fpvalue.resize(lastInserted,n_var2);
-			if ((3*lastInserted)<loops) Rcout<<"Warning: only "<<lastInserted<<" samples of "<<loops<<" where inserted\n";
+			if ((3*lastInserted)<loops) Rcout<<"Warning: only "<<lastInserted<<" samples of "<<loops<<" were inserted\n";
 		}
 
-//	 	rowvec bootmodel = median (bcoef);
 	 	rowvec bootmodel = mean (bcoef);
 		if (type == "COX") 
 		{ 
-//			rowvec CoxMmodel = median (bmeans);
 			rowvec CoxMmodel = mean (bmeans);
 			rowvec aux(bootmodel.n_elem*2);
 			for (unsigned int i=0;i<bootmodel.n_elem;i++)
@@ -186,8 +181,8 @@ extern "C" SEXP bootstrapValidationResCpp(SEXP _fraction,SEXP _loops,SEXP _dataf
 			bootmodel = aux;
 		}
 	 	vec basemodel = modelFittingFunc(casesample.cols(0,1),casesample.cols(2,casesample.n_cols-1),type);
-		double startRMSE = std::sqrt(mean(square(residualForFRESAFunc(basemodel,casesample.cols(2,casesample.n_cols-1),"",type,casesample.cols(1,1)))));
-		double bootRMSE = std::sqrt(mean(square(residualForFRESAFunc(bootmodel.t(),casesample.cols(2,casesample.n_cols-1),"",type,casesample.cols(1,1)))));
+		double startRMSE = std::sqrt(mean(square(residualForFRESAFunc(basemodel,casesample.cols(2,casesample.n_cols-1),"",type,casesample.cols(0,1)))));
+		double bootRMSE = std::sqrt(mean(square(residualForFRESAFunc(bootmodel.t(),casesample.cols(2,casesample.n_cols-1),"",type,casesample.cols(0,1)))));
 		Rcpp::List result = Rcpp::List::create(Rcpp::Named("NeRi")=Rcpp::wrap(NeRi), \
 						Rcpp::Named("tpvalue")=Rcpp::wrap(tpvalue), \
 						Rcpp::Named("wpvalue")=Rcpp::wrap(wpvalue), \
@@ -198,18 +193,17 @@ extern "C" SEXP bootstrapValidationResCpp(SEXP _fraction,SEXP _loops,SEXP _dataf
 						Rcpp::Named("test_wpvalue")=Rcpp::wrap(test_wpvalue), \
 						Rcpp::Named("test_spvalue")=Rcpp::wrap(test_spvalue), \
 						Rcpp::Named("test_Fpvalue")=Rcpp::wrap(test_Fpvalue), \
-						Rcpp::Named("trainOutcome")=Rcpp::wrap(trainOutcome), \
-						Rcpp::Named("trainPrediction")=Rcpp::wrap(trainPrediction), \
-						Rcpp::Named("trainResiduals")=Rcpp::wrap(trainResiduals), \
 						Rcpp::Named("trainSampledRMSE")=Rcpp::wrap(trainSampledRMSE), \
 						Rcpp::Named("testOutcome")=Rcpp::wrap(testOutcome), \
 						Rcpp::Named("testPrediction")=Rcpp::wrap(testPrediction), \
 						Rcpp::Named("testResiduals")=Rcpp::wrap(testResiduals), \
 						Rcpp::Named("testSampledRMSE")=Rcpp::wrap(testSampledRMSE),\
 						Rcpp::Named("startRMSE")=Rcpp::wrap(startRMSE), \
-						Rcpp::Named("bootRMSE")=Rcpp::wrap(bootRMSE));
+						Rcpp::Named("bootRMSE")=Rcpp::wrap(bootRMSE), \
+						Rcpp::Named("trainResiduals")=Rcpp::wrap(trainResiduals) 
+					);
 						
-//		Rcout<<"Betas :\n"<<basemodel<<"\n";
+
 		return (result);
 	} 
 	catch( std::exception &ex ) 
@@ -233,7 +227,6 @@ std::string residualFowardSelection(const unsigned int size,const int totSamples
 	std::string frm1 = baseForm;
 	unsigned int inserted = 0;
 	double iprob=0;
-//	double iprobTrain=0;
 	unsigned int sizecases = dataframe.n_rows;
 
 	
@@ -268,34 +261,46 @@ std::string residualFowardSelection(const unsigned int size,const int totSamples
 		outinx=lockup[Outcome];
 	}
 	
-	
-	
-	for(unsigned  int j=0;j<covari.size();j++)
-		for(unsigned int i=0;i<vnames.size();i++)
-			if (covari[j]==vnames[i]) vnames[i]=inname;  
-	if (loops > 1)
+	int timeinx	= 0;
+	if (type=="COX")
 	{
-		uvec samCases= randi<uvec>(totSamples, distr_param(0,sizecases-1));
-		vec auxcasesample=zeros<vec>(sizecases);
-		mysample = dataframe.row(samCases(0));
-		auxcasesample[samCases(0)]=1;
-		if (Outcome=="RANDOM") mysample.col(outinx)(0) = randOutput(samCases(0));
-		for (int i = 1;i<totSamples;i++)
-		{
-			mysample=join_cols(mysample,dataframe.row(samCases(i)));
-			if (Outcome=="RANDOM") mysample.col(outinx)(i) = randOutput(samCases(i));
-			auxcasesample[samCases(i)]=1;
-		}
-		uvec notinserted = find(auxcasesample==0);
-		myTestsample = dataframe.rows(notinserted);
-		if (Outcome=="RANDOM") myTestsample.col(outinx) = randOutput(notinserted);
+		timeinx	= lockup[timeOutcome];
 	}
 
-	vec train_outcome = mysample.col(outinx);
-	vec test_outcome = myTestsample.col(outinx);
+	for(unsigned  int j=0;j<covari.size();j++)
+		for(unsigned int i=0;i<vnames.size();i++)
+			if (covari[j]==vnames[i]) vnames[i]=inname;
+	if (loops > 1)
+	{
+		int testelements=0;
+		int mitestsize=0.2*sizecases;
+		do
+		{
+			uvec samCases= randi<uvec>(totSamples, distr_param(0,sizecases-1));
+			vec auxcasesample=zeros<vec>(sizecases);
+			mysample = dataframe.row(samCases(0));
+			auxcasesample[samCases(0)]=1;
+			if (Outcome=="RANDOM") mysample.col(outinx)(0) = randOutput(samCases(0));
+			for (int i = 1;i<totSamples;i++)
+			{
+				mysample=join_cols(mysample,dataframe.row(samCases(i)));
+				if (Outcome=="RANDOM") mysample.col(outinx)(i) = randOutput(samCases(i));
+				auxcasesample[samCases(i)]=1;
+			}
+			uvec notinserted = find(auxcasesample==0);
+			testelements = notinserted.n_elem;
+			myTestsample = dataframe.rows(notinserted);
+			if (Outcome=="RANDOM") myTestsample.col(outinx) = randOutput(notinserted);
+		}	
+		while (testelements<mitestsize);
+
+	}
+
+	mat train_outcome = join_rows(mysample.col(timeinx),mysample.col(outinx));
+	mat test_outcome = join_rows(myTestsample.col(timeinx),myTestsample.col(outinx));
 
     mat myoutcome(mysample.n_rows,2);
-	myoutcome.col(1) = train_outcome;
+	myoutcome.col(1) = train_outcome.col(1);
 	mysampleMatbase.set_size(mysample.n_rows);
 	myTestsampleMatbase.set_size(myTestsample.n_rows);
 	mysampleMatbase.fill(1.0);
@@ -389,23 +394,26 @@ std::string residualFowardSelection(const unsigned int size,const int totSamples
 	  			}
 	  		}
 	  	}
-		if ((jmax >= 0) and (minpiri < pthr2) and (vnames[jmax] != inname) and (inserted<maxTrainModelSize))   
+		if ((jmax >= 0) and (minpiri < pthr2) and (inserted<maxTrainModelSize))   
 	  	{
-	  		gfrm1 = frm1+" + ";
-	  		gfrm1 = gfrm1+ovnames[jmax];
-	  		mysampleMatbase = join_rows(mysampleMatbase,mysample.col(lockup[vnames[jmax]]));
-           	bestmodel = modelFittingFunc(myoutcome,mysampleMatbase,type);
-			if (loops > 1) 
+			if (vnames[jmax] != inname)
 			{
-				myTestsampleMatbase = join_rows(myTestsampleMatbase,myTestsample.col(lockup[vnames[jmax]]));
-				bestResiduals = residualForFRESAFunc(bestmodel,myTestsampleMatbase,"",type,test_outcome);
+				gfrm1 = frm1+" + ";
+				gfrm1 = gfrm1+ovnames[jmax];
+				mysampleMatbase = join_rows(mysampleMatbase,mysample.col(lockup[vnames[jmax]]));
+				bestmodel = modelFittingFunc(myoutcome,mysampleMatbase,type);
+				if (loops > 1) 
+				{
+					myTestsampleMatbase = join_rows(myTestsampleMatbase,myTestsample.col(lockup[vnames[jmax]]));
+					bestResiduals = residualForFRESAFunc(bestmodel,myTestsampleMatbase,"",type,test_outcome);
+				}
+				bestTrainResiduals = residualForFRESAFunc(bestmodel,mysampleMatbase,"",type,train_outcome);
+				frm1 = gfrm1;	
+				changes = changes + 1;
+				mynamesLoc.push_back(jmax);
+				vnames[jmax] = inname;
+				inserted = inserted + 1;
 			}
-			bestTrainResiduals = residualForFRESAFunc(bestmodel,mysampleMatbase,"",type,train_outcome);
-           	frm1 = gfrm1;	
-	  		changes = changes + 1;
-	  		mynamesLoc.push_back(jmax);
-	  		vnames[jmax] = inname;
-	  		inserted = inserted + 1;
 	  	} 
 	}
 	return frm1;
@@ -495,4 +503,3 @@ try {   //R_CStackLimit=(uintptr_t)-1;
 	}
 
 }
-

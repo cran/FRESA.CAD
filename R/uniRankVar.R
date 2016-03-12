@@ -102,7 +102,7 @@ function(variableList,formula,Outcome,data,categorizationType=c("Raw","Categoric
 	frm1 <- formula;
 	ftmp <- formula(frm1);
 	bmodel <- modelFitting(ftmp,data,type)
-	baseResiduals <- residualForFRESA(bmodel,data,Outcome);
+	baseResiduals <- residualForFRESA(bmodel,data,Outcome)+rnorm(nrow(data),0,1e-10);
 	basepredict <- predictForFresa(bmodel,data, 'prob');
 	if (type=="COX")
 	{
@@ -118,13 +118,14 @@ function(variableList,formula,Outcome,data,categorizationType=c("Raw","Categoric
 		}
 	}
 	
-	if (!FullAnalysis)
-	{
-		rankingTest="Ztest";
-	}
+#	if (!FullAnalysis)
+#	{
+#		rankingTest="Ztest";
+#	}
 	
 	for (j in 1:size)
 	{
+#		cat (colnamesList[j],"\n")
 		frm1 = formula;
 		categories = 1;
 		catlist <- vector();
@@ -158,6 +159,7 @@ function(variableList,formula,Outcome,data,categorizationType=c("Raw","Categoric
 		{
 			wtt <- NA;
 		}
+#		cat (colnamesList[j],"Wilcox: ",wtt,"\n")
 		if (FullAnalysis)
 		{
 			stddf <- sd(raw.dataFrame[,colnamesList[j]],na.rm = TRUE);
@@ -178,6 +180,7 @@ function(variableList,formula,Outcome,data,categorizationType=c("Raw","Categoric
 				}
 			}
 		}
+#		cat (colnamesList[j],"cstat: ",cstat,"\n")
 		if (length(table(data[,colnamesList[j]]))>4)
 		{
 
@@ -495,6 +498,7 @@ function(variableList,formula,Outcome,data,categorizationType=c("Raw","Categoric
 			termName <- str_replace_all(termName,fixed("> ="),">=");
 			termName <- str_replace_all(termName,fixed("*")," * ");
 			frmg <- paste( formula,paste(" + ",termName));
+#			cat(frmg,"\n")
 			ftmg <- formula(frmg);
 			if (type=="COX") 
 			{
@@ -505,6 +509,7 @@ function(variableList,formula,Outcome,data,categorizationType=c("Raw","Categoric
 				zcol=3;
 			}
 			lmodel <- modelFitting(ftmg,data,type)
+#			print(summary(lmodel))
 			if (!inherits(lmodel, "try-error"))
 			{
 				modcoef <- summary(lmodel)$coefficients;
@@ -679,6 +684,15 @@ function(variableList,formula,Outcome,data,categorizationType=c("Raw","Categoric
 					TstudentRes.p <- append(TstudentRes.p,rprob$tP.value);
 					FRes.p <- append(FRes.p,rprob$FP.value);
 				}
+				else
+				{
+					if (uniType=="Binary")
+					{
+						spredict <- predictForFresa(lmodel,data, 'prob');
+						iprob <- .Call("improveProbCpp",basepredict,spredict,data[,Outcome],0);
+						zIDI <- append(zIDI,iprob$z.idi);
+					}
+				}
 				ZGLM  <- append(ZGLM,abs(modcoef[sizecoef,zcol]));
 			}
 		}
@@ -757,15 +771,63 @@ function(variableList,formula,Outcome,data,categorizationType=c("Raw","Categoric
 				}
 			)
 		}
+
 	}
 	else
 	{
-		orderframe <- data.frame(Name,parent,descrip,ZGLM);
-		orderframe <- with(orderframe,orderframe[order(-ZGLM),]);
+		if (uniType=="Binary")
+		{
+			orderframe <- data.frame(Name,parent,descrip,ZGLM,zIDI);
+			switch(rankingTest,
+				zIDI=
+				{
+					orderframe <- with(orderframe,orderframe[order(-zIDI),]);
+				},
+				Ztest=
+				{
+					orderframe <- with(orderframe,orderframe[order(-ZGLM),]);
+				}
+			)
+		}
+		else
+		{
+			orderframe <- data.frame(Name,parent,descrip,ZGLM);
+			orderframe <- with(orderframe,orderframe[order(-ZGLM),]);
+		}
 	}
 
 	row.names(orderframe) <- orderframe$Name;
 
+	# if ((categorizationType == "ERaw")&&((rankingTest=="zIDI")||(rankingTest=="Ztest")))
+	# {
+		  # isna = is.na(orderframe[,rankingTest])
+		  # totb <- sum(orderframe[!isna,rankingTest] > abs(qnorm(0.05/ncol(data))))
+		  # varlist <- orderframe[1:totb,1:2]
+		  # c.var <- listTopCorrelatedVariables(varlist,data,pvalue=0.05/ncol(data),corthreshold=0.90,method ="spearman")
+		  # if (nrow(c.var$correlated.variables)>0)
+		  # {
+			# addednames <- as.data.frame(c.var$correlated.variables)
+			# rownames(orderframe) <- orderframe$Name
+			# lastorder <- orderframe[rownames(addednames),]
+			# lastorder$Name <- addednames[,1]
+			# lastorder$parent <- rownames(addednames)
+			# rownames(lastorder) <- paste("D_",rownames(addednames),sep = "")
+			# colnames(lastorder) <- colnames(orderframe)
+			# orderframe <- rbind(orderframe,lastorder)
+			# switch(rankingTest,
+				   # zIDI=
+					# {
+					  # orderframe <- with(orderframe,orderframe[order(-zIDI),]);
+					# },
+					# Ztest=
+					# {
+					  # orderframe <- with(orderframe,orderframe[order(-ZGLM),]);
+					# }
+				# )
+		  # }
+	# }
+	
+	
 	result <- list(orderframe=orderframe,
 	variableList=variableList,
 	formula=formula,

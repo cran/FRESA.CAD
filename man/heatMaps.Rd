@@ -8,12 +8,13 @@
 	heatMaps(variableList,
 	         varRank = NULL,
 	         Outcome,
-	         idnames = NULL,
 	         data,
 	         title = "Heat Map",
-	         colCluster = FALSE,
+	         hCluster = FALSE,
 	         prediction = NULL,
-	         outcomeGain = 0)
+	         outcomeGain = 0,
+			 theFiveColors=c("blue","cyan","black","yellow","red"),
+			 ...)
 }
 \arguments{
 	\item{variableList}{
@@ -25,16 +26,13 @@
 	\item{Outcome}{
 		The name of the column in \code{data} that stores the variable to be predicted by the model
 	}
-	\item{idnames}{
-		The name of the column in \code{data} that stores the IDs of the measurements (optional)
-	}
 	\item{data}{
 		A data frame where all variables are stored in different columns
 	}
 	\item{title}{
 		The title of the plot
 	}
-	\item{colCluster}{
+	\item{hCluster}{
 		Logical. If \code{TRUE}, variables will be clustered
 	}
 	\item{prediction}{
@@ -42,6 +40,12 @@
 	}
 	\item{outcomeGain}{
 		An optional value that can be used to force the heatmap to cluster subjects according to \code{outcome}
+	}
+	\item{theFiveColors}{
+		the colors of the heatmap 
+	}
+	\item{...}{
+		aditional parameters for the heatmap.2 function
 	}
 }
 \value{

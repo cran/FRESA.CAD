@@ -1,5 +1,5 @@
 crossValidationFeatureSelection_Bin <-
-function(size=10,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,timeOutcome="Time",variableList,data,maxTrainModelSize=10,type=c("LM","LOGIT","COX"),selectionType=c("zIDI","zNRI"),loop.threshold=10,startOffset=0,elimination.bootstrap.steps=25,trainFraction=0.67,trainRepetition=9,elimination.pValue=0.05,CVfolds=10,bootstrap.steps=25,interaction=c(1,1),nk=0,unirank=NULL,print=TRUE,plots=TRUE)
+function(size=10,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,timeOutcome="Time",variableList,data,maxTrainModelSize=10,type=c("LM","LOGIT","COX"),selectionType=c("zIDI","zNRI","Both"),loop.threshold=10,startOffset=0,elimination.bootstrap.steps=25,trainFraction=0.67,trainRepetition=9,elimination.pValue=0.05,CVfolds=10,bootstrap.steps=25,interaction=c(1,1),nk=0,unirank=NULL,print=TRUE,plots=TRUE)
 {
 
 if (!requireNamespace("cvTools", quietly = TRUE)) {
@@ -45,7 +45,9 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 
 
 	formulas <- vector();
-	bagFormulas <- vector();
+	BeforeBHFormulas <- vector();
+	ForwardFormulas <- vector();
+	baggFormulas <- vector();
 	trainCorrelations <- vector();
 	trainAccuracy <- vector();
 	trainSensitivity <- vector();
@@ -67,7 +69,7 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 	TopUniCoherenceTest <- vector();
 	selection.pValue <- pvalue;
 #	update.pValue <- c(pvalue*pvalue,pvalue);
-	update.pValue <- pvalue;
+	update.pValue <- c(pvalue,0.99*pvalue);
 
 	CVselection.pValue <- pvalue;
 	CVelimination.pValue <- elimination.pValue;
@@ -111,7 +113,11 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 
 	
 	
+	selType = selectionType;
+	if (selectionType=="Both") selType ="zIDI";
+
 	CurModel_Full <- ForwardSelection.Model.Bin(size=size,fraction=fraction,pvalue=CVselection.pValue,loops=loops,covariates=covariates,Outcome=Outcome,variableList=variableList,data=data,maxTrainModelSize=maxTrainModelSize,type=type,timeOutcome=timeOutcome,selectionType=selectionType,loop.threshold=loop.threshold,interaction=mOrderSel)
+	
 	if (length(CurModel_Full$var.names)==0)
 	{
 		stop("no initial model found\n");
@@ -119,29 +125,34 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 
 	if (loops>1)
 	{
-		UCurModel_Full <- updateModel.Bin(Outcome=Outcome,covariates=covariates,pvalue=CVupdate.pValue,VarFrequencyTable=CurModel_Full$ranked.var,variableList=variableList,data=data,type=type,lastTopVariable= 0,timeOutcome=timeOutcome,selectionType=selectionType,interaction=mOrderUpdate,numberOfModels=0,bootLoops=elimination.bootstrap.steps)
+		UCurModel_Full <- updateModel.Bin(Outcome=Outcome,covariates=covariates,pvalue=CVupdate.pValue,VarFrequencyTable=CurModel_Full$ranked.var,variableList=variableList,data=data,type=type,lastTopVariable= 0,timeOutcome=timeOutcome,selectionType=selType,interaction=mOrderUpdate,numberOfModels=0,bootLoops=elimination.bootstrap.steps)
 	}
 	else
 	{
-		UCurModel_Full <- CurModel_Full;
+		UCurModel_Full <- updateModel.Bin(Outcome=Outcome,covariates=covariates,pvalue=CVupdate.pValue,VarFrequencyTable=CurModel_Full$ranked.var,variableList=variableList,data=data,type=type,lastTopVariable= 0,timeOutcome=timeOutcome,selectionType=selType,interaction=mOrderUpdate,numberOfModels=0,bootLoops=elimination.bootstrap.steps)
+#		UCurModel_Full <- CurModel_Full;
 	}
 	# the estimated number of independent features
 	modsize <- length(as.list(attr(terms(UCurModel_Full$formula),'term.labels')));
-	adjsize <- min(0.5*CurModel_Full$average.formula.size,modsize)/pvalue;
+	adjsize <- min(mOrderUpdate*CurModel_Full$average.formula.size/pvalue,ncol(data));
 	if (adjsize<2) adjsize=2;
 	if (elimination.bootstrap.steps>1)
 	{
-		redCurmodel_Full <- bootstrapVarElimination_Bin(object=UCurModel_Full$final.model,pvalue=CVelimination.pValue,Outcome=Outcome,data=data,startOffset=startOffset,type=type,selectionType=selectionType,loops=elimination.bootstrap.steps,fraction=fraction,print=print,plots=plots,adjsize=adjsize);
+		redCurmodel_Full <- bootstrapVarElimination_Bin(object=UCurModel_Full$final.model,pvalue=CVelimination.pValue,Outcome=Outcome,data=data,startOffset=startOffset,type=type,selectionType=selType,loops=elimination.bootstrap.steps,fraction=fraction,print=print,plots=plots,adjsize=adjsize);
 	}
 	else
 	{
 		
-		redCurmodel_Full <- backVarElimination_Bin(object=UCurModel_Full$final.model,pvalue=CVelimination.pValue,Outcome=Outcome,data=data,startOffset=startOffset,type=type,selectionType=selectionType,adjsize=adjsize);
+		redCurmodel_Full <- backVarElimination_Bin(object=UCurModel_Full$final.model,pvalue=CVelimination.pValue,Outcome=Outcome,data=data,startOffset=startOffset,type=type,selectionType=selType,adjsize=adjsize);
 	}
 	
-	Full_formula <- redCurmodel_Full$beforeFSC.formula;
+	Full_formula <- redCurmodel_Full$back.model;
 	FullBootCross <- bootstrapValidation_Bin(1.0000,bootstrap.steps,Full_formula,Outcome,data,type,plots=plots)
 	redBootCross <- FullBootCross;
+
+	cat ("Update   :",as.character(UCurModel_Full$formula)[3],"\n")
+	cat ("Before BH:",as.character(redCurmodel_Full$beforeFSC.formula)[3],"\n")
+	cat ("B:SWiMS  :",as.character(redCurmodel_Full$back.formula)[3],"\n")
 
 	if (is.null(FullBootCross))
 	{
@@ -149,15 +160,13 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 	}
 	if (print) summary(FullBootCross,2)
 
-	cat ("Before BH:",as.character(redCurmodel_Full$beforeFSC.formula)[3],"\n")
-	cat ("B:SWiMS  :",as.character(redCurmodel_Full$back.formula)[3],"\n")
 	
 	inserted = 0;
 	rocadded = 0;
 	split.blindSen <- NULL;
 	blindreboot <- NULL;
-	kmmSamples <- NULL;
-	Full.kmmSamples <- NULL;
+	KNNSamples <- NULL;
+	Full.KNNSamples <- NULL;
 	totSamples <- NULL;
 	Full.totSamples <- NULL;
 	totTrainSamples <- NULL;
@@ -210,8 +219,9 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 #		par(mfrow=c(1,1))
 
 #		print(summary(redBootCross$boot.model))
-		Full.p <- predictForFresa(redBootCross$boot.model,BlindSet, 'prob');
-		Fullknnclass <- getKNNpredictionFromFormula(redCurmodel_Full$beforeFSC.formula,KnnTrainSet,BlindSet,Outcome,nk)
+		Full.p <- predictForFresa(redBootCross$boot.model,BlindSet, 'linear');
+		
+		Fullknnclass <- getKNNpredictionFromFormula(UCurModel_Full$formula,KnnTrainSet,BlindSet,Outcome,nk)
 
 
 		if (!is.null(unirank))
@@ -219,6 +229,7 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 #			cat("Ranking Again \n");
 			variableList <- update.uniRankVar(unirank,data=TrainSet,FullAnalysis=FALSE)$orderframe;
 #			cat("Ranked Again. Size: ",nrow(variableList),":",ncol(variableList),", \n");
+#			print(variableList[1:10,]);
 			shortVarList <- as.vector(variableList[1:size,1]);
 			varlist <- vector();
 			for (nn in 1:length(shortVarList))
@@ -274,23 +285,24 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 		{
 			if (loops>1)
 			{
-				UCurModel_S <- updateModel.Bin(Outcome=Outcome,covariates=covariates,pvalue=update.pValue,VarFrequencyTable=CurModel_S$ranked.var,variableList=variableList,data=TrainSet,type=type,lastTopVariable= 0,timeOutcome=timeOutcome,selectionType=selectionType,interaction=mOrderUpdate,numberOfModels=0,bootLoops=elimination.bootstrap.steps)
+				UCurModel_S <- updateModel.Bin(Outcome=Outcome,covariates=covariates,pvalue=update.pValue,VarFrequencyTable=CurModel_S$ranked.var,variableList=variableList,data=TrainSet,type=type,lastTopVariable= 0,timeOutcome=timeOutcome,selectionType=selType,interaction=mOrderUpdate,numberOfModels=0,bootLoops=elimination.bootstrap.steps)
 			}
 			else
 			{
-				UCurModel_S <- CurModel_S;
+				UCurModel_S <- updateModel.Bin(Outcome=Outcome,covariates=covariates,pvalue=update.pValue,VarFrequencyTable=CurModel_S$ranked.var,variableList=variableList,data=TrainSet,type=type,lastTopVariable= 0,timeOutcome=timeOutcome,selectionType=selType,interaction=mOrderUpdate,numberOfModels=0,bootLoops=elimination.bootstrap.steps)
+#				UCurModel_S <- CurModel_S;
 			}
 			modsize <- length(as.list(attr(terms(UCurModel_S$formula),'term.labels')));
-			adjsize <- min(0.5*CurModel_S$average.formula.size,modsize)/pvalue;
+			adjsize <- min(mOrderUpdate*CurModel_S$average.formula.size/pvalue,ncol(data));
 			if (adjsize<2) adjsize=2;
 			if (elimination.bootstrap.steps > 1)
 			{
-				redCurmodel_S <- bootstrapVarElimination_Bin(object=UCurModel_S$final.model,pvalue=elimination.pValue,Outcome=Outcome,data=TrainSet,startOffset=startOffset,type=type,selectionType=selectionType,loops=elimination.bootstrap.steps,fraction=fraction,print=print,plots=plots,adjsize=adjsize);	
+				redCurmodel_S <- bootstrapVarElimination_Bin(object=UCurModel_S$final.model,pvalue=elimination.pValue,Outcome=Outcome,data=TrainSet,startOffset=startOffset,type=type,selectionType=selType,loops=elimination.bootstrap.steps,fraction=fraction,print=print,plots=plots,adjsize=adjsize);	
 				redBootCross_S <- redCurmodel_S$bootCV;
 			}
 			else
 			{
-				redCurmodel_S <- backVarElimination_Bin(object=UCurModel_S$final.model,pvalue=elimination.pValue,Outcome=Outcome,data=TrainSet,startOffset=startOffset,type=type,selectionType=selectionType,adjsize=adjsize);
+				redCurmodel_S <- backVarElimination_Bin(object=UCurModel_S$final.model,pvalue=elimination.pValue,Outcome=Outcome,data=TrainSet,startOffset=startOffset,type=type,selectionType=selType,adjsize=adjsize);
 				redBootCross_S <- bootstrapValidation_Bin(1.0000,bootstrap.steps,redCurmodel_S$back.formula,Outcome,TrainSet,type,plots=plots)
 				par(mfrow=c(1,1))
 			}
@@ -298,29 +310,41 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 #			redBootCross_S$boot.model <- modelFitting(redCurmodel_S$back.formula,TrainSet,type);
 
 # lets use beforeFSC model for prediction 
-			redfoldmodel <- redCurmodel_S$beforeFSC.model;
+			redfoldmodel.BBH <- redCurmodel_S$beforeFSC.model;
+			forwardmodel <- UCurModel_S$final.model;
+			redfoldmodel <- redBootCross_S$boot.model;
 
 
-			if (print) 
+
+			cat ("Update   :",as.character(UCurModel_S$formula)[3],"\n")
+			cat ("Before BH:",as.character(redCurmodel_S$beforeFSC.formula)[3],"\n")
+			cat ("B:SWiMS  :",as.character(redCurmodel_S$back.formula)[3],"\n")
+
+			if ((redCurmodel_S$lastRemoved >= 0) && !is.null(redfoldmodel))
 			{
-				cat ("\n The last CV bootstrapped model")
-				s <- summary(redBootCross_S,2)
-			}
 
-#			if (redCurmodel_S$lastRemoved >= 0)
-			{
+				if (print) 
+				{
+					cat ("\n The last CV bootstrapped model")
+					s <- summary(redBootCross_S,2)
+				}
+			
+				bagg <- baggedModel(CurModel_S$formula.list,TrainSet,type,Outcome,timeOutcome,removeOutliers=0.0); 
+#				bagg <- baggedModel(CurModel_S$formula.list,TrainSet,"LM",Outcome); 
+#				bagg <- baggedModel(CurModel_S$formula.list,KnnTrainSet,"LM",Outcome); 
+				knnclass <- getKNNpredictionFromFormula(UCurModel_S$formula,KnnTrainSet,BlindSet,Outcome,nk)
 
 			
-			
-#				print(summary(redCurmodel_S$back.model))
-				p <- predictForFresa(redfoldmodel,BlindSet, 'prob');
-				knnclass <- getKNNpredictionFromFormula(redCurmodel_S$back.formula,KnnTrainSet,BlindSet,Outcome,nk)
+				p <- predictForFresa(redfoldmodel,BlindSet, 'linear');
+				p.BBH <- predictForFresa(redfoldmodel.BBH,BlindSet, 'linear');
+				p.forward <- predictForFresa(forwardmodel,BlindSet, 'linear');
+				baggedForwardPredict <- predictForFresa(bagg$bagged.model,BlindSet,'linear');
+				medianPred <- medianPredict(CurModel_S$formula.list,TrainSet,BlindSet, predictType = "linear",type = type)$medianPredict
 				
-								
 				inserted = inserted + 1
 				cycleinsert = cycleinsert + 1
 
-				tcor <- cor.test(predictForFresa(redfoldmodel,TrainSet, 'prob'),predictForFresa(redBootCross$boot.model,TrainSet, 'prob'), method = "spearman",na.action=na.omit,exact=FALSE)$estimate
+				tcor <- cor.test(predictForFresa(redfoldmodel,TrainSet, 'linear'),predictForFresa(redBootCross$boot.model,TrainSet, 'linear'), method = "spearman",na.action=na.omit,exact=FALSE)$estimate
 				trainCorrelations <- append(trainCorrelations,tcor);
 				trainAccuracy <- append(trainAccuracy,redBootCross_S$base.Accuracy);
 				trainSensitivity <- append(trainSensitivity,redBootCross_S$base.Sensitivity);
@@ -338,9 +362,9 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 				if (((sumca <- sum(BlindSet[,Outcome]>0)) > 1) && ((sumco <- sum(BlindSet[,Outcome]==0)) > 1))
 				{
 
-					atRoc <- pROC::roc(BlindSet[,Outcome], p,plot=FALSE,ci=TRUE,auc=TRUE,of='se',specificities=specificities,boot.n=100,smooth=FALSE)
+					atRoc <- pROC::roc(BlindSet[,Outcome], p,plot=FALSE,ci=TRUE,auc=TRUE,of='se',specificities=specificities,boot.n=100,smooth=FALSE,progress= 'none')
 					splitRoc <- atRoc$ci[,2];
-					FullRocBlindAUC <- pROC::roc(BlindSet[,Outcome], Full.p,plot=FALSE,auc=TRUE)$auc
+					FullRocBlindAUC <- pROC::roc(BlindSet[,Outcome], Full.p,plot=FALSE,auc=TRUE,ci=FALSE)$auc
 					WholeFoldBlindAUC <- append(WholeFoldBlindAUC,FullRocBlindAUC);
 					if (rocadded == 0)
 					{
@@ -358,13 +382,13 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 				scotr <- sum(BlindSet[,Outcome] == 0);
 				sizecases <- sizecases + scase;
 				sizecontrol <- sizecontrol + scotr;
-				psen <- sum( 1*((BlindSet[,Outcome] > 0)*( p >= 0.5 )) , na.rm = TRUE)
-				pspe <- sum( 1*((BlindSet[,Outcome] == 0)*( p < 0.5 )) , na.rm = TRUE)
+				psen <- sum( 1*((BlindSet[,Outcome] > 0)*( p >= 0.0 )) , na.rm = TRUE)
+				pspe <- sum( 1*((BlindSet[,Outcome] == 0)*( p < 0.0 )) , na.rm = TRUE)
 				acc <- acc + psen + pspe;
 				sen <- sen + psen;
 				spe <- spe + pspe;
-				psen <- sum( 1*((BlindSet[,Outcome] > 0)*( Full.p >= 0.5 )) , na.rm = TRUE)
-				pspe <- sum( 1*((BlindSet[,Outcome] == 0)*( Full.p < 0.5 )) , na.rm = TRUE)
+				psen <- sum( 1*((BlindSet[,Outcome] > 0)*( Full.p >= 0.0 )) , na.rm = TRUE)
+				pspe <- sum( 1*((BlindSet[,Outcome] == 0)*( Full.p < 0.0 )) , na.rm = TRUE)
 				Full.acc <- Full.acc + psen + pspe;
 				Full.sen <- Full.sen + psen;
 				Full.spe <- Full.spe + pspe;
@@ -400,43 +424,46 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 				FoldBlindSpecificity <- append(FoldBlindSpecificity,redBootCross_S$blind.specificty);
 				FoldBlindSensitivity <- append(FoldBlindSensitivity,redBootCross_S$blind.sensitivity);
 
-				Full.ptrain <- predictForFresa(redBootCross$boot.model,TrainSet, 'prob');
-				ptrain <- predictForFresa(redfoldmodel,TrainSet, 'prob');
+				Full.ptrain <- predictForFresa(redBootCross$boot.model,TrainSet, 'linear');
+				ptrain <- predictForFresa(redfoldmodel,TrainSet, 'linear');
 
 				if ( cycleinsert == 1)
 				{
-					cvcycle.predictions <- cbind(BlindSet[,Outcome],p,i);
+					cvcycle.predictions <- cbind(BlindSet[,Outcome],p.BBH,i);
 				}
 				if (inserted == 1)
 				{
-					totSamples <- cbind(BlindSet[,Outcome],p,i);
+					totSamples <- cbind(BlindSet[,Outcome],p,i,medianPred,baggedForwardPredict,p.forward,p.BBH);
 					rownames(totSamples) <- rownames(BlindSet);
 					Full.totSamples <- cbind(BlindSet[,Outcome],Full.p,i);
 					rownames(Full.totSamples) <- rownames(BlindSet);
-					kmmSamples <- cbind(BlindSet[,Outcome],abs(knnclass$prob$prob-1*(knnclass$prediction=="0")),i);
-					rownames(kmmSamples) <- rownames(BlindSet);
-					Full.kmmSamples <- cbind(BlindSet[,Outcome],abs(Fullknnclass$prob$prob-1*(Fullknnclass$prediction=="0")),i);
-					rownames(Full.kmmSamples) <- rownames(BlindSet);
+					KNNSamples <- cbind(BlindSet[,Outcome],abs(knnclass$prob$prob-1*(knnclass$prediction=="0")),i);
+					rownames(KNNSamples) <- rownames(BlindSet);
+					Full.KNNSamples <- cbind(BlindSet[,Outcome],abs(Fullknnclass$prob$prob-1*(Fullknnclass$prediction=="0")),i);
+					rownames(Full.KNNSamples) <- rownames(BlindSet);
 					totTrainSamples <- cbind(TrainSet[,Outcome],ptrain,i);
 					rownames(totTrainSamples) <- rownames(TrainSet);
 					Full.totTrainSamples <- cbind(TrainSet[,Outcome],Full.ptrain,i);
 					rownames(Full.totTrainSamples) <- rownames(TrainSet);
+					
 				}
 				else
 				{
-					px <- cbind(BlindSet[,Outcome],p,i);
+					px <- cbind(BlindSet[,Outcome],p,i,medianPred,baggedForwardPredict,p.forward,p.BBH);
 					rownames(px) <- rownames(BlindSet);
 					totSamples <- rbind(totSamples,px);
+					px <- cbind(BlindSet[,Outcome],p.BBH,i);
+					rownames(px) <- rownames(BlindSet);
 					cvcycle.predictions <- rbind(cvcycle.predictions,px);
 					px <- cbind(BlindSet[,Outcome],Full.p,i);
 					rownames(px) <- rownames(BlindSet);
 					Full.totSamples <- rbind(Full.totSamples,px);
 					px <- cbind(BlindSet[,Outcome],abs(knnclass$prob$prob-1*(knnclass$prediction=="0")),i);
 					rownames(px) <- rownames(BlindSet);
-					kmmSamples <- rbind(kmmSamples,px);
+					KNNSamples <- rbind(KNNSamples,px);
 					px <- cbind(BlindSet[,Outcome],abs(Fullknnclass$prob$prob-1*(Fullknnclass$prediction=="0")),i);
 					rownames(px) <- rownames(BlindSet);
-					Full.kmmSamples <- rbind(Full.kmmSamples,px);
+					Full.KNNSamples <- rbind(Full.KNNSamples,px);
 					px <- cbind(TrainSet[,Outcome],ptrain,i);
 					rownames(px) <- rownames(TrainSet);
 					totTrainSamples <- rbind(totTrainSamples,px);
@@ -447,17 +474,17 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 				
 				
 				formulas <- append(formulas,as.character(redCurmodel_S$back.formula)[3]);
-				bagFormulas <- append(bagFormulas,as.character(redCurmodel_S$beforeFSC.formula)[3]);
-				cat ("Before BH:",as.character(redCurmodel_S$beforeFSC.formula)[3],"\n")
-				cat ("B:SWiMS  :",as.character(redCurmodel_S$back.formula)[3],"\n")
+				BeforeBHFormulas <- append(BeforeBHFormulas,as.character(redCurmodel_S$beforeFSC.formula)[3]);
+				ForwardFormulas <- append(ForwardFormulas,as.character(UCurModel_S$formula)[3]);
+				baggFormulas <- append(baggFormulas,bagg$formula);
 
-				knnACC <- sum(kmmSamples[,1] == (kmmSamples[,2]>0.5))/totsize;
-				knnSEN <- sum((kmmSamples[,1]>0.5) & (kmmSamples[,2]>0.5))/sizecases;
-				knnSPE <- sum((kmmSamples[,1]<0.5) & (kmmSamples[,2]<0.5))/sizecontrol;
+				knnACC <- sum(KNNSamples[,1] == (KNNSamples[,2]>0.5))/totsize;
+				knnSEN <- sum((KNNSamples[,1]>0.5) & (KNNSamples[,2]>0.5))/sizecases;
+				knnSPE <- sum((KNNSamples[,1]<0.5) & (KNNSamples[,2]<0.5))/sizecontrol;
 
-				Full.knnACC <- sum(Full.kmmSamples[,1] == (Full.kmmSamples[,2]>0.5))/totsize;
-				Full.knnSEN <- sum((Full.kmmSamples[,1]>0.5) & (Full.kmmSamples[,2]>0.5))/sizecases;
-				Full.knnSPE <- sum((Full.kmmSamples[,1]<0.5) & (Full.kmmSamples[,2]<0.5))/sizecontrol;
+				Full.knnACC <- sum(Full.KNNSamples[,1] == (Full.KNNSamples[,2]>0.5))/totsize;
+				Full.knnSEN <- sum((Full.KNNSamples[,1]>0.5) & (Full.KNNSamples[,2]>0.5))/sizecases;
+				Full.knnSPE <- sum((Full.KNNSamples[,1]<0.5) & (Full.KNNSamples[,2]<0.5))/sizecontrol;
 
 
 				cat ("Loop :",i,"Blind Cases =",scase,"Blind Control =",scotr,"Total =",totsize, "Size Cases =",sizecases,"Size Control =",sizecontrol,"\n")
@@ -468,7 +495,7 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 				cat ("Current KNN Accuracy   =",knnACC,"Sensitivity =",knnSEN,"Specificity =",knnSPE,"\n")
 				cat ("Initial KNN Accuracy   =",Full.knnACC,"Sensitivity =",Full.knnSEN,"Specificity =",Full.knnSPE,"\n")
 				cat ("Train Correlation: ",tcor," Blind Correlation :",bcor,"\n KNN to Model Confusion Matrix: \n")
-				print(table(kmmSamples[,2]>0.5,totSamples[,2]>0.5))
+				print(table(KNNSamples[,2]>0.5,totSamples[,2]>0.0))
 			}
 			# else
 			# {
@@ -534,9 +561,9 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 			if (nsamp>0)
 			{
 				atRocAUC <- pROC::roc(cvcycle.predictions[,1], cvcycle.predictions[,2],plot=FALSE,auc=TRUE,smooth=FALSE)$auc;
-				testAccuracy <- append(testAccuracy,sum(cvcycle.predictions[,1] == 1.0*(cvcycle.predictions[,2]>=0.5))/nsamp);
-				testSensitivity <- append(testSensitivity,sum((cvcycle.predictions[,1] == 1) & (cvcycle.predictions[,2]>=0.5))/sum(cvcycle.predictions[,1] == 1));
-				testSpecificity <- append(testSpecificity,sum((cvcycle.predictions[,1] == 0) & (cvcycle.predictions[,2] <0.5))/sum(cvcycle.predictions[,1] == 0));
+				testAccuracy <- append(testAccuracy,sum(cvcycle.predictions[,1] == 1.0*(cvcycle.predictions[,2]>=0.0))/nsamp);
+				testSensitivity <- append(testSensitivity,sum((cvcycle.predictions[,1] == 1) & (cvcycle.predictions[,2]>=0.0))/sum(cvcycle.predictions[,1] == 1));
+				testSpecificity <- append(testSpecificity,sum((cvcycle.predictions[,1] == 0) & (cvcycle.predictions[,2] <0.0))/sum(cvcycle.predictions[,1] == 0));
 				testAUC <- append(testAUC,atRocAUC);
 			}
 #			print(testAccuracy)
@@ -548,8 +575,9 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 	{
 		stop("No Significant Models Found\n");
 	}
-	colnames(totSamples) <- c("Outcome","Prediction","Model");
+	colnames(totSamples) <- c("Outcome","Prediction","Model","Median","Bagged","Forward","Backwards");
 	totSamples <- as.data.frame(totSamples);
+
 	colnames(Full.totSamples) <- c("Outcome","Prediction","Model");
 	Full.totSamples <- as.data.frame(Full.totSamples);
 
@@ -558,12 +586,14 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 	colnames(Full.totTrainSamples) <- c("Outcome","Prediction","Model");
 	Full.totTrainSamples <- as.data.frame(Full.totTrainSamples);
 
-	colnames(kmmSamples) <- c("Outcome","Prediction","Model");
-	kmmSamples <- as.data.frame(kmmSamples);
+	colnames(KNNSamples) <- c("Outcome","Prediction","Model");
+	KNNSamples <- as.data.frame(KNNSamples);
 	
-	colnames(Full.kmmSamples) <- c("Outcome","Prediction","Model");
-	Full.kmmSamples <- as.data.frame(Full.kmmSamples);
+	colnames(Full.KNNSamples) <- c("Outcome","Prediction","Model");
+	Full.KNNSamples <- as.data.frame(Full.KNNSamples);
 
+	
+	
 	BSWiMS.ensemble.prediction <- NULL
 
 	bsta <- boxplot(totSamples$Prediction~rownames(totSamples),plot=FALSE)
@@ -665,8 +695,8 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 	BiSWiMS = redCurmodel_Full,
 	FullBWiMS.bootstrapped=FullBootCross,
 	Models.testSensitivities = split.blindSen,
-	FullKNN.testPrediction=Full.kmmSamples,
-	KNN.testPrediction=kmmSamples,
+	FullKNN.testPrediction=Full.KNNSamples,
+	KNN.testPrediction=KNNSamples,
 	Fullenet=Fullenet,
 	LASSO.testPredictions=enetSamples,
 	LASSOVariables=LASSOVariables,
@@ -678,7 +708,9 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 	FullBWiMS.trainPrediction=Full.totTrainSamples,
 	LASSO.trainPredictions=enetTrainSamples,
 	BSWiMS.ensemble.prediction = BSWiMS.ensemble.prediction,
-	bagFormulas.list = bagFormulas
+	ForwardFormulas.list = ForwardFormulas,
+	BeforeBHFormulas.list = BeforeBHFormulas,
+	baggFormulas.list = baggFormulas
 	);
 	return (result)
 }

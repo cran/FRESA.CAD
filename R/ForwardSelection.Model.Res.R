@@ -30,6 +30,7 @@ function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,vari
 
 	if (nrow(variableList)>1)
 	{
+		if (nrow(variableList)<size) size = nrow(variableList)
 		frm <- paste(Outcome,"~",acovariates," + ",timeOutcome);
 		for (i in 1:size)
 		{
@@ -46,9 +47,16 @@ function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,vari
 	
 	output<-.Call("ForwardResidualModelCpp",size, fraction, pvalue, loops, covariates, Outcome,as.vector(variableList[,1]), maxTrainModelSize, type, timeOutcome, testType,loop.threshold, interaction,data.matrix(modelFrame),colNames,cores);
 	randoutput <- output;
+	rloops = min(loops,100);
+	rpvalue = min(pvalue,0.01);
 	if (loops>1) 
 	{
-		randoutput<-.Call("ForwardResidualModelCpp",size, fraction, pvalue, loops, covariates, "RANDOM",as.vector(variableList[,1]), maxTrainModelSize, type, timeOutcome, testType,loop.threshold, interaction,data.matrix(modelFrame),colNames,cores);
+		randoutput<-.Call("ForwardResidualModelCpp",size, fraction, rpvalue, rloops, covariates, "RANDOM",as.vector(variableList[,1]), maxTrainModelSize, type, timeOutcome, testType,loop.threshold, interaction,data.matrix(modelFrame),colNames,cores);
+	}
+	else
+	{
+		randoutput <- output;
+		rpvalue=pvalue;
 	}
 
 	mynames <- output$mynames + 1;
@@ -68,11 +76,11 @@ function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,vari
 
 	
 	avgsize = 0;
-	for (i in 1:loops)
+	for (i in 1:rloops)
 	{
 		avgsize = avgsize+ str_count(randoutput$formula.list[i],"\\+") - 1;
 	}
-	avgsize = (nrow(variableList)/size)*avgsize/loops;
+	avgsize = (pvalue/rpvalue)*(nrow(variableList)/size)*(avgsize/rloops);
 	cat ("Average size =",avgsize,"\n");
 
 		pthr2 = 1-pnorm(sqrt(fraction)*abs(qnorm(pthr)));
@@ -206,7 +214,8 @@ function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,vari
 	ranked.var=topvar,
 	z.NeRIs=model_ziri,
 	formula.list=formula.list,
-	average.formula.size=avgsize);
+	average.formula.size=avgsize,
+	variableList=variableList);
 	
 	return (result);
 }

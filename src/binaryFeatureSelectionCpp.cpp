@@ -115,17 +115,25 @@ extern "C" SEXP bootstrapValidationBinCpp(SEXP _fraction,SEXP _loops,SEXP _dataf
 			mat trainingSample;
 			mat myTestCases;
 			mat myTestControl;
-			uvec samCases= randi<uvec>(totSamples, distr_param(0,sizecases-1));
-			uvec samControl=randi<uvec>(totSamples, distr_param(0,sizecontrol-1));
-			vec auxcasesample=zeros<vec>(sizecases);
-			vec auxcontrolsample=zeros<vec>(sizecontrol);
-			for (int i =0;i<totSamples;i++)
+			uvec nsamCaseTest;
+			uvec nsamControlTest;
+			unsigned int minTest=0.2*totSamples; // at least 20% of samples for test evaluation
+			do
 			{
-				trainingSample=join_cols(trainingSample,casesample.row((samCases(i))));
-				trainingSample=join_cols(trainingSample,controlsample.row((samControl(i))));
-				auxcasesample[samCases(i)]=1;
-				auxcontrolsample[samControl(i)]=1;
-			}	 
+				uvec samCases= randi<uvec>(totSamples, distr_param(0,sizecases-1));
+				uvec samControl=randi<uvec>(totSamples, distr_param(0,sizecontrol-1));
+				vec auxcasesample=zeros<vec>(sizecases);
+				vec auxcontrolsample=zeros<vec>(sizecontrol);
+				for (int i =0;i<totSamples;i++)
+				{
+					trainingSample=join_cols(trainingSample,casesample.row((samCases(i))));
+					trainingSample=join_cols(trainingSample,controlsample.row((samControl(i))));
+					auxcasesample[samCases(i)]=1;
+					auxcontrolsample[samControl(i)]=1;
+				}
+				nsamCaseTest = find(auxcasesample==0);
+				nsamControlTest = find(auxcontrolsample==0);
+			} while ((nsamCaseTest.n_elem<minTest)||(nsamControlTest.n_elem<minTest));
 
 		    vec trainmodel = modelFittingFunc(trainingSample.cols(0,1),trainingSample.cols(2,trainingSample.n_cols-1),type);
 			if (is_finite(trainmodel))
@@ -138,12 +146,10 @@ extern "C" SEXP bootstrapValidationBinCpp(SEXP _fraction,SEXP _loops,SEXP _dataf
    					  coef=coefaux;
 				}
 
-//				Getting the test set
 
-				myTestCases=casesample.rows(find(auxcasesample==0));
-				myTestControl=controlsample.rows(find(auxcontrolsample==0));
+				myTestCases=casesample.rows(nsamCaseTest);
+				myTestControl=controlsample.rows(nsamControlTest);
 
-//				mat testSample = join_cols(myTestCases,myTestControl);
 
 				int ncases = myTestCases.n_rows;
 				int ncontrol = myTestControl.n_rows;
@@ -161,10 +167,6 @@ extern "C" SEXP bootstrapValidationBinCpp(SEXP _fraction,SEXP _loops,SEXP _dataf
 				ncontrol = ntesmin;
 
 				
-				
-//				mat indpendentSample= join_cols(myTestCases.rows(randi<uvec>(totSamples, distr_param(0,myTestCases.n_rows-1)))  ,  myTestControl.rows(randi<uvec>(totSamples, distr_param(0,myTestControl.n_rows-1))));
-
-
 				// predicting the test
 				vec p = predictForFresaFunc(trainmodel,testSample.cols(2,testSample.n_cols-1),"prob",type);
 				// predicting the training
@@ -173,7 +175,6 @@ extern "C" SEXP bootstrapValidationBinCpp(SEXP _fraction,SEXP _loops,SEXP _dataf
 				// performance AUC and NRI/IDI
 				double auul = rocAUC(trainingSample.col(1), trainmodel_predictors,"auto","auc");
 				getVReclass modelReclas = getVarBinFunc(trainingSample,type,testSample);
-//				getVReclass modelReclas = getVarBinFunc(trainingSample,type,indpendentSample);
 				
 				double acc = 0.0;
 				double sen = 0.0;
@@ -279,13 +280,9 @@ extern "C" SEXP bootstrapValidationBinCpp(SEXP _fraction,SEXP _loops,SEXP _dataf
 			tsensitivity.resize(lastInserted);
 			tspecificity.resize(lastInserted);
 			bcoef.resize(lastInserted,n_var);
-			zNRI.resize(lastInserted,n_var2);
-			zIDI.resize(lastInserted,n_var2);
-			test_zNRI.resize(lastInserted,n_var2);
-			test_zIDI.resize(lastInserted,n_var2);
 			NRI.resize(lastInserted,n_var2);
 			IDI.resize(lastInserted,n_var2);
-			if ((3*lastInserted)<loops) Rcout<<"Warning: only "<<lastInserted<<" samples of "<<loops<<" where inserted\n";
+			if ((3*lastInserted)<loops) Rcout<<"Warning: only "<<lastInserted<<" samples of "<<loops<<" were inserted\n";
 		}
 		double blindAUC=0.5;
 		double BlindAccuracy=0.5;
@@ -389,30 +386,41 @@ std::string binaryFowardSelection(const unsigned int size,const int totSamples,c
 	
 	if (loops > 1)
 	{
-		uvec samCases = randi<uvec>(totSamples, distr_param(0,sizecases-1));
-		uvec samControl = randi<uvec>(totSamples, distr_param(0,sizecontrol-1));
+		uvec ntestcases;
+		uvec ntestcontrol;
+		unsigned int minnsamples = 0.2*totSamples;
+		mat myTestCases;
+		mat myTestControl;
 		vec auxcasesample=zeros<vec>(sizecases);
-  		vec auxcontrolsample=zeros<vec>(sizecontrol);
-  		mat myTestCases;
- 		mat myTestControl;
-		for (int i =0;i<totSamples;i++)
+		vec auxcontrolsample=zeros<vec>(sizecontrol);
+		do
 		{
-			mysample=join_cols(mysample,casesample.row((samCases(i))));
-			mysample=join_cols(mysample,controlsample.row((samControl(i))));
-			auxcasesample[(samCases(i))]=1;
-			auxcontrolsample[(samControl(i))]=1;
-			if (Outcome=="RANDOM")
+			uvec samCases = randi<uvec>(totSamples, distr_param(0,sizecases-1));
+			uvec samControl = randi<uvec>(totSamples, distr_param(0,sizecontrol-1));
+			auxcasesample=zeros<vec>(sizecases);
+			auxcontrolsample=zeros<vec>(sizecontrol);
+			for (int i =0;i<totSamples;i++)
 			{
-				mysample.col(outcomeidx)(2*i) = outRandomCases(samCases(i));
-				mysample.col(outcomeidx)(2*i+1) = outRandomControl(samControl(i));
+				mysample=join_cols(mysample,casesample.row((samCases(i))));
+				mysample=join_cols(mysample,controlsample.row((samControl(i))));
+				auxcasesample[(samCases(i))]=1;
+				auxcontrolsample[(samControl(i))]=1;
+				if (Outcome=="RANDOM")
+				{
+					mysample.col(outcomeidx)(2*i) = outRandomCases(samCases(i));
+					mysample.col(outcomeidx)(2*i+1) = outRandomControl(samControl(i));
+				}
 			}
-		}				
-		myTestCases=casesample.rows(find(auxcasesample==0));
-		myTestControl=controlsample.rows(find(auxcontrolsample==0));
+			ntestcases = find(auxcasesample==0);
+			ntestcontrol = find(auxcontrolsample==0);
+		}
+		while ((ntestcases.n_elem<minnsamples) || (ntestcontrol.n_elem<minnsamples));
+		myTestCases=casesample.rows(ntestcases);
+		myTestControl=controlsample.rows(ntestcontrol);
 		if (Outcome=="RANDOM") 
 		{
-			myTestCases.col(outcomeidx) = outRandomCases(find(auxcasesample==0));
-			myTestControl.col(outcomeidx) = outRandomControl(find(auxcontrolsample==0));
+			myTestCases.col(outcomeidx) = outRandomCases(ntestcases);
+			myTestControl.col(outcomeidx) = outRandomControl(ntestcontrol);
 		}
 
 		int ncases = myTestCases.n_rows;
@@ -459,7 +467,18 @@ std::string binaryFowardSelection(const unsigned int size,const int totSamples,c
     else
     {
        bestmodel=mean(myoutcome.col(1));
-       if (type=="LOGIT") bestmodel=log(bestmodel/(1-bestmodel));
+       if (type=="LOGIT") 
+	   {
+		   if ((bestmodel(0)>0)&&(bestmodel(0)<1))  
+		   {
+			   bestmodel=log(bestmodel/(1-bestmodel));
+		   }
+		   else 
+		   {
+			   if (bestmodel(0)==0) bestmodel(0) = MTHRESH;
+			   else bestmodel(0) = THRESH;
+		   }
+	   }
 	}
   	bestpredict_train=predictForFresaFunc(bestmodel,mysampleMatbase,"prob",type);
   	if (loops > 1) bestpredict=predictForFresaFunc(bestmodel,myTestsampleMatbase,"prob",type);
@@ -476,6 +495,7 @@ std::string binaryFowardSelection(const unsigned int size,const int totSamples,c
 	  	{
 			vec iprob;
 			vec iprob_t;
+			zmin=0.0;
 	  		if (vnames[j] != inname)
 	  		{
 				mysampleMat=join_rows(mysampleMatbase,mysample.col(lockup[vnames[j]]));
@@ -484,12 +504,25 @@ std::string binaryFowardSelection(const unsigned int size,const int totSamples,c
 	  			singleTrainPredict.clear();
 	  			singleTestPredict.clear();
              	if((mysampleMat.n_cols>1)or(type=="COX"))
-             	newmodel =modelFittingFunc(myoutcome,mysampleMat,type);
-			    else
-			    {
-        			newmodel=mean(myoutcome.col(1));
-        			if (type=="LOGIT") 	newmodel=log(newmodel/(1-newmodel));
-        		}
+				{
+					newmodel =modelFittingFunc(myoutcome,mysampleMat,type);
+				}
+				else
+				{
+					newmodel=mean(myoutcome.col(1));
+					if (type=="LOGIT") 	
+					{
+						if ((newmodel(0)>0)&&(newmodel(0)<1))  
+						{
+							newmodel=log(newmodel/(1.0-newmodel));
+						}
+						else 
+						{
+						   if (newmodel(0)==0) newmodel(0) = MTHRESH;
+						   else newmodel(0) = THRESH;
+						}
+					}
+				}
 				if (is_finite(newmodel)) 
 	  			{
   					singleTrainPredict=predictForFresaFunc(newmodel,mysampleMat,"prob",type);
@@ -621,10 +654,14 @@ try {   // R_CStackLimit=(uintptr_t)-1;
 #pragma omp parallel for schedule(dynamic) ordered shared (mynames,formulas)  
     	for (int doOver=0; doOver<loops;doOver++)
 	 	{
+			std::string selt = selType;
+			if (selType=="Both") 
+			{
+				if ( 3*doOver > loops) selt = "zIDI"; else selt="zNRI";
+			}
 
-	
 			std::vector <int> mynamesLoc;
-			std::string  frm = binaryFowardSelection(size,totSamples,zthr2,selType,loops,
+			std::string  frm = binaryFowardSelection(size,totSamples,zthr2,selt,loops,
 			Outcome,timeOutcome,type,maxTrainModelSize,casesample,controlsample,
 			ovnames,lockup,baseForm,mynamesLoc,covari);
 
@@ -655,4 +692,3 @@ try {   // R_CStackLimit=(uintptr_t)-1;
 		return 0;
 	}
 }
-

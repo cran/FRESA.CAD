@@ -9,6 +9,7 @@ function(variableList,data,pvalue=0.001,corthreshold=0.9,method = c("pearson", "
 	
 	cor.var.names <- vector();
 	cor.var.value <- vector();
+	arownames <- vector();
 
 	short.list <- vector();
 	
@@ -16,8 +17,9 @@ function(variableList,data,pvalue=0.001,corthreshold=0.9,method = c("pearson", "
 	delnames[1] = "Deleted"
 	for (j in 1:size)
 	{
-		varlist <- "{";
+		varlist <- paste("I(",vnames[j]);
 		corlist <- "{";
+		added=0;
 		for (i in 1:size)
 		{
 			if ( j != i)
@@ -25,9 +27,10 @@ function(variableList,data,pvalue=0.001,corthreshold=0.9,method = c("pearson", "
 				pval <- cor.test(data[,vnames[j]],data[,vnames[i]] ,alternative ="two.sided",method=method);
 				if ((pval$p.value<pvalue) && (pval$estimate > corthreshold))
 				{
-					varlist <- paste(varlist,vnames[i])
+					varlist <- paste(varlist,"+",vnames[i])
 					corlist <- paste(corlist,sprintf("%.3f", pval$estimate))
 					if (delnames[j] != "Deleted") delnames[i]="Deleted";
+					added = added+1;
 				}
 			}
 		}
@@ -35,16 +38,20 @@ function(variableList,data,pvalue=0.001,corthreshold=0.9,method = c("pearson", "
 		{
 			short.list <- append(short.list,vnames[j]);
 		}
-		varlist <- paste(varlist,"}");
+		varlist <- paste(varlist,")");
 		corlist <- paste(corlist,"}");
-		cor.var.names <- append(cor.var.names,varlist);
-		cor.var.value <- append(cor.var.value,corlist);
-		cat(vnames[j], "\n");
+		if (added>0) 
+		{
+			cor.var.names <- append(cor.var.names,varlist);
+			cor.var.value <- append(cor.var.value,corlist);
+			arownames <- append(arownames,vnames[j])
+			cat(varlist, "\n");
+		}
 	}
 	
 	result <- cbind(cor.var.names);
 	result <- cbind(result,cor.var.value);
-	rownames(result) <- vnames;
+	if (length(arownames)>0) rownames(result) <- arownames;
 	listResul <- list(correlated.variables=result,short.list = short.list)
 	return (listResul);
 }

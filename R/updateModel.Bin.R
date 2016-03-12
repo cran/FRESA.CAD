@@ -26,6 +26,10 @@ function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableL
 	minsize = min(sizecases,sizecontrol);
 	varsize = ncol(data)-1;
 
+	if (numberOfModels <= 0) 
+	{
+		numberOfModels = 1;
+	}
 	if (maxTrainModelSize == 0)
 	{
 		maxTrainModelSize = as.integer(minsize/5);
@@ -57,37 +61,13 @@ function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableL
 	ftmp <- NULL;
 	frm1 <- NULL;
 	modsize = 0;
-	adjsize = 1;
-	maxp <- max(pvalue);
-	# set the pvalue to maxp so it will get the most probable size of the non-corrected model 
-	# adjsize will have the expected number of independent variables to be corrected for false discovery
-	if (numberOfModels > 0) 
-	{	
-		modcheck <- updateModel.Bin(Outcome,covariates,maxp,VarFrequencyTable,variableList,data,type,lastTopVariable,timeOutcome,selectionType,numberOfModels = -1,interaction=interaction,maxTrainModelSize);
-		modsize <- length(as.list(attr(terms(modcheck$formula),'term.labels')));
-		sizepass = 0;
-		if (modsize>1)
-		{
-			modelReclas <- getVar.Bin(modcheck$final.model,data=data,Outcome=Outcome,type=type);
-			zidi <- modelReclas$testData.z.IDIs[!is.na(modelReclas$testData.z.IDIs)];
-			sizepass <- sum(zidi > abs(qnorm(0.2/varsize))); # check how many passed Bonferroni correction
-#			cat (maxp,"<-q ",sizepass," <- size: Zidis ->",zidi,"\n");
-#			if (is.na(sizepass)) sizepass <- 0;
-		}
-		adjsize <- min(varsize,(modsize-sizepass)/maxp);
-		if (adjsize==0) adjsize=1;
-	}
-	else
-	{
-		if (numberOfModels == -1) loopst = 1;
-		numberOfModels = 1;
-	}
+	maxp <- max(pvalue);	# set the pvalue to maxp so it will get the most probable size of the non-corrected model 
 	
 	mysample <- data;
-#	testsample <- data;
-	climpvalue = 0.35;
+	climpvalue = 0.4999;	# 
 	loopst = 2;
 	maxp <- min(2.0*maxp,0.20);
+	theBootLoops=bootLoops;
 	if (lastTopVariable>1)
 	{
 
@@ -102,23 +82,19 @@ function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableL
 				varlist <- vector();
 				for (pidx in 1:length(pvalue))
 				{
-#				    if ((loopst==2)&&(nMod==1)) cat("P Value:",pvalue[pidx]," adj size:",adjsize,"\n")
 					cthr = cthr_s = abs(qnorm(pvalue[pidx]));	
 					zthrO = zthrO_s = abs(qnorm((pvalue[pidx]^2)));
 					changes = 1;
+					if (pidx>1) theBootLoops=1;
 					while ((termsinserted < maxTrainModelSize)&&((changes>0) && (loops<loopst)))
 					{
-						cthr_s = abs(qnorm(pvalue[pidx]*(loops+1)))/loopst;
-#						cthr_s = abs(qnorm(pvalue[pidx]));
+#						cthr_s = abs(qnorm(pvalue[pidx]*(loops+1)))/loopst;
+#						cthr_s = abs(qnorm(pvalue[pidx]/(loops+1)));
+						cthr_s = abs(qnorm(pvalue[pidx]));
 						zthrO_s = abs(qnorm((pvalue[pidx]^2)));
 						cthr = cthr_s;
 						zthrO = zthrO_s;
 						tinserted = 0;
-						if (adjsize>1)
-						{
-							cthr = max(cthr_s,abs(qnorm(termsinserted*maxp/adjsize)));	# Setting the q for false discovery 
-							zthrO = max(zthrO_s,abs(qnorm((termsinserted*maxp/adjsize)^2)));
-						}
 #						if (changes > 0) cat ("Testing at :",cthr,"\n");
 						changes = 0;
 
@@ -134,11 +110,6 @@ function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableL
 							inserted = 1;
 							tinserted = 1;
 							termsinserted = termsinserted + 1;
-							if (adjsize>1)
-							{
-								cthr = max(cthr_s,abs(qnorm(termsinserted*maxp/adjsize)));	
-								zthrO = max(zthrO_s,abs(qnorm((termsinserted*maxp/adjsize)^2)));
-							}
 							ftmp <- formula(frm1);
 							bestmodel <- modelFitting(ftmp,mysample,type,TRUE)
 						}
@@ -176,20 +147,18 @@ function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableL
 										}
 										if (is.numeric(zmin) && !is.na(zmin))
 										{
-											if ((bootLoops>4)&&(zmin>cthr))
+											if ((theBootLoops>4)&&(zmin>cthr))
 											{
-												idiCV <- bootstrapValidation_Bin(1.0000,bootLoops,ftmp,Outcome,mysample,type,plots=FALSE)
+												idiCV <- bootstrapValidation_Bin(1.0000,theBootLoops,ftmp,Outcome,mysample,type,plots=FALSE)
 												lastc <- ncol(idiCV$z.IDIs)
 												if (seltype=="zIDI")
 												{
 													ci <- as.vector(quantile(idiCV$z.IDIs[,lastc], probs = c(climpvalue, 0.5, 0.75), na.rm = TRUE,names = FALSE, type = 7));
-#													ci <- median(idiCV$z.IDIs[,lastc]);
 													ci2 <- median(idiCV$test.z.IDIs[,lastc]);
 												}
 												else
 												{
 													ci <- as.vector(quantile(idiCV$z.NRIs[,lastc], probs = c(climpvalue, 0.5, 0.75), na.rm = TRUE,names = FALSE, type = 7));
-#													ci <- median(idiCV$z.NRIs[,lastc]);
 													ci2 <- median(idiCV$test.z.NRIs[,lastc]);
 												}
 												zmin = min(ci[1],ci2,zmin);
@@ -248,18 +217,16 @@ function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableL
 														{
 															if ((bootLoops>4)&&(zmin>zthrOl))
 															{
-																idiCV <- bootstrapValidation_Bin(1.0000,bootLoops,ftmp,Outcome,mysample,type,plots=FALSE)
+																idiCV <- bootstrapValidation_Bin(1.0000,theBootLoops,ftmp,Outcome,mysample,type,plots=FALSE)
 																lastc <- ncol(idiCV$z.IDIs)
 																if (seltype=="zIDI")
 																{
 																	ci <- as.vector(quantile(idiCV$z.IDIs[,lastc], probs = c(climpvalue, 0.5, 0.75), na.rm = TRUE,names = FALSE, type = 7));
-#																	ci <- median(idiCV$z.IDIs[,lastc]);
 																	ci2 <- median(idiCV$test.z.IDIs[,lastc]);
 																}
 																else
 																{
 																	ci <- as.vector(quantile(idiCV$z.NRIs[,lastc], probs = c(climpvalue, 0.5, 0.75), na.rm = TRUE,names = FALSE, type = 7));
-#																	ci <- median(idiCV$z.NRIs[,lastc]);
 																	ci2 <- median(idiCV$test.z.NRIs[,lastc]);
 																}
 																zmin = min(ci[1],ci2,zmin);

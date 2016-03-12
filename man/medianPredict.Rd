@@ -11,8 +11,8 @@
 	              testData = NULL, 
 	              predictType = c("prob", "linear"),
 	              type = c("LOGIT", "LM", "COX"),
-	              Outcome = "CLASS",
-	              nk=0,
+	              Outcome = NULL,
+	              nk = 0,
 	              ...)
 }
 \arguments{

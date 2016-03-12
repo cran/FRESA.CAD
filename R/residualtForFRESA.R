@@ -5,6 +5,7 @@ function (object,testData,Outcome,eta=0.05)
 	classlen=length(class(object))
 	
 	cobj <- substr(class(object)[classlen], 1, 2);
+	if ((cobj!="co") && !is.null(object$family[1])) cobj = "glm";
 	switch(cobj,
 		co =
 		{
@@ -46,15 +47,16 @@ function (object,testData,Outcome,eta=0.05)
 			}
 		},
 		{
-			if (object$family[1] == "binomial")
-			{
-				out <- predictForFresa(object,testData,'prob') - testData[,Outcome];
-			}
-			else
-			{
-				out <- predictForFresa(object,testData,'linear') - testData[,Outcome];
-			}
-#			out <- predict(object,testData,'response',na.action=na.omit) - testData[,Outcome];
+#			if (object$family[1] == "binomial")
+#			{
+#				out <- predictForFresa(object,testData,'prob') - testData[,Outcome];
+#			}
+#			else
+#			{
+#				out <- predictForFresa(object,testData,'linear') - testData[,Outcome];
+#			}
+#		out <- predict(object,testData,'response',na.action=na.omit) - testData[,Outcome];
+		out <- 0 - testData[,Outcome];
 		}
 	)	
 	s <- is.na(out);

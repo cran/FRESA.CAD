@@ -1,7 +1,11 @@
 medianPredict <-
-function (formulaList,trainData,testData=NULL, predictType = c("prob", "linear"),type = c("LOGIT", "LM","COX"),Outcome="CLASS",nk=0,...) 
+function (formulaList,trainData,testData=NULL, predictType = c("prob", "linear"),type = c("LOGIT", "LM","COX"),Outcome=NULL,nk = 0,...) 
 {
 
+	if (is.null(Outcome)) 
+	{
+		nk = -1;
+	}
 	if (nk >= 0)
 	{
 		casesample = subset(trainData,get(Outcome)  == 1);
@@ -19,35 +23,66 @@ function (formulaList,trainData,testData=NULL, predictType = c("prob", "linear")
 	}
 	if (is.null(testData))
 	{
-		testData <- trainData
-	}
-
-	ftmp <- formula(paste(Outcome,"~",formulaList[[1]]))
-	bestmodel <- modelFitting(ftmp,trainData,type)	
-	out <- predictForFresa(bestmodel,testData,predictType);
-	if (nk>=0)
-	{
-		outKNN <- getKNNpredictionFromFormula(ftmp,KnnTrainSet,testData,Outcome=Outcome,nk)$binProb
+		medianKNN=NULL;
+		out=NULL;
+		KNNpredictions=NULL;
+		outKNN=NULL;
+		medianout <- vector(mode="numeric",length = nrow(trainData));
+		for ( n in 1:nrow(trainData))
+		{
+			medianout[n] = medianPredict(formulaList,trainData[-n,],trainData[n,],predictType,type,Outcome,nk = -1,...)$medianPredict[1]
+		}
 	}
 	else
 	{
-		outKNN <- NULL;
-		medianKNN <- NULL;
-	}
-	
-	for (i in 2:length(formulaList))
-	{
-		ftmp <- formula(paste(Outcome,"~",formulaList[[i]]));
-		out <- cbind(out,predictForFresa(modelFitting(ftmp,trainData,type),testData,predictType,...));
+
+		if (!is.null(Outcome)) 
+		{
+			ftmp <- formula(paste(Outcome,"~",formulaList[[1]]))
+		}
+		else
+		{
+			ftmp <- formula(formulaList[1])
+		}
+		bestmodel <- modelFitting(ftmp,trainData,type)	
+		out <- predictForFresa(bestmodel,testData,predictType);
+		if (nk>=0)
+		{
+			outKNN <- getKNNpredictionFromFormula(ftmp,KnnTrainSet,testData,Outcome=Outcome,nk)$binProb
+		}
+		else
+		{
+			outKNN <- NULL;
+			medianKNN <- NULL;
+		}
+		if (length(formulaList)>1)
+		{
+			for (i in 2:length(formulaList))
+			{
+				if (!is.null(Outcome))
+				{		
+					ftmp <- formula(paste(Outcome,"~",formulaList[[i]]));
+				}
+				else
+				{
+					ftmp <- formula(formulaList[i]);
+				}
+				out <- cbind(out,predictForFresa(modelFitting(ftmp,trainData,type),testData,predictType,...));
+				if (nk>=0) 
+				{
+					outKNN <- cbind(outKNN,getKNNpredictionFromFormula(ftmp,KnnTrainSet,testData,Outcome=Outcome,nk)$binProb);
+				}
+			}
+			medianout <- rowMedians(out);
+		}
+		else
+		{
+			medianout <- out;
+		}
 		if (nk>=0) 
 		{
-			outKNN <- cbind(outKNN,getKNNpredictionFromFormula(ftmp,KnnTrainSet,testData,Outcome=Outcome,nk)$binProb);
+			medianKNN <- rowMedians(outKNN);
 		}
-	}
-	medianout <- rowMedians(out);
-	if (nk>=0) 
-	{
-		medianKNN <- rowMedians(outKNN);
 	}
 	result <- list(medianPredict=medianout,
 	medianKNNPredict=medianKNN,predictions=out,KNNpredictions=outKNN)

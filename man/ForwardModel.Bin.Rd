@@ -21,7 +21,7 @@
 	                            maxTrainModelSize = 10,
 	                            type = c("LM", "LOGIT", "COX"),
 	                            timeOutcome = "Time",
-	                            selectionType=c("zIDI", "zNRI"),
+	                            selectionType=c("zIDI", "zNRI","Both"),
 	                            loop.threshold = 20,
 	                            interaction = 1,
 	                            cores = 4)
@@ -91,6 +91,9 @@
 	}
 	\item{formula.list}{
 		A list containing objects of class \code{formula} with the formulas used to fit the models found at each cycle
+	}
+	\item{variableList}{
+		A list of variables used in the forward selection
 	}
 }
 \references{Pencina, M. J., D'Agostino, R. B., & Vasan, R. S. (2008). Evaluating the added predictive ability of a new marker: from area under the ROC curve to reclassification and beyond. \emph{Statistics in medicine} \bold{27}(2), 157-172.}

@@ -5,20 +5,28 @@ function(fraction=1.00,loops=200,model.formula,Outcome,data,type=c("LM","LOGIT",
 
 
     type <- match.arg(type);
-	basemodel <- NULL
+	basemodel <- modelFitting(model.formula,data,type)
 	if (class(model.formula) != "formula")
 	{
 		model.formula = formula(model.formula);
 	}
 	varsList <- as.list(attr(terms(model.formula),"variables"))
+	
 	if (length(varsList)>2)
 	{
 		outn <- length(table(data[,Outcome]))
 		basemodel <- modelFitting(model.formula,data,type)
+#		print(summary(basemodel))
 		
 		if ( inherits(basemodel, "try-error"))
 		{
-			stop("BootstapValidation: Initial model Error\n")
+			print(model.formula);
+			data[,Outcome] = data[,Outcome] + rnorm(nrow(data),0,1e-10);
+			basemodel <- modelFitting(model.formula,data,type)
+			if ( inherits(basemodel, "try-error"))
+			{
+				stop("BootstapValidation: Initial model Error\n")
+			}
 		}
 
 		modelMat <- model.matrix(model.formula,data);
@@ -33,25 +41,33 @@ function(fraction=1.00,loops=200,model.formula,Outcome,data,type=c("LM","LOGIT",
 
 		 output<-.Call("bootstrapValidationResCpp", fraction, loops, modelMat,type,data.matrix(response),1);
 
-
+		modelMat <- NULL;
 		bootmodel <- basemodel;
 
 		trainRMSE <- sqrt(mean(output$trainResiduals^2));
 		bootvar <- mean(output$testResiduals^2);
 		testRMSE <- sqrt(bootvar);
 
-#		wt <- exp(-(output$testSampledRMSE^2)/(1.0e-10+bootvar)); # the weights
-#		wt <- (output$testSampledRMSE^2)/(1.0e-10+bootvar); # the pre weights an F variance ratio
-#		wt <- 1.0-1.0/(1.0+exp(-3.0*(wt-1.5)))				# the final weight a sigmoid centred at 1.5 variances
-		wt <- (1.0e-10+bootvar)/(1.0e-10+output$testSampledRMSE^2); # the pre weights an F variance ratio
-		wt <- 1.0/wt;				# the final weight 
+		wt <- ((1.0e-10+output$bootRMSE)/(1.0e-10+output$testSampledRMSE))^2; # the pre weights an F variance ratio
 		
-#		bootmodel$coefficients <-  apply(output$bcoef,2,mean,trim = 0.25, na.rm = TRUE)
+		pro <- predictForFresa(bootmodel,testData=data,predictType = 'linear');
+		bootResRMSE<- sqrt(mean((pro-data[,Outcome])^2))
+		if (plots)
+		{
+			cat("Base Coefficientes: RMSE:",bootResRMSE,"\n");
+			print(bootmodel$coefficients);
+		}
 		bootmodel$coefficients <-  apply(output$bcoef,2,weighted.mean,wt = wt, na.rm = TRUE)
 		names(bootmodel$coefficients) <- names(basemodel$coefficients);
-
 		pr <- predictForFresa(bootmodel,testData=data,predictType = 'linear');
 		bootmodel$linear.predictors <- pr;
+		bootResRMSE<- sqrt(mean((pr-data[,Outcome])^2))
+		if (plots)
+		{
+			cat("mean Coefficientes: RMSE:",bootResRMSE," Between Predictions RMSE:",sqrt(mean((pr-pro)^2)),"\n");
+			print(bootmodel$coefficients);
+		}
+
 		colnames(output$NeRi) <- attr(terms(model.formula),'term.labels');
 		colnames(output$tpvalue) <- attr(terms(model.formula),'term.labels');
 		colnames(output$wpvalue) <- attr(terms(model.formula),'term.labels');
@@ -81,12 +97,7 @@ function(fraction=1.00,loops=200,model.formula,Outcome,data,type=c("LM","LOGIT",
 			plot(ecdf(output$trainSampledRMSE),main="RMSE",col="black",lwd = 2,verticals = TRUE, do.points = FALSE);
 			abline(v=testRMSE,col = "red");
 			par(mfrow=c(1,1))
-			# cat("Initial Coefficients\n")
-			# print(basemodel$coefficients)
-			# cat("Boot Coefficients\n")
-			# print(bootmodel$coefficients)
-			cat("Mean Wt:",mean(wt)," Max Wt:",max(wt)," Min wt:",min(wt),"\n")
-			cat("Train RMSE :",trainRMSE," Test RMSE :",testRMSE," F Ratio :",(testRMSE/trainRMSE)^2,"Original RMSE :",output$startRMSE," Boot RMSE :",output$bootRMSE," F Ratio :",(output$bootRMSE/output$startRMSE)^2,"\n");
+			cat("Train RMSE :",trainRMSE," Test RMSE :",testRMSE," F Ratio :",(testRMSE/trainRMSE)^2,"Original RMSE :",output$startRMSE,"Boot RMSE :",output$bootRMSE,"Wt Boot RMSE :",bootResRMSE," F Ratio :",(output$bootRMSE/output$startRMSE)^2,"\n");
 			
 
 		}
@@ -106,20 +117,17 @@ function(fraction=1.00,loops=200,model.formula,Outcome,data,type=c("LM","LOGIT",
 			testPrediction=output$testPrediction,
 			testOutcome=output$testOutcome,
 			testResiduals=output$testResiduals,
-			trainPrediction=output$trainPrediction,
-			trainOutcome=output$trainOutcome,
-			trainResiduals=output$trainResiduals,
 			testRMSE=testRMSE,
 			trainRMSE=trainRMSE,
 			trainSampledRMSE=output$trainSampledRMSE,
 			testSampledRMSE=output$testSampledRMSE
 		), class = "bootstrapValidation_Res");
 
-
 		return (result);
 	}
 	else
 	{
-		return (NULL);
+		result <- NULL;
+		return (result);
 	}
 }

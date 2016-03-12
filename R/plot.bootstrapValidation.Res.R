@@ -4,7 +4,7 @@ function(x,xlab = "Years", ylab="Survival",...)
 {
 
 
-	par(mfrow=c(1,1))
+	par(mfrow=c(1,1),pty='m')
 	classlen=length(class(x$boot.model))
 	
 	cobj <- substr(class(x$boot.model)[classlen], 1, 2);

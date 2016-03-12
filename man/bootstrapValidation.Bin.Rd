@@ -110,9 +110,6 @@
 	\item{boot.model}{
 		An object of class \code{lm}, \code{glm}, or \code{coxph} containing a model whose coefficients are the median of the coefficients of the bootstrapped models
 	}
-	\item{mboot.model}{
-		An object of class \code{lm}, \code{glm}, or \code{coxph} containing a model whose coefficients are the IDI-weighted mean of the coefficients of the bootstrapped models
-	}
 	\item{boot.accuracy}{
 		The accuracy of the \code{mboot.model} model
 	}

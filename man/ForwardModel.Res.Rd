@@ -88,6 +88,9 @@
 	\item{formula.list}{
 		A list containing objects of class \code{formula} with the formulas used to fit the models found at each cycle
 	}
+	\item{variableList}{
+		A list of variables used in the forward selection
+	}
 }
 \author{Jose G. Tamez-Pena and Antonio Martinez-Torteya}
 \seealso{\code{\link{ForwardSelection.Model.Bin}}}

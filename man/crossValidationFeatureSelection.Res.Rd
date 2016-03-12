@@ -33,7 +33,9 @@
 	                                    update.pvalue = c(0.05,0.05),
 	                                    unirank = NULL,
 	                                    print=TRUE,
-	                                    plots=TRUE)
+	                                    plots=TRUE,
+	                                    zbaggRemoveOutliers=4.0
+	                                    )
 }
 \arguments{
 	\item{size}{
@@ -108,6 +110,9 @@
 	\item{plots}{
 		Logical. If \code{TRUE}, plots are displayed
 	}
+	\item{zbaggRemoveOutliers}{
+		For linear regresion, zbaggRemoveOutliers is used to set the z-treshold to be used in the outlier detection. 
+	}
 }
 \details{
 	This function produces a set of data and plots that can be used to inspect the degree of over-fitting or shrinkage of a model.
@@ -118,7 +123,7 @@
 		A list containing objects of class \code{formula} with the formulas used to fit the models found at each cycle
 	}
 	\item{Models.testPrediction}{
-		A data frame with the blind test set predictions made at each fold of the cross validation, where the models used to generate such predictions (\code{formula.list}) were generated via a feature selection process which included only the train set.
+		A data frame with the blind test set predictions made at each fold of the cross validation (Full B:SWiMS,Median,Bagged,Forward,Backward Elimination), where the models used to generate such predictions (\code{formula.list}) were generated via a feature selection process which included only the train set.
 		It also includes a column with the \code{Outcome} of each prediction, and a column with the number of the fold at which the prediction was made.
 	}
 	\item{FullBWiMS.testPrediction}{
@@ -208,7 +213,7 @@
 	\item{Models.trainPrediction}{
 		A data frame with the outcome and the train prediction of every model
 	}
-	\item{FullBWiMS.trainPrediction}{
+	\item{FullBSWiMS.trainPrediction}{
 		A data frame with the outcome and the train prediction at each CV fold for the main model
 	}
 	\item{LASSO.trainPredictions}{
@@ -222,6 +227,15 @@
 	}
 	\item{BSWiMS.ensemble.prediction}{
 		The ensemble prediction by all models on the test data
+	}
+	\item{BeforeBHFormulas.list}{
+		The list of formulas before the BH FDR
+	}
+	\item{ForwardFormulas.list}{
+		The list of formulas produced by the forward procedure
+	}
+	\item{baggFormulas.list}{
+		The list of the bagged models
 	}
 	
 }

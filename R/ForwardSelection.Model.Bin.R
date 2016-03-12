@@ -1,5 +1,5 @@
 ForwardSelection.Model.Bin <-
-function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,variableList,data,maxTrainModelSize=10,type=c("LM","LOGIT","COX"),timeOutcome="Time",selectionType=c("zIDI","zNRI"),loop.threshold=20,interaction=1,cores=4)
+function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,variableList,data,maxTrainModelSize=10,type=c("LM","LOGIT","COX"),timeOutcome="Time",selectionType=c("zIDI","zNRI","Both"),loop.threshold=20,interaction=1,cores=4)
 {
 #	    R_CStackLimit = -1;
 	    type <- match.arg(type)
@@ -31,29 +31,36 @@ function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,vari
 		
 		if (nrow(variableList)>1)
 		{
+			if (nrow(variableList)<size) size = nrow(variableList)
 			frm <- paste(Outcome,"~",acovariates," + ",timeOutcome);
 			for (i in 1:size)
 			{
 				frm <- paste(frm," + ",vnames[i])
 			}
+#			cat(frm,"\n")
 			modelFrame <- model.frame(formula(frm),data);
 		}
 		else
 		{
 			modelFrame <- data;	
 		}
-	   
+
+#		cat(frm,"\n")
+		
 	    colNames=colnames(modelFrame);
 	    
 	    output<-.Call("ReclassificationFRESAModelCpp",size, fraction, pvalue, loops, covariates, Outcome,as.vector(variableList[,1]), maxTrainModelSize, type, timeOutcome, seltype,loop.threshold, interaction,data.matrix(modelFrame),colNames,cores);
 
+		rloops = min(loops,100);
+		rpvalue = min(pvalue,0.01);
 	    if (loops>1) 
 		{
-			randoutput <-.Call("ReclassificationFRESAModelCpp",size, fraction, pvalue, loops, covariates, "RANDOM" ,as.vector(variableList[,1]), maxTrainModelSize, type, timeOutcome, seltype,loop.threshold, interaction,data.matrix(modelFrame),colNames,cores);
+			randoutput <-.Call("ReclassificationFRESAModelCpp",size, fraction, rpvalue, rloops, covariates, "RANDOM" ,as.vector(variableList[,1]), maxTrainModelSize, type, timeOutcome, seltype,loop.threshold, interaction,data.matrix(modelFrame),colNames,cores);
 		}
 		else 
 		{
 			randoutput <-output;
+			rpvalue=pvalue;
 		}
 		
 		zthr = abs(qnorm(pvalue)); 
@@ -78,13 +85,14 @@ function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,vari
 		baseForm = paste(baseForm,paste(" ~ ",acovariates));
 
 		avgsize = 0;
-		for (i in 1:loops)
+		for (i in 1:rloops)
 		{
 #			cat(output$formula.list[i],"\n")
 			avgsize = avgsize+ str_count(randoutput$formula.list[i],"\\+") - 1;
 		}
-		avgsize = (nrow(variableList)/size)*avgsize/loops;
-		cat ("Average size =",avgsize,"\n");
+		avgsize = (pvalue/rpvalue)*(nrow(variableList)/size)*(avgsize/rloops);
+		cat ("To Test Variables:",nrow(variableList),"# Variables:",size," Average size =",avgsize,"\n");
+		if (loops==1) avgsize=0;
 
 			mynames <- output$mynames + 1 
 			topvar <- table(mynames);
@@ -231,7 +239,9 @@ function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,vari
 		ranked.var=topvar,
 		z.selectionType=model_zmin,
 		formula.list=output$formula.list,
-		average.formula.size=avgsize);
+		average.formula.size=avgsize,
+		variableList=variableList
+		);
 #		cat ("Final :",frm1,"\n")
 	    return (result);
 }

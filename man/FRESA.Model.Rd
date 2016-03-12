@@ -37,7 +37,9 @@
 	                         "Binomial",
 	                         "Wilcox",
 	                         "tStudent",
-	                         "Ftest"))
+	                         "Ftest",
+	                         "Both"),
+	                         zbaggRemoveOutliers=4.0)
 
 }
 \arguments{
@@ -104,6 +106,10 @@
 	\item{testType}{
 		For an Binary-based optimization, the type of index to be evaluated by the \code{improveProb} function (\code{Hmisc} package): \emph{z}-value of Binary or of NRI. For a NeRI-based optimization, the type of non-parametric test to be evaluated by the \code{improvedResiduals} function: Binomial test ("Binomial"), Wilcoxon rank-sum test ("Wilcox"), Student's \emph{t}-test ("tStudent"), or \emph{F}-test ("Ftest")
 	}
+	\item{zbaggRemoveOutliers}{
+		For linear regresion, zbaggRemoveOutliers is used to set the z-treshold to be used in the outlier detection. 
+	}
+	
 }
 \details{
 This is the main function of FRESA.CAD given an outcome formula, and a data.frame this function will do an univariate analysis of the data (\code{univariateRankVariables}),
@@ -136,6 +142,10 @@ a  \code{crossValidationFeatureSelection_Bin} or a \code{crossValidationFeatureS
 	\item{used.variables}{
 		The number of terms that passed the filter procedure
 	}
+	\item{call}{
+		the function call
+	}
+	
 }
 \references{Pencina, M. J., D'Agostino, R. B., & Vasan, R. S. (2008). Evaluating the added predictive ability of a new marker: from area under the ROC curve to reclassification and beyond. \emph{Statistics in medicine} \bold{27}(2), 157-172.}
 \author{Jose G. Tamez-Pena and Antonio Martinez-Torteya}

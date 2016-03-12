@@ -124,7 +124,9 @@ backVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data,star
 		{
 			modsize <- length(as.list(attr(terms(model),"term.labels")));	
 			if (modsize<1) modsize=1;
-			p.elimin <- min(pvalue,2*modsize*pvalue/adjsize) # BH alpha the elimination p-value
+			qvalue <- 4*pvalue;
+			if (qvalue < 0.1) qvalue=0.1 # lests keep a the minimum q-value to 0.1
+			p.elimin <- min(pvalue,modsize*qvalue/adjsize) # BH alpha the elimination p-value
 		}
 
 		bk <- back.var.IDISelection(model,p.elimin,Outcome=myOutcome,data=mydataFrame,startOffset,type,seltype);
@@ -141,21 +143,25 @@ backVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data,star
 			}
 				if (adjsize>1)
 				{
-					weight <- 4.0/5.0;
-					for (i in 1:length(beforeFSCmodel$coefficients))
+					weight <- 1.0;
+					
+					if ((length(beforeFSCmodel$coefficients)>0)&&(length(model$coefficients)>0))
 					{
-						notadded = TRUE;
-						for (j in 1:length(model$coefficients))
+						for (i in 1:length(beforeFSCmodel$coefficients))
 						{
-							if (names(beforeFSCmodel$coefficients)[i] == names(model$coefficients)[j])
+							notadded = TRUE;
+							for (j in 1:length(model$coefficients))
 							{
-								beforeFSCmodel$coefficients[i] <- (weight*beforeFSCmodel$coefficients[i] + (1-weight)*model$coefficients[j]); # it will average the two
-								notadded=FALSE;
+								if (names(beforeFSCmodel$coefficients)[i] == names(model$coefficients)[j])
+								{
+									beforeFSCmodel$coefficients[i] <- (weight*beforeFSCmodel$coefficients[i] + (1-weight)*model$coefficients[j]); # it will average the two
+									notadded=FALSE;
+								}
 							}
-						}
-						if (notadded)
-						{
-							beforeFSCmodel$coefficients[i] <- weight*beforeFSCmodel$coefficients[i]; # it will average with zero
+							if (notadded)
+							{
+								beforeFSCmodel$coefficients[i] <- weight*beforeFSCmodel$coefficients[i]; # it will average with zero
+							}
 						}
 					}
 				}
@@ -167,7 +173,7 @@ backVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data,star
 		model = bk$Model;
 	}
 #	print(summary(model));
-	cat("Reduced Model:",bk$backfrm,"\n")
+#	cat("Reduced Model:",bk$backfrm,"\n")
 	modelReclas <- getVar.Bin(model,data=mydataFrame,Outcome=myOutcome,type);
 	result <- list(back.model=model,
 	loops=loops,

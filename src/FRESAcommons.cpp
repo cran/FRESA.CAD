@@ -595,6 +595,7 @@ vec coxfit(int  maxiter,const  vec &time,const  vec &status, mat &covar,const ve
 
 vec logit_link(const vec &mu)
 {
+//	return log(mu/(1.0 - mu));
     int i, n = mu.n_elem;
     vec rans = mu;
     for (i = 0; i < n; i++)
@@ -617,6 +618,7 @@ vec logit_link(const vec &mu)
 		}
     }
     return rans;
+
 }
 /* 
 ** This code is based on the logit_linkinv function from 
@@ -626,7 +628,8 @@ vec logit_link(const vec &mu)
 
 vec logit_linkinv(const vec &eta)
 {
-    int i, n = eta.n_elem;
+	return 1.0/(1.0+exp(-eta));
+/*    int i, n = eta.n_elem;
     vec rans = eta;
 	double expeta;
     for (i = 0; i < n; i++) 
@@ -635,6 +638,7 @@ vec logit_linkinv(const vec &eta)
 				rans[i] = expeta/(1.0 + expeta); 
     }
     return rans;
+*/
 }
 
 /* 
@@ -845,13 +849,15 @@ vec predictForFresaFunc(const vec &cf,const mat &newdata,std::string typ, std::s
 		out =newdata*coef- sum(coef%means);
 	     if(typ =="prob")  
 	    {
-	      for(unsigned int i=0;i<out.n_elem;i++)
-	       out(i) = 1.0/(1.0+exp(-out(i)));
+		  out = 1.0/(1.0+exp(-out));
+//	      for(unsigned int i=0;i<out.n_elem;i++)
+//	       out(i) = 1.0/(1.0+exp(-out(i)));
 	    }
-	     if(typ =="risk")  
+	    if(typ =="risk")  
 		{
-	      for(unsigned int i=0;i<out.n_elem;i++)
-	       out(i) = exp(out(i));
+			out = exp(out);
+//	      for(unsigned int i=0;i<out.n_elem;i++)
+//	       out(i) = exp(out(i));
 		}
 	}
 	else
@@ -859,8 +865,9 @@ vec predictForFresaFunc(const vec &cf,const mat &newdata,std::string typ, std::s
 		out =newdata*cf;  
 	    if(typ =="prob")  
 		{
-		  for(unsigned int i=0;i<out.n_elem;i++)
-		 	 out(i) = 1.0/(1.0+exp(-out(i)));
+		  out = 1.0/(1.0+exp(-out));
+//		  for(unsigned int i=0;i<out.n_elem;i++)
+//		 	 out(i) = 1.0/(1.0+exp(-out(i)));
 		}
 	}
 	 	
@@ -1106,29 +1113,54 @@ vec Fresarank(const vec &xi)
 	return(x);
 }
 
-vec residualForFRESAFunc(const vec &cf,const mat &newdata,std::string typ, std::string type,const vec &outcome) 
+vec residualForFRESAFunc(const vec &cf,const mat &newdata,std::string typ, std::string type,const mat &outcome) 
 {
 	vec out;
-	if(type=="COX")
+	if(type=="COX") // returns the residual number of half-life from the expected at event time 
 	{
-		vec lpp =predictForFresaFunc(cf,newdata,"prob",type);
-		lpp.elem(find_nonfinite(lpp)).fill(1000.0);
-		out = lpp - outcome;
+ 		double halflifeevents = 0.0;
+		double events = 0.0;
+		for (unsigned int i=0; i<outcome.n_rows;i++) 
+		{
+			if (outcome.col(1)(i)>0.0) 
+			{
+				halflifeevents = halflifeevents+outcome.col(0)(i);
+				events = events + 1;
+			}
+		}
+		if (events>0) halflifeevents = events/halflifeevents;
+		vec lpp = predictForFresaFunc(cf,newdata,"linear",type);
+		vec outr = exp(lpp);
+ 		out = outr/(outr+1.0) - outcome.col(1); 
+		for (unsigned int i=0; i<outr.n_elem;i++) 
+		{
+			if (outcome.col(1)(i)>0.0) 
+			{
+				outr(i) = outr(i)*halflifeevents*outcome.col(0)(i) - 1.0;
+				if (outr(i) >  1.0) outr(i) = 1.0;	
+			}
+			else
+			{
+				outr(i) = 0;
+			}			
+		}
+ 		out = 0.8*out + 0.2*outr ; // 20% from half-life residuals 
+// 		out = 0.9*(1.0/(1.0+exp(-lpp))- outcome.col(1)) + 0.1*outr ; // 10% from half-life residuals 
 	}
     if(type=="LM")
 	{
-		out=predictForFresaFunc(cf,newdata,"linear",type)- outcome;
+		out=predictForFresaFunc(cf,newdata,"linear",type)- outcome.col(1);
 	}
     if(type=="LOGIT")
     {
-		if (typ == "prob")
-		{
-			out=predictForFresaFunc(cf,newdata,"prob",type)- outcome;
-		}
-		else
-		{
-			out=predictForFresaFunc(cf,newdata,"linear",type)- outcome;
-		}
+//		if (typ == "prob")
+//		{
+			out=predictForFresaFunc(cf,newdata,"prob",type)- outcome.col(1);
+//		}
+//		else
+//		{
+//			out=predictForFresaFunc(cf,newdata,"linear",type)- outcome.col(1);
+//		}
 	}
 	if (!(out.is_finite())) 
 	{
@@ -1266,10 +1298,7 @@ improvedRes improvedResidualsFunc(const vec &oldResiduals,const vec &newResidual
 		}
 		case 3:
 		{
-			if (reduction>=increase)
-			{
-				pvalue = pwil = wilcoxtest(oldres, newres,0.0,TRUE,tail,TRUE);
-			}
+			pvalue = pwil = wilcoxtest(oldres, newres,0.0,TRUE,tail,TRUE);
 			break;
 		}
 		case 4:
@@ -1284,7 +1313,7 @@ improvedRes improvedResidualsFunc(const vec &oldResiduals,const vec &newResidual
 			if (rss2==0) rss2=DOUBLEEPS;
 			f_test = 1.0-R::pf(rss1/rss2-size1,1.0,size1,1,0);
 			pvalue =  pbin;
-			pwil = wilcoxtest(oldres, newres,0.0,TRUE,tail,TRUE);
+			if (reduction>=increase) pwil = wilcoxtest(oldres, newres,0.0,TRUE,tail,TRUE);
 			ptstu = ttest(oldres, newres,0.0,TRUE,TRUE,tail);
 			break;
 		}
@@ -1559,8 +1588,8 @@ gvarNeRI getVarResFunc(const mat &dataframe, std::string type,const mat &testdat
 		i=2;
 	}
 	vec FullModel = modelFittingFunc(dataframe.cols(0,1),dataframe.cols(2,dataframe.n_cols-1),type);
-	vec FullResiduals = residualForFRESAFunc(FullModel,dataframe.cols(2,dataframe.n_cols-1)," ",type,dataframe.cols(1,1));
-	vec testResiduals = residualForFRESAFunc(FullModel,testdata.cols(2,dataframe.n_cols-1)," ",type,testdata.cols(1,1));
+	vec FullResiduals = residualForFRESAFunc(FullModel,dataframe.cols(2,dataframe.n_cols-1)," ",type,dataframe.cols(0,1));
+	vec testResiduals = residualForFRESAFunc(FullModel,testdata.cols(2,dataframe.n_cols-1)," ",type,testdata.cols(0,1));
 	vec model_tpvalue(nvar);
 	vec model_bpvalue(nvar);
 	vec model_neri(nvar);
@@ -1588,8 +1617,8 @@ gvarNeRI getVarResFunc(const mat &dataframe, std::string type,const mat &testdat
 
 			if ( is_finite(redModel))
 			{
-				vec redResiduals = residualForFRESAFunc(redModel,dataframe_sh.cols(2,dataframe_sh.n_cols-1)," ",type,dataframe_sh.cols(1,1));
-				vec redTestResiduals = residualForFRESAFunc(redModel,testdata_sh.cols(2,testdata_sh.n_cols-1)," ",type,testdata_sh.cols(1,1));
+				vec redResiduals = residualForFRESAFunc(redModel,dataframe_sh.cols(2,dataframe_sh.n_cols-1)," ",type,dataframe_sh.cols(0,1));
+				vec redTestResiduals = residualForFRESAFunc(redModel,testdata_sh.cols(2,testdata_sh.n_cols-1)," ",type,testdata_sh.cols(0,1));
 				improvedRes iprob = improvedResidualsFunc(redResiduals,FullResiduals," ");
 				improvedRes testiprob = improvedResidualsFunc(redTestResiduals,testResiduals," ",samples);
 				model_tpvalue(j) = iprob.t_test_pValue;
@@ -1630,5 +1659,3 @@ gvarNeRI getVarResFunc(const mat &dataframe, std::string type,const mat &testdat
 	 result.testData_NeRIs=testmodel_neri;
      return (result);
 }
-
-
