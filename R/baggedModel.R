@@ -33,9 +33,12 @@ function(modelFormulas,data,type=c("LM","LOGIT","COX"),Outcome=NULL,timeOutcome=
 		{
 			feat <- unlist(strsplit(frm,"[+]"));
 		}
-		for (i in 1:length(feat))
+		if (length(feat)>0)
 		{
-			if ((feat[i]!="1")&&(feat[i]!=" ")&&(feat[i]!="  ")&&(feat[i]!="")) features <- append(features,feat[i]);
+			for (i in 1:length(feat))
+			{
+				if ((feat[i]!="1")&&(feat[i]!=" ")&&(feat[i]!="  ")&&(feat[i]!="")) features <- append(features,feat[i]);
+			}
 		}
 	}
 	VarFrequencyTable <- table(features);
@@ -51,60 +54,60 @@ function(modelFormulas,data,type=c("LM","LOGIT","COX"),Outcome=NULL,timeOutcome=
 	{
 	  baseForm = paste("Surv(",timeOutcome);
 	  baseForm = paste(baseForm,paste(",",paste(Outcome,")")));
+	  mtype="COX";
 	}
+	else
+	{
+		mtype=type;
+	}
+	
+
 
 	lastTopVariable = length(VarFrequencyTable);
 	if (lastTopVariable >= nsize/3) lastTopVariable <- nsize/3;
-	
 	frma <- paste(baseForm,"~ ");
-	firstvar = ".";
 	enterlist <- vector();
-	for ( i in 1:length(VarFrequencyTable))
+	thrsfreq <- frequencyThreshold*loops;
+	toRemove <- vector();
+	fistfreq <- 0;
+	if (length(vnames)>0)
 	{
-		if ((vnames[i] != " ") && (vnames[i] != ""))
+		for ( i in 1:length(vnames))
 		{
-			enterlist <- append(enterlist,vnames[i]);
-			if ((i<=lastTopVariable)&&(VarFrequencyTable[i] > frequencyThreshold*loops))  # Only features with a given frequency
+			if ((vnames[i] != " ") && (vnames[i] != ""))
 			{
-				frma <- paste(frma,"+",vnames[i]);
-				
-				if (firstvar == ".") 
+				enterlist <- append(enterlist,vnames[i]);
+				if ((i<=lastTopVariable)&&(VarFrequencyTable[i] > thrsfreq))  # Only features with a given frequency
 				{
-					firstvar = vnames[i];
+					if (fistfreq == 0) 
+					{
+						thrsfreq <- frequencyThreshold*VarFrequencyTable[i];
+						fistfreq <- VarFrequencyTable[i];
+					}
+					frma <- paste(frma,"+",vnames[i]);				
 				}
-				
+				else
+				{
+					toRemove <- append(toRemove,paste(" ",vnames[i]," ",sep=""));
+				}
 			}
 		}
 	}
-	model <- modelFitting(formula(frma),data,type)
-	
-	if (binoutcome)
+	else
 	{
-		shortVarList <- enterlist;
-		varlist <- vector();
-		for (i in 1:length(shortVarList))
-		{
-			varlist <- append(varlist,str_replace_all(unlist(strsplit(
-							str_replace_all(
-								str_replace_all(
-									str_replace_all(
-										str_replace_all(shortVarList[i],"I\\("," ")
-									,"\\("," ")
-								,">","\\*")
-							,"<","\\*")
-					,"\\*"))[1]," ",""))
-		}
-		shortVarList <- c(Outcome,as.vector(rownames(table(varlist))));
-#		print(shortVarList)
-		casesample = subset(data[,shortVarList],get(Outcome)  == 1);
-		controlsample = subset(data[,shortVarList],get(Outcome) == 0);
-		nrowcase <- nrow(casesample);
-		nrowcontrol <- nrow(controlsample);
-		minsample <- min(nrowcase,nrowcontrol);
-		if (nrowcase==nrowcontrol) binoutcome=FALSE;
+		frma <- paste(frma,"+",1);	
 	}
-	
-	
+	model <- modelFitting(formula(frma),data,mtype)
+	if (inherits(model, "try-error"))
+	{
+		cat("Warning Bagging Fitting error\n")
+		model <- modelFitting(formula(frma),data,"LM")
+		if (type=="COX")
+		{
+			model$coefficients <- model$coefficients[-1];
+		}			
+	}
+
 #	print(summary(model));
 	msize <- length(model$coefficients)
 	wts <- 0;
@@ -121,21 +124,33 @@ function(modelFormulas,data,type=c("LM","LOGIT","COX"),Outcome=NULL,timeOutcome=
 	if (type=="COX") 
 	{
 		zcol=4;
+		csize=0;
 	}
 	else
 	{
 		zcol=3;
+		csize=1;
 	}
 	
 #	cat("\n");
 	avgsize = 0;
 	varoutcome <- var(theoutcome);
+	varistds <- 0.00001+sqrt((colMeans(data^2)-colMeans(data)^2)/varoutcome);
 	totresidual <- rep(0,length(theoutcome));
-	contresidual <- totresidual;
 	for (n in 1:loops)
 	{
 	
 		if ((n %% 10) == 0) cat(".");
+#		cat(modelFormulas[n],"\n");
+		if (length(toRemove)>0)
+		{
+			modelFormulas[n] <- paste(modelFormulas[n]," +1",sep="");
+			for (rml in 1:length(toRemove))
+			{
+				modelFormulas[n] <- sub(toRemove[rml]," 1 ",modelFormulas[n]);
+			}
+		}
+#		cat(modelFormulas[n],"\n");
 		if (gregexpr(pattern ='~',modelFormulas[n])[1]>0)
 		{
 			ftmp <- formula(modelFormulas[n]);
@@ -144,15 +159,7 @@ function(modelFormulas,data,type=c("LM","LOGIT","COX"),Outcome=NULL,timeOutcome=
 		{
 			ftmp <- formula(paste(baseForm,"~",modelFormulas[n]));
 		}
-		if (binoutcome) 
-		{
-			BDataSet <- rbind(casesample[sample(1:nrowcase,minsample,replace=FALSE),],controlsample[sample(1:nrowcontrol,minsample,replace=FALSE),])
-			out <- modelFitting(ftmp,data,type);
-		}
-		else
-		{
-			out <- modelFitting(ftmp,data,type);
-		}
+		out <- modelFitting(ftmp,data,mtype);
 		if (backElimination)
 		{
 			if (type=="LM")
@@ -170,13 +177,13 @@ function(modelFormulas,data,type=c("LM","LOGIT","COX"),Outcome=NULL,timeOutcome=
 			osize <- length(out$coefficients)
 			avgsize = avgsize+osize;
 			
-			if (osize>0)
+			if (osize>csize)
 			{				
 				outcoef  <- summary(out)$coefficients;
 				curprediction <- predictForFresa(out,data,predtype)
 				residual <- abs(curprediction-theoutcome);
 				varresidual <- mean(residual^2);
-				w = (varoutcome-varresidual)/varoutcome;
+				w = (varoutcome-varresidual)/varoutcome; # we will prefer models with small residuals
 				if (predtype=='prob') 
 				{
 					w = 2.0*(mean((curprediction>0.5) == theoutcome) - 0.5); # we will use accuracy for binary outcomes
@@ -186,19 +193,41 @@ function(modelFormulas,data,type=c("LM","LOGIT","COX"),Outcome=NULL,timeOutcome=
 					if (w>0) 
 					{
 						w = w-(1.0-w)*(osize-1.0)/(nsize-osize); # adjusting for model size.
-						if (w<0.1) w= 0.1; # we will keep the minumum weight to 0.1
-						totresidual <- totresidual+w*residual;
-						contresidual <- contresidual + w;
-						wts = wts + w;
-						for (i in 1:msize)
+						if (w<0.01) w= 0.01; # we will keep the minumum weight to 0.01
+						if (type == "COX") 
 						{
-							for (j in 1:osize)
+							cs <- abs(out$coefficients*varistds[names(out$coefficients)]) # cs has the ratio of coefficient vs the outcome variance
+						}
+						else
+						{
+							cs <- abs(out$coefficients[-1]*varistds[names(out$coefficients[-1])])
+						}
+						if (predtype=='prob')
+						{
+							cs <- mean(cs*(cs>=2.0)+(cs<2.0),na.rm=TRUE); # The mean of coeffcients that are larger than 2 times the expected logistic range
+						}
+						else
+						{
+							cs <- mean(cs*(cs>=1.0/osize)+(cs<1.0/osize),na.rm=TRUE); # The mean of coeffcients that are larger than the expected linear range
+						}
+	#					print(varistds[names(out$coefficients)]);
+						w <- w/cs; # let us penalize models that have large coefficients
+						if (!is.na(w))
+						{
+							totresidual <- totresidual+w*residual;
+							wts = wts + w;
+	#						cat(w,", ",cs,", \n");
+
+							for (i in 1:msize)
 							{
-								if (names(model$coefficients)[i] == names(out$coefficients)[j])
+								for (j in 1:osize)
 								{
-									model$coefficients[i] <- model$coefficients[i] + w*out$coefficients[j]; 
-									zvalues[i] <- zvalues[i] + outcoef[j,zcol];
-									zwts[i] = zwts[i] + 1;
+									if (names(model$coefficients)[i] == names(out$coefficients)[j])
+									{
+										model$coefficients[i] <- model$coefficients[i] + w*out$coefficients[j]; 
+										zvalues[i] <- zvalues[i] + outcoef[j,zcol];
+										zwts[i] = zwts[i] + 1;
+									}
 								}
 							}
 						}
@@ -206,12 +235,15 @@ function(modelFormulas,data,type=c("LM","LOGIT","COX"),Outcome=NULL,timeOutcome=
 				}
 			}
 		}
+		else
+		{
+			cat("+");
+		}
 	}
 	avgsize = avgsize/loops;
-	cat(". End \n");
 	if( wts>0)
 	{
-			model$coefficients <- model$coefficients/wts;
+		model$coefficients <- model$coefficients/wts;
 	}
 	for (i in 1:msize)
 	{
@@ -233,9 +265,6 @@ function(modelFormulas,data,type=c("LM","LOGIT","COX"),Outcome=NULL,timeOutcome=
 	{
 		if (type == 'LOGIT') # for logit predict we set the offset to maximum AUC
 		{
-#			out <- modelFitting(formula("V1~baggedPredict"),ndata,type);
-#			model$coefficients <- model$coefficients*out$coefficients[2];
-#			baggedPredict <- predictForFresa(model,data,"linear");
 			ndata <- as.data.frame(cbind(data[,Outcome],baggedPredict));
 			ndata <- ndata[order(baggedPredict),];
 			ncases <- sum(data[,Outcome]);
@@ -257,27 +286,31 @@ function(modelFormulas,data,type=c("LM","LOGIT","COX"),Outcome=NULL,timeOutcome=
 					threshold <- i;
 				}
 			}
-			indx <- threshold;
-			preindx <- threshold-1;
-			postindx <- threshold+1;
-			if (preindx<1) preindx=1;
-			if (postindx>nsize) postindx=nsize;
-			model$coefficients[1] <- model$coefficients[1]-(ndata[preindx,2]+2.0*ndata[indx,2]+ndata[postindx,2])/4;
-#			baggedPredict <- predictForFresa(model,data,"linear");
-#			ndata <- as.data.frame(cbind(data[,Outcome],baggedPredict));
-#			ndata <- ndata[order(baggedPredict),];
-#			print(ndata);
+			cat ("AUC: ",mauc,"THR: ",threshold/ncases);
+			if (threshold<nsize)
+			{
+				indx <- threshold;
+				preindx <- threshold-1;
+				postindx <- threshold+1;
+				if (preindx<1) preindx=1;
+				if (postindx>nsize) postindx=nsize;
+				model$coefficients[1] <- model$coefficients[1]-(ndata[preindx,2]+2.0*ndata[indx,2]+ndata[postindx,2])/4;
+			}
 		}
 	}
 
+	cat(" Avg Size: ",avgsize,"\n");
 
 #	print(summary(model));
 	reducededset <- data;
 	baggedPredict <- predictForFresa(model,data,predtype);
 	residual <- baggedPredict-theoutcome;
 	mado <- mean(abs(residual));
-	totresidual <- totresidual/contresidual+abs(residual);
 	rnames <- rownames(data);
+	if( wts>0)
+	{
+		totresidual <- totresidual/wts+abs(residual);
+	}
 
 	if ((removeOutliers>0) && (type=="LM") && (binoutcome==FALSE ))
 	{

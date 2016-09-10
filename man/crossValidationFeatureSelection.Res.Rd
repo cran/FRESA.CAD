@@ -126,7 +126,7 @@
 		A data frame with the blind test set predictions made at each fold of the cross validation (Full B:SWiMS,Median,Bagged,Forward,Backward Elimination), where the models used to generate such predictions (\code{formula.list}) were generated via a feature selection process which included only the train set.
 		It also includes a column with the \code{Outcome} of each prediction, and a column with the number of the fold at which the prediction was made.
 	}
-	\item{FullBWiMS.testPrediction}{
+	\item{FullBSWiMS.testPrediction}{
 		A data frame similar to \code{Models.testPrediction}, but where the model used to generate the predictions was the Full model, generated via a feature selection process which included all data.
 	}
 	\item{BSWiMS}{
@@ -237,7 +237,9 @@
 	\item{baggFormulas.list}{
 		The list of the bagged models
 	}
-	
+	\item{LassoFilterVarList}{
+		The list of variables used by LASSO fitting
+	}
 }
 \author{Jose G. Tamez-Pena and Antonio Martinez-Torteya}
 \seealso{\code{\link{crossValidationFeatureSelection_Bin},

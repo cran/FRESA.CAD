@@ -47,16 +47,26 @@ function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,vari
 	
 	output<-.Call("ForwardResidualModelCpp",size, fraction, pvalue, loops, covariates, Outcome,as.vector(variableList[,1]), maxTrainModelSize, type, timeOutcome, testType,loop.threshold, interaction,data.matrix(modelFrame),colNames,cores);
 	randoutput <- output;
-	rloops = min(loops,100);
-	rpvalue = min(pvalue,0.01);
+	rloops = loops;
+	rpvalue = pvalue;
+	randsize = 0;
 	if (loops>1) 
 	{
+		rloops = min(loops,25);
+		rpvalue = min(pvalue,0.01);
 		randoutput<-.Call("ForwardResidualModelCpp",size, fraction, rpvalue, rloops, covariates, "RANDOM",as.vector(variableList[,1]), maxTrainModelSize, type, timeOutcome, testType,loop.threshold, interaction,data.matrix(modelFrame),colNames,cores);
+		for (i in 1:rloops)
+		{
+			randsize = randsize+ str_count(randoutput$formula.list[i],"\\+") - 1;
+		}
+		randsize = (pvalue/rpvalue)*(nrow(variableList)/size)*(randsize/rloops);
+		cat ("Average Random Size = ",randsize,"\n");
 	}
 	else
 	{
 		randoutput <- output;
 		rpvalue=pvalue;
+		randsize = pvalue*nrow(variableList);
 	}
 
 	mynames <- output$mynames + 1;
@@ -75,13 +85,6 @@ function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,vari
 	baseForm = paste(baseForm,paste(" ~ ",acovariates));
 
 	
-	avgsize = 0;
-	for (i in 1:rloops)
-	{
-		avgsize = avgsize+ str_count(randoutput$formula.list[i],"\\+") - 1;
-	}
-	avgsize = (pvalue/rpvalue)*(nrow(variableList)/size)*(avgsize/rloops);
-	cat ("Average size =",avgsize,"\n");
 
 		pthr2 = 1-pnorm(sqrt(fraction)*abs(qnorm(pthr)));
 		if (pthr2>0.1) pthr2 = 0.1;
@@ -214,7 +217,7 @@ function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,vari
 	ranked.var=topvar,
 	z.NeRIs=model_ziri,
 	formula.list=formula.list,
-	average.formula.size=avgsize,
+	random.formula.size=randsize,
 	variableList=variableList);
 	
 	return (result);

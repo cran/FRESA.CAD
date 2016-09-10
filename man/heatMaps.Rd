@@ -12,9 +12,11 @@
 	         title = "Heat Map",
 	         hCluster = FALSE,
 	         prediction = NULL,
-	         outcomeGain = 0,
-			 theFiveColors=c("blue","cyan","black","yellow","red"),
-			 ...)
+	         Scale = FALSE,
+	         theFiveColors=c("blue","cyan","black","yellow","red"),
+	         outcomeColors = c("blue","lightgreen","yellow","orangered","red"),
+	         transpose=FALSE,
+	         ...)
 }
 \arguments{
 	\item{variableList}{
@@ -38,11 +40,17 @@
 	\item{prediction}{
 		A vector with a prediction for each subject, which will be used to rank the heat map
 	}
-	\item{outcomeGain}{
-		An optional value that can be used to force the heatmap to cluster subjects according to \code{outcome}
+	\item{Scale}{
+		An optional value to force the data normalization \code{outcome}
 	}
 	\item{theFiveColors}{
 		the colors of the heatmap 
+	}
+	\item{outcomeColors}{
+		the colors of the outcome bar 
+	}
+	\item{transpose}{
+		transpose the heatmap 
 	}
 	\item{...}{
 		aditional parameters for the heatmap.2 function
@@ -115,7 +123,7 @@
 	                  varRank = cancerModel$ranked.var,
 	                  Outcome = "pgstat",
 	                  data = dataCancerScale,
-	                  outcomeGain = 10)
+	                  Scale = 10)
 	# Shut down the graphics device driver
 	dev.off()}
 }

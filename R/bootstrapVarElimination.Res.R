@@ -10,7 +10,7 @@ bootstrapVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data
 		FullModel <- objectt;
 		varsList <- as.list(attr(terms(objectt),"variables"))
 		
-		climpvalue = 0.4999; # 
+		quartileValue = 0.25; # 
 		removeID = 0;
 
 		outCome = paste(varsList[2]," ~ ",setIntersect);
@@ -21,11 +21,14 @@ bootstrapVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data
 			frm1 <- paste(frm1,paste(" + ",varsList[i]));
 		}
 		ftmp <- formula(frm1);
+		modelFrame <- model.frame(ftmp,data);
 		backfrm <- frm1;
 #		cat("Start  Formula :",frm1,"\n")
 		NeRICVp <- bootstrapValidation_Res(fraction,loops,ftmp,Outcome,data,type,plots=plots)
 #		cat("Bootstrapped  Formula :",frm1,"\n")
 		startSearch = startlist + startOffset;
+		mfpos=1;
+		if (type=='COX') mfpos=2; 
 		maxPvalue=pvalue;
 		if (length(varsList) >= startSearch)
 		{		
@@ -44,45 +47,52 @@ bootstrapVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data
 			maxPvalue = pvalue;
 			for ( i in startSearch:length(varsList))
 			{
-				if (any(is.na(NeRICVp$bin.pvlaues[,idlist])))
-				{
-					who = i;
-				}
-				else
-				{ # reduce probability by two to test for equivalence of reduced model to the Full model
+				pcorrel <- cor.test(modelFrame[,mfpos], modelFrame[,as.character(varsList[i])], method = "spearman",na.action=na.omit)$p.value
+				{ 
+				# reduce probability by two to test for equivalence of reduced model to the Full model
 					switch(testType, 
 						tStudent = 
 						{ 
-							ci <- as.vector(quantile(NeRICVp$tStudent.pvalues[,idlist], probs = c(climpvalue, 0.5, 1-climpvalue), na.rm = TRUE,names = FALSE, type = 7));
-							ci2 <- as.vector(quantile(NeRICVp$test.tStudent.pvalues[,idlist], probs = c(climpvalue, 0.5, 1-climpvalue), na.rm = TRUE,names = FALSE, type = 7));
+							ci <- as.vector(quantile(NeRICVp$tStudent.pvalues[,idlist], probs = c(quartileValue, 0.5, 1-quartileValue), na.rm = TRUE,names = FALSE, type = 7));
+							ci2 <- median(NeRICVp$test.tStudent.pvalues[,idlist], na.rm = TRUE);
 						},
 						Wilcox = 
 						{ 
-							ci <- as.vector(quantile(NeRICVp$wilcox.pvalues[,idlist], probs = c(climpvalue, 0.5, 1-climpvalue), na.rm = TRUE,names = FALSE, type = 7));
-							ci2 <- as.vector(quantile(NeRICVp$test.wilcox.pvalues[,idlist], probs = c(climpvalue, 0.5, 1-climpvalue), na.rm = TRUE,names = FALSE, type = 7));
+							ci <- as.vector(quantile(NeRICVp$wilcox.pvalues[,idlist], probs = c(quartileValue, 0.5, 1-quartileValue), na.rm = TRUE,names = FALSE, type = 7));
+							ci2 <- median(NeRICVp$test.wilcox.pvalues[,idlist], na.rm = TRUE);
 						},
 						Binomial =
 						{ 
-							ci <- as.vector(quantile(NeRICVp$bin.pvlaues[,idlist], probs = c(climpvalue, 0.5, 1-climpvalue), na.rm = TRUE,names = FALSE, type = 7));
-							ci2 <- as.vector(quantile(NeRICVp$test.bin.pvlaues[,idlist], probs = c(climpvalue, 0.5, 1-climpvalue), na.rm = TRUE,names = FALSE, type = 7));
+							ci <- as.vector(quantile(NeRICVp$bin.pvlaues[,idlist], probs = c(quartileValue, 0.5, 1-quartileValue), na.rm = TRUE,names = FALSE, type = 7));
+							ci2 <- median(NeRICVp$test.bin.pvlaues[,idlist], na.rm = TRUE);
 						},
 						Ftest =
 						{ 
-							ci <- as.vector(quantile(NeRICVp$F.pvlaues[,idlist], probs = c(climpvalue, 0.5, 1-climpvalue), na.rm = TRUE,names = FALSE, type = 7));
-							ci2 <- as.vector(quantile(NeRICVp$test.F.pvlaues[,idlist], probs = c(climpvalue, 0.5, 1-climpvalue), na.rm = TRUE,names = FALSE, type = 7));
+							ci <- as.vector(quantile(NeRICVp$F.pvlaues[,idlist], probs = c(quartileValue, 0.5, 1-quartileValue), na.rm = TRUE,names = FALSE, type = 7));
+							ci2 <- median(NeRICVp$test.F.pvlaues[,idlist], na.rm = TRUE);
 						},
 					)
-					cmax = max(ci[2],ci2[2]);
-#					cmax = ci2[2];
-					if (cmax >= maxPvalue)
+					if (any(is.na(c(pcorrel,ci[2],ci2)))) 
 					{
-						maxPvalue = cmax;
-						who = i;
+						who=i;
 					}
-					if (ci[3] > maxPvalue)
+					else
 					{
-						who = i;
+						if ((pcorrel<ci[2]) && (ci2<0.5))
+						{
+							cmax = pcorrel;
+						}
+						else
+						{
+							cmax = max(ci[3],ci2);
+						}
+						if (cmax >= maxPvalue)
+						{
+							maxPvalue = cmax;
+							who = i;
+						}
 					}
+#					cat(pcorrel,":",ci[1],":",ci[3],":",ci2,":",cmax,"\n")
 				}
 				idlist=idlist+1;
 			}
@@ -136,6 +146,7 @@ bootstrapVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data
 		if (length(testRMSE)==0) testRMSE=1.0e10;
 		if (is.na(testRMSE)) testRMSE=1.0e10;
 		if (is.null(testRMSE)) testRMSE=1.0e10;
+#		cat ("Removed ",removeID,"\n");
 		result <- list(Removed=removeID,backfrm=backfrm,testRMSE=testRMSE,max.pvalue=maxPvalue);
 		
 		return (result)
@@ -145,16 +156,14 @@ bootstrapVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data
 	NeRICV <- NULL;
 	modelReclas <- NULL;
 	minbootRMSE <- 1.0;
-	stopFratio = 1.025; # stop if there is a small increase in RMS test error 
+	stopFratio = 1.5; # stop if there is an increase in RMS test error 
 	changes=1;
 	if (adjsize>1)
 	{
 		bkobjt <- bootstrapVarElimination_Res(object,pvalue,Outcome,data,startOffset,type,testType,loops,fraction,setIntersect,print,plots,adjsize=1); #just remove the features that produce similar models
-#		object <- bkobjt$bootCV$boot.model; 
 		object <- modelFitting(bkobjt$back.formula,data,type);
-		adjsize = floor(adjsize);	
-#		cat("Adjust size:",adjsize,"\n");
-		stopFratio = 1.10; # max increase in RMS test error	
+#		cat("Feature size:",adjsize,"\n");
+		stopFratio = 1.25; # max increase in RMS test error	
 		if (is.null(bkobjt$bootCV)) changes=0;
 	}
 	modelReclas <-getVar.Res(object,data=data,Outcome=Outcome,type);
@@ -181,6 +190,7 @@ bootstrapVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data
     model = object;
 	beforeFSCmodel <- object;
 	beforeFSC.model.formula <- frm1;
+	changes = 1*(startlist<length(varsList));
 	wts <- rep(1,length(beforeFSCmodel$coefficients));
 	names(wts) <- names(beforeFSCmodel$coefficients);
 	changes2 <- 0
@@ -193,9 +203,10 @@ bootstrapVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data
 		{
 			modsize <- length(as.list(attr(terms(model),"term.labels")));
 			if (modsize<1) modsize=1;
-			qvalue <- 4*pvalue;
+			qvalue <- 2.0*pvalue;
 			if (qvalue < 0.1) qvalue=0.1; # lets keep the minimum q value to 0.1
 			p.elimin <- min(pvalue,modsize*qvalue/adjsize) # # BH alpha the elimination p-value
+#			cat(modsize,":",p.elimin,"\n");
 		}
 
 		bk = boot.var.NeRISelection(objectt=model,pvalue=p.elimin,Outcome=Outcome,data=data,
@@ -203,7 +214,7 @@ bootstrapVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data
 
 		model.formula <- formula(bk$backfrm);
 		nmodel <- modelFitting(model.formula,data,type);
-		changes = as.integer(bk$Removed);
+		changes = bk$Removed;
 		weight <- 1.0;
 		if ((changes>0) && (!inherits(nmodel, "try-error")))
 		{
@@ -259,7 +270,7 @@ bootstrapVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data
 		else
 		{
 			model <- nmodel;
-			if (changes == 0) changes = 1;
+			if (inherits(nmodel, "try-error")) changes = 1;
 			loopsAux = loopsAux + 1;      
 		}
 	}

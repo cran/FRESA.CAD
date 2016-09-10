@@ -117,7 +117,8 @@ extern "C" SEXP bootstrapValidationBinCpp(SEXP _fraction,SEXP _loops,SEXP _dataf
 			mat myTestControl;
 			uvec nsamCaseTest;
 			uvec nsamControlTest;
-			unsigned int minTest=0.2*totSamples; // at least 20% of samples for test evaluation
+			unsigned int minTest=0.25*totSamples; // at least 25% of samples for test evaluation
+			if (minTest<1) minTest = 1;
 			do
 			{
 				uvec samCases= randi<uvec>(totSamples, distr_param(0,sizecases-1));
@@ -214,18 +215,19 @@ extern "C" SEXP bootstrapValidationBinCpp(SEXP _fraction,SEXP _loops,SEXP _dataf
 				vec wtsIdi = modelReclas.z_IDIs;
 				for (unsigned int n=0;n<wtsIdi.n_elem;n++)
 				{
-					wtsIdi(n) = 0;
-					if (is_finite(modelReclas.tz_IDIs(n)) && is_finite(modelReclas.IDIs(n)))
+					wtsIdi(n) = 1;
+/*					if (is_finite(modelReclas.tz_IDIs(n)) && is_finite(modelReclas.IDIs(n)))
 				 	{
 						if (modelReclas.tz_IDIs(n) > 0) 
 						{
 							wtsIdi(n) = (modelReclas.IDIs(n)-std::abs(modelReclas.IDIs(n)-modelReclas.tIDIs(n)))/modelReclas.tIDIs(n);
-							if (wtsIdi(n) < -0.1) 
+							if (wtsIdi(n) < 0) 
 					 		{
-								wtsIdi(n) = -0.1;	// just down-weight bad prediction
+								wtsIdi(n) = 0;	// just down-weight bad prediction
 							}
 						}
 					}
+*/
 				}
 				if (type != "COX") 
 				{
@@ -282,6 +284,11 @@ extern "C" SEXP bootstrapValidationBinCpp(SEXP _fraction,SEXP _loops,SEXP _dataf
 			bcoef.resize(lastInserted,n_var);
 			NRI.resize(lastInserted,n_var2);
 			IDI.resize(lastInserted,n_var2);
+			zNRI.resize(lastInserted,n_var2);
+			zIDI.resize(lastInserted,n_var2);
+			test_zNRI.resize(lastInserted,n_var2);
+			test_zIDI.resize(lastInserted,n_var2);
+			
 			if ((3*lastInserted)<loops) Rcout<<"Warning: only "<<lastInserted<<" samples of "<<loops<<" were inserted\n";
 		}
 		double blindAUC=0.5;

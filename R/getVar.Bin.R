@@ -93,6 +93,32 @@ function (object,data,Outcome="Class", type = c("LOGIT", "LM","COX"),testData=NU
 		}
 
 	}
+	else
+	{
+		for ( i in startlist:length(varsList))
+		{
+		
+#univariate analysis
+			uniModel <- modelFitting(formula(paste(outCome," + ",varsList[i])),data,type,fast=callCpp);
+			uniPredict <- predictForFresa(uniModel,testData,'prob');
+			uniPredict_train <- predictForFresa(uniModel,data,'prob');
+			test.accuracy = append(test.accuracy,sum(testData[,Outcome] == 1.0*(uniPredict>=0.5))/sizetest);
+			train.accuracy = append(train.accuracy,sum(data[,Outcome] == 1.0*(uniPredict_train>=0.5))/sizetrain);
+			
+#end univariate analysis
+			
+		}
+		nvar <- 1+length(varsList)-startlist;
+		model_zidi <- rep(0,nvar);
+		model_idi <- model_zidi;
+		model_nri <- model_zidi;
+		model_znri <- model_zidi;
+
+		t.model_zidi <- model_zidi;
+		t.model_idi <- model_zidi;
+		t.model_nri <- model_zidi;
+		t.model_znri <- model_zidi;
+	}
 	
 	 result <- list(
 		 z.IDIs=t.model_zidi,

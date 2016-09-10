@@ -50,8 +50,13 @@ function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableL
 	topvarCpy <- topvarID
 
 	
-	if (lastTopVariable < 1) lastTopVariable = length(VarFrequencyTable);
+	topfreq <- 0.1*VarFrequencyTable[1]; #check only features with a 10% bootstrap frequency relative to the top
+	if (lastTopVariable < 1) 
+	{
+		lastTopVariable = sum(1*(VarFrequencyTable>topfreq));
+	}
 	if (lastTopVariable > length(VarFrequencyTable)) lastTopVariable = length(VarFrequencyTable);
+	cat("Top Freq: ",VarFrequencyTable[1],"All Selected Features: ",length(VarFrequencyTable),"To be tested: ",lastTopVariable,"\n");
 	firstVar = 1
 	formulaList <- vector();
 	varlist <- vector();
@@ -64,7 +69,7 @@ function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableL
 	maxp <- max(pvalue);	# set the pvalue to maxp so it will get the most probable size of the non-corrected model 
 	
 	mysample <- data;
-	climpvalue = 0.4999;	# 
+	quartileValue = 0.49;	# 
 	loopst = 2;
 	maxp <- min(2.0*maxp,0.20);
 	theBootLoops=bootLoops;
@@ -85,11 +90,9 @@ function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableL
 					cthr = cthr_s = abs(qnorm(pvalue[pidx]));	
 					zthrO = zthrO_s = abs(qnorm((pvalue[pidx]^2)));
 					changes = 1;
-					if (pidx>1) theBootLoops=1;
+#					if (pidx>1) theBootLoops=1;
 					while ((termsinserted < maxTrainModelSize)&&((changes>0) && (loops<loopst)))
 					{
-#						cthr_s = abs(qnorm(pvalue[pidx]*(loops+1)))/loopst;
-#						cthr_s = abs(qnorm(pvalue[pidx]/(loops+1)));
 						cthr_s = abs(qnorm(pvalue[pidx]));
 						zthrO_s = abs(qnorm((pvalue[pidx]^2)));
 						cthr = cthr_s;
@@ -153,13 +156,15 @@ function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableL
 												lastc <- ncol(idiCV$z.IDIs)
 												if (seltype=="zIDI")
 												{
-													ci <- as.vector(quantile(idiCV$z.IDIs[,lastc], probs = c(climpvalue, 0.5, 0.75), na.rm = TRUE,names = FALSE, type = 7));
-													ci2 <- median(idiCV$test.z.IDIs[,lastc]);
+													ci <- as.vector(quantile(idiCV$z.IDIs[,lastc], probs = c(quartileValue, 0.5, 1.0-quartileValue), na.rm = TRUE,names = FALSE, type = 7));
+#													ci <- median(idiCV$z.IDIs[,lastc], na.rm = TRUE);
+													ci2 <- median(idiCV$test.z.IDIs[,lastc], na.rm = TRUE);
 												}
 												else
 												{
-													ci <- as.vector(quantile(idiCV$z.NRIs[,lastc], probs = c(climpvalue, 0.5, 0.75), na.rm = TRUE,names = FALSE, type = 7));
-													ci2 <- median(idiCV$test.z.NRIs[,lastc]);
+													ci <- as.vector(quantile(idiCV$z.NRIs[,lastc], probs = c(quartileValue, 0.5, 1.0-quartileValue), na.rm = TRUE,names = FALSE, type = 7));
+#													ci <- median(idiCV$z.NRIs[,lastc], na.rm = TRUE);
+													ci2 <- median(idiCV$test.z.NRIs[,lastc], na.rm = TRUE);
 												}
 												zmin = min(ci[1],ci2,zmin);
 											}
@@ -215,21 +220,23 @@ function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableL
 														}
 														if (is.numeric(zmin)&&!is.na(zmin))
 														{
-															if ((bootLoops>4)&&(zmin>zthrOl))
+															if ((theBootLoops>4)&&(zmin>zthrOl))
 															{
 																idiCV <- bootstrapValidation_Bin(1.0000,theBootLoops,ftmp,Outcome,mysample,type,plots=FALSE)
 																lastc <- ncol(idiCV$z.IDIs)
 																if (seltype=="zIDI")
 																{
-																	ci <- as.vector(quantile(idiCV$z.IDIs[,lastc], probs = c(climpvalue, 0.5, 0.75), na.rm = TRUE,names = FALSE, type = 7));
-																	ci2 <- median(idiCV$test.z.IDIs[,lastc]);
+#																	ci <- as.vector(quantile(idiCV$z.IDIs[,lastc], probs = c(quartileValue, 0.5, 1.0-quartileValue), na.rm = TRUE,names = FALSE, type = 7));
+																	ci <- median(idiCV$z.IDIs[,lastc], na.rm = TRUE);
+																	ci2 <- median(idiCV$test.z.IDIs[,lastc], na.rm = TRUE);
 																}
 																else
 																{
-																	ci <- as.vector(quantile(idiCV$z.NRIs[,lastc], probs = c(climpvalue, 0.5, 0.75), na.rm = TRUE,names = FALSE, type = 7));
-																	ci2 <- median(idiCV$test.z.NRIs[,lastc]);
+#																	ci <- as.vector(quantile(idiCV$z.NRIs[,lastc], probs = c(quartileValue, 0.5, 1.0-quartileValue), na.rm = TRUE,names = FALSE, type = 7));
+																	ci <- median(idiCV$z.NRIs[,lastc], na.rm = TRUE);
+																	ci2 <- median(idiCV$test.z.NRIs[,lastc], na.rm = TRUE);
 																}
-																zmin = min(ci[1],ci2,zmin);
+																zmin = min(ci,ci2,zmin);
 															}
 
 															if (is.numeric(zmin)&&!is.na(zmin)&&(zmin>zthrOl))

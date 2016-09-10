@@ -12,7 +12,7 @@ bootstrapVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data
 	  
 		varsList <- as.list(attr(terms(object),"variables"))
 		
-		climpvalue = 0.4999; #
+		quartileValue = 0.49; #
 		cthr = abs(qnorm(pvalue));
 		removeID = 0;
 
@@ -27,6 +27,10 @@ bootstrapVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data
 				frm1 <- paste(frm1,paste(" + ",varsList[i]));
 			}
 			ftmp <- formula(frm1);
+			modelFrame <- model.frame(ftmp,data);		
+			mfpos=1;
+			if (type=='COX') mfpos=2; 
+
 		
 #			cat ("Formula ",frm1,"\n")
 			idiCV <- bootstrapValidation_Bin(fraction,loops,ftmp,Outcome,data,type,plots=plots)
@@ -45,34 +49,42 @@ bootstrapVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data
 			idlist=startOffset+1;
 			for ( i in startSearch:length(varsList))
 			{
-				if (any(is.na(idiCV$z.IDIs[,idlist])))
+#				cat(as.character(varsList[i])," Min thr: ",minlcl," : ");
 				{
-					who = i;
-				}
-				else
-				{
+					zcorrel <- cor.test(modelFrame[,mfpos], modelFrame[,as.character(varsList[i])], method = "spearman",na.action=na.omit)$p.value
+					zcorrel <- -(qnorm(zcorrel))
+#					print(idiCV$z.IDIs[,idlist]);
 					if (seltype=="zIDI")
 					{
-						ci <- as.vector(quantile(idiCV$z.IDIs[,idlist], probs = c(climpvalue, 0.5, 1-climpvalue), na.rm = TRUE,names = FALSE, type = 7));
-						ci2 <- as.vector(quantile(idiCV$test.z.IDIs[,idlist], probs = c(climpvalue, 0.5, 1-climpvalue), na.rm = TRUE,names = FALSE, type = 7));
+						ci <- as.vector(quantile(idiCV$z.IDIs[,idlist], probs = c(quartileValue, 0.5, 1-quartileValue), na.rm = TRUE,names = FALSE, type = 7));
+						ci2 <- median(idiCV$test.z.IDIs[,idlist], na.rm = TRUE);
 					}
 					else
 					{
-						ci <- as.vector(quantile(idiCV$z.NRIs[,idlist], probs = c(climpvalue, 0.5, 1-climpvalue), na.rm = TRUE,names = FALSE, type = 7));
-						ci2 <- as.vector(quantile(idiCV$test.z.NRIs[,idlist], probs = c(climpvalue, 0.5, 1-climpvalue), na.rm = TRUE,names = FALSE, type = 7));
+						ci <- as.vector(quantile(idiCV$z.NRIs[,idlist], probs = c(quartileValue, 0.5, 1-quartileValue), na.rm = TRUE,names = FALSE, type = 7));
+						ci2 <- median(idiCV$test.z.NRIs[,idlist], na.rm = TRUE);
 					}
-					cmin = min(ci[2],ci2[2]);
-#					cmin = ci2[2];
-					if (cmin <= minlcl) 
+#					cat(zcorrel,"Ztrain :",ci[2],"Ztest :",ci2[2],"\n");
+					if (any(is.na(c(zcorrel,ci[2],ci2)))) 
 					{
-						minlcl = cmin;
-						who = i;
+						who=i;
 					}
-					if (ci[1] < minlcl)
+					else
 					{
-						who = i;
+						if ((zcorrel>ci[2]) && (ci2>0))
+						{
+							cmin=zcorrel;
+						}
+						else
+						{
+							cmin = min(ci[1],ci2);
+						}
+						if (cmin <= minlcl) 
+						{
+							minlcl = cmin;
+							who = i;
+						}
 					}
-
 				}
 				idlist=idlist+1;
 			}
@@ -116,7 +128,7 @@ bootstrapVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data
 	bkobj <- NULL;
 	
 	maxROCAUC <- 1.0;
-	stopROCACU <- 0.975;	# threshold for stop for decrease in AUC
+	stopROCACU <- 0.90;	# threshold for stop for decrease in AUC
 	if (adjsize>1)
 	{
 		bkobj <- bootstrapVarElimination_Bin(object,pvalue,Outcome,data,startOffset,type,selectionType,loops,fraction,print,plots,adjsize=1); 
@@ -124,7 +136,7 @@ bootstrapVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data
 		adjsize = floor(adjsize);
 		maxROCAUC <- bkobj$bootCV$blind.ROCAUC$auc;
 		stopROCACU <- 0.90;	# threshold for stop for decrease in AUC
-#		cat(" Adjust size:",adjsize,"\n");
+#		cat("Feature size:",adjsize,"\n");
 	}
 	else
 	{
@@ -171,8 +183,8 @@ bootstrapVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data
 		{
 			modsize <- length(as.list(attr(terms(model),"term.labels")));	
 			if (modsize<1) modsize=1;
-			qvalue <- 4*pvalue;
-			if (qvalue < 0.1) qvalue=0.1 # lests keep a the minimum q-value to 0.1
+			qvalue <- 2*pvalue;
+			if (qvalue < 0.1) qvalue=0.1 # lests keep the minimum q-value to 0.1
 			p.elimin <- min(pvalue,modsize*qvalue/adjsize) # # BH alpha  the elimination p-value
 		}
 

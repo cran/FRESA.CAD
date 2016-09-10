@@ -12,11 +12,12 @@
     specificities=c(0.975,0.95,0.90,0.80,0.70,0.60,0.50,0.40,0.30,0.20,0.10,0.05),
     theCVfolds=1,
     predictor="Prediction",
+	cex=1.0,
     ...)
 }
 \arguments{
 	\item{modelPredictions}{
-		A data frame returned by the \code{crossValidationFeatureSelection_Bin} function, either the \code{Models.testPrediction}, the \code{FullBWiMS.testPrediction},\cr the \code{Models.CVtestPredictions}, the \code{TestRetrained.blindPredictions},\cr the \code{KNN.testPrediction}, or the \code{LASSO.testPredictions} value
+		A data frame returned by the \code{crossValidationFeatureSelection_Bin} function, either the \code{Models.testPrediction}, the \code{FullBSWiMS.testPrediction},\cr the \code{Models.CVtestPredictions}, the \code{TestRetrained.blindPredictions},\cr the \code{KNN.testPrediction}, or the \code{LASSO.testPredictions} value
 	}
 	\item{number.of.models}{
 		The maximum number of models to plot
@@ -25,10 +26,13 @@
 		Vector containing the specificities at which the ROC sensitivities will be calculated
 	}
 	\item{theCVfolds}{
-		the number of folds performed in a Cross-validation experiment
+		The number of folds performed in a Cross-validation experiment
 	}
 	\item{predictor}{
-		the name of the column to be ploted
+		The name of the column to be ploted
+	}
+	\item{cex}{
+		Controling the font size of the text inside the plots
 	}
 	\item{...}{
 		Additional parameters for the \code{roc} function (\code{pROC} package)

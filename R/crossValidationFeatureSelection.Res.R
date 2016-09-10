@@ -48,6 +48,7 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 				,"\\*"))[1]," ",""))
 	}
 	shortVarList <- as.vector(rownames(table(varlist)))
+	enetshortVarList <- as.vector(rownames(table(varlist)))
 	if (type=="LM")
 	{
 		Fullenet <- try(glmnet::cv.glmnet(as.matrix(data[,shortVarList]),as.vector(data[,Outcome]),family="gaussian"));
@@ -63,8 +64,10 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 	}
 	else
 	{
-		cenet <- as.matrix(coef(Fullenet))
-		print(LASSOVariables <- list(names(cenet[as.vector(cenet[,1]>0),])))
+		cenet <- as.matrix(coef(Fullenet,s="lambda.min"))
+#		print(LASSOVariables <- list(names(cenet[as.vector(cenet[,1] !=0 ),])))
+		lanames <- names(cenet[as.vector(cenet[,1] != 0),])
+		print(LASSOVariables <- paste(lanames[lanames !=  "(Intercept)" ],collapse=" + "))
 	}
 
 
@@ -98,8 +101,8 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 
 
 	modsize <- length(as.list(attr(terms(Full_UCurModel_S$formula),'term.labels')));
-	adjsize <- min(mOrderUpdate*Full_CurModel_S$average.formula.size/pvalue,ncol(data));
-	if (adjsize<2) adjsize=2;
+	adjsize <- min(mOrderUpdate*Full_CurModel_S$random.formula.size/pvalue,ncol(data));
+	if (adjsize<1) adjsize=1;
 	if (elimination.bootstrap.steps < 2 )
 	{
 		Full_redCurmodel_S <- backVarElimination_Res(object=Full_UCurModel_S$final.model,pvalue=elimination.pValue,Outcome=Outcome,data=nTrainSet,startOffset=startOffset,type=type,testType=testType,setIntersect=setIntersect,adjsize=adjsize);
@@ -111,6 +114,7 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 		Full_redCurmodel_S <- bootstrapVarElimination_Res(object=Full_UCurModel_S$final.model,pvalue=elimination.pValue,Outcome=Outcome,
 													data=nTrainSet,startOffset=startOffset,type=type,
 													testType=testType,loops=elimination.bootstrap.steps,setIntersect=setIntersect,print=print,plots=plots,adjsize=adjsize);
+#		cat("End Reduction \n")
 	}
 
 	cat ("Before BH:",as.character(Full_redCurmodel_S$beforeFSC.formula)[3],"\n")
@@ -172,6 +176,15 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 		TrainSet <- data[sampleFolds$subsets[sampleFolds$which != j,],];
 		BlindSet <- data[sampleFolds$subsets[sampleFolds$which == j,],];
 		
+		outindex <- grep(Outcome, colnames(TrainSet))-1;
+		ETraningSet <-as.data.frame(.Call("equalizedSampling", as.matrix(TrainSet),outindex,5));
+		colnames(ETraningSet) <- colnames(TrainSet);
+		if (plots)
+		{
+			hist(TrainSet[,Outcome],breaks=5,main="Before Equalization");
+			hist(ETraningSet[,Outcome],breaks=5,main="After Equalization");
+		}
+
 		blindsampleidx <- as.vector(rownames(BlindSet));
 		sampleidx <- as.vector(rownames(TrainSet));
 
@@ -200,30 +213,32 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 
 
 
-		cat("Samples Train :",nrow(TrainSet),"Samples Test :",nrow(BlindSet),"\n");
+		cat("Samples Train :",nrow(TrainSet),"Equalized Samples Train :",nrow(ETraningSet),"Samples Test :",nrow(BlindSet),"\n");
 		cat ("Loop :",i,"\n")
 
 		if (!is.null(Fullenet))
 		{
 			if (type=="LM")
 			{
-				foldenet <- try(glmnet::cv.glmnet(as.matrix(TrainSet[,shortVarList]),as.vector(TrainSet[,Outcome]),family="gaussian"));
+				foldenet <- try(glmnet::cv.glmnet(as.matrix(ETraningSet[,shortVarList]),as.vector(ETraningSet[,Outcome]),family="gaussian"));
 			}
 			else
 			{
-				foldenet <- try(glmnet::cv.glmnet(as.matrix(TrainSet[,shortVarList]),as.vector(TrainSet[,Outcome]),family="binomial"));
+				foldenet <- try(glmnet::cv.glmnet(as.matrix(ETraningSet[,shortVarList]),as.vector(ETraningSet[,Outcome]),family="binomial"));
 			}
-			cenet <- as.matrix(coef(foldenet))
-			LASSOVariables[[i+1]] <- names(cenet[as.vector(cenet[,1]>0),])
+			cenet <- as.matrix(coef(foldenet,s="lambda.min"))
+#			LASSOVariables[[i+1]] <- names(cenet[as.vector(cenet[,1] != 0),])
+			lanames <- names(cenet[as.vector(cenet[,1] != 0),])
+			LASSOVariables <- append(LASSOVariables,paste(lanames[lanames !=  "(Intercept)" ],collapse=" + "))
 			if (i == 1)
 			{
-				enetSamples <- cbind(BlindSet[,Outcome],predict(foldenet,as.matrix(BlindSet[,shortVarList])),i);
-				enetTrainSamples <- cbind(TrainSet[,Outcome],predict(foldenet,as.matrix(TrainSet[,shortVarList])),i);
+				enetSamples <- cbind(BlindSet[,Outcome],predict(foldenet,as.matrix(BlindSet[,shortVarList]),s="lambda.min"),i);
+				enetTrainSamples <- cbind(TrainSet[,Outcome],predict(foldenet,as.matrix(TrainSet[,shortVarList]),s="lambda.min"),i);
 			}
 			else
 			{
-				enetSamples <- rbind(enetSamples,cbind(BlindSet[,Outcome],predict(foldenet,as.matrix(BlindSet[,shortVarList])),i));
-				enetTrainSamples <- rbind(enetTrainSamples,cbind(TrainSet[,Outcome],predict(foldenet,as.matrix(TrainSet[,shortVarList])),i));
+				enetSamples <- rbind(enetSamples,cbind(BlindSet[,Outcome],predict(foldenet,as.matrix(BlindSet[,shortVarList]),s="lambda.min"),i));
+				enetTrainSamples <- rbind(enetTrainSamples,cbind(TrainSet[,Outcome],predict(foldenet,as.matrix(TrainSet[,shortVarList]),s="lambda.min"),i));
 			}
 ##			print(LASSOVariables)
 		}
@@ -239,10 +254,10 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 		CurModel_S <- ForwardSelection.Model.Res(size=size,fraction=fraction,pvalue=pvalue,loops=loops,covariates=covariates,Outcome=Outcome,variableList=variableList,data=TrainSet,maxTrainModelSize=maxTrainModelSize,type=type,testType=testType,timeOutcome=timeOutcome,loop.threshold=loop.threshold,interaction=mOrderSel)
 		if (length(CurModel_S$var.names)>0)
 		{
-			bagg <- baggedModel(CurModel_S$formula.list,TrainSet,type,Outcome,timeOutcome,removeOutliers=zbaggRemoveOutliers);
+			bagg <- baggedModel(CurModel_S$formula.list,ETraningSet,type,Outcome,timeOutcome,removeOutliers=zbaggRemoveOutliers);
 			nTrainSet <- bagg$reducedDataSet;
 #			cat("Train Size: ",nrow(TrainSet)," Reduced Train Size:",nrow(nTrainSet),"\n")
-			if (nrow(TrainSet)!=nrow(nTrainSet)) 
+			if (nrow(ETraningSet)!=nrow(nTrainSet)) 
 			{
 				cat("Before Outilier Initial Forward Model:",as.character(CurModel_S$formula)[3],"\n");
 				CurModel_S <- ForwardSelection.Model.Res(size=size,fraction=fraction,pvalue=pvalue,loops=loops,covariates=covariates,Outcome=Outcome,variableList=variableList,data=nTrainSet,maxTrainModelSize=maxTrainModelSize,type=type,testType=testType,timeOutcome=timeOutcome,loop.threshold=loop.threshold,interaction=mOrderSel)
@@ -260,8 +275,8 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 				UCurModel_S <- updateModel.Res(Outcome=Outcome,covariates=covariates,pvalue=update.pvalue,VarFrequencyTable=CurModel_S$ranked.var,variableList=variableList,data=nTrainSet,type=type,testType=testType,timeOutcome=timeOutcome,interaction=mOrderUpdate,bootLoops=elimination.bootstrap.steps)
 			}
 			modsize <- length(as.list(attr(terms(UCurModel_S$formula),'term.labels')));
-			adjsize <- min(mOrderUpdate*CurModel_S$average.formula.size/pvalue,ncol(data));
-			if (adjsize<2) adjsize=2;
+			adjsize <- min(mOrderUpdate*CurModel_S$random.formula.size/pvalue,ncol(data));
+			if (adjsize<1) adjsize=1;
 			if (elimination.bootstrap.steps < 2 )
 			{
 				redCurmodel_S <- backVarElimination_Res(object=UCurModel_S$final.model,pvalue=elimination.pValue,Outcome=Outcome,data=nTrainSet,startOffset=startOffset,type=type,testType=testType,setIntersect=setIntersect,adjsize=adjsize);
@@ -367,7 +382,7 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 	#			cat("After RMS\n");
 
 	# univariate analysis of top model residuals
-				uniEval <- getVar.Res(Full_redCurmodel_S$back.formula,TrainSet,Outcome,type = type,testData=BlindSet);
+				uniEval <- getVar.Res(Full_UCurModel_S$final.model,TrainSet,Outcome,type = type,testData=BlindSet);
 				if (i==1)
 				{
 					uniTrainMSS <- rbind(uniEval$unitrainMSS);
@@ -467,8 +482,8 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 	{
 		uniTrainMSS <- as.data.frame(uniTrainMSS);
 		uniTestMSS <- as.data.frame(uniTestMSS);
-		colnames(uniTrainMSS) <-  attr(terms(Full_redCurmodel_S$back.formula),'term.labels');
-		colnames(uniTestMSS) <-  attr(terms(Full_redCurmodel_S$back.formula),'term.labels');
+		colnames(uniTrainMSS) <-  attr(terms(Full_UCurModel_S$formula),'term.labels');
+		colnames(uniTestMSS) <-  attr(terms(Full_UCurModel_S$formula),'term.labels');
 	}
 
 	
@@ -545,7 +560,8 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 						BSWiMS.ensemble.prediction = BSWiMS.ensemble.prediction,
 						BeforeBHFormulas.list = BeforeBHFormulas,
 						ForwardFormulas.list = ForwardFormulas,
-						baggFormulas.list = baggFormulas
+						baggFormulas.list = baggFormulas,
+						LassoFilterVarList = enetshortVarList
 
 					);
 	return (result)

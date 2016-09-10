@@ -68,8 +68,7 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 	FoldBlindSensitivity <- vector();
 	TopUniCoherenceTest <- vector();
 	selection.pValue <- pvalue;
-#	update.pValue <- c(pvalue*pvalue,pvalue);
-	update.pValue <- c(pvalue,0.99*pvalue);
+	update.pValue <- c(pvalue,2*pvalue);
 
 	CVselection.pValue <- pvalue;
 	CVelimination.pValue <- elimination.pValue;
@@ -97,6 +96,7 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 				,"\\*"))[1]," ",""))
 	}
 	shortVarList <- as.vector(rownames(table(varlist)))
+	enetshortVarList <- shortVarList
 #	print(shortVarList)
 	Fullenet <- try(glmnet::cv.glmnet(as.matrix(data[,shortVarList]),as.vector(data[,Outcome]),family="binomial"));
 	if (inherits(Fullenet, "try-error"))
@@ -106,8 +106,9 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 	}
 	else
 	{
-		cenet <- as.matrix(coef(Fullenet))
-		print(LASSOVariables <- list(names(cenet[as.vector(cenet[,1]>0),])))
+		cenet <- as.matrix(coef(Fullenet,s="lambda.min"))
+		lanames <- names(cenet[as.vector(cenet[,1] != 0),])
+		print(LASSOVariables <- paste(lanames[lanames !=  "(Intercept)" ],collapse=" + "))
 	}
 	
 
@@ -134,8 +135,8 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 	}
 	# the estimated number of independent features
 	modsize <- length(as.list(attr(terms(UCurModel_Full$formula),'term.labels')));
-	adjsize <- min(mOrderUpdate*CurModel_Full$average.formula.size/pvalue,ncol(data));
-	if (adjsize<2) adjsize=2;
+	adjsize <- min(mOrderUpdate*CurModel_Full$random.formula.size/pvalue,ncol(data));
+	if (adjsize<1) adjsize=1;
 	if (elimination.bootstrap.steps>1)
 	{
 		redCurmodel_Full <- bootstrapVarElimination_Bin(object=UCurModel_Full$final.model,pvalue=CVelimination.pValue,Outcome=Outcome,data=data,startOffset=startOffset,type=type,selectionType=selType,loops=elimination.bootstrap.steps,fraction=fraction,print=print,plots=plots,adjsize=adjsize);
@@ -147,7 +148,8 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 	}
 	
 	Full_formula <- redCurmodel_Full$back.model;
-	FullBootCross <- bootstrapValidation_Bin(1.0000,bootstrap.steps,Full_formula,Outcome,data,type,plots=plots)
+#	Full_formula <- redCurmodel_Full$back.formula;
+	FullBootCross <- bootstrapValidation_Bin(1.0000,bootstrap.steps,redCurmodel_Full$back.formula,Outcome,data,type,plots=plots)
 	redBootCross <- FullBootCross;
 
 	cat ("Update   :",as.character(UCurModel_Full$formula)[3],"\n")
@@ -213,12 +215,12 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 		
 		par(mfrow=c(1,1))
 
-#		redBootCross <- bootstrapValidation_Bin(1.0000,bootstrap.steps,Full_formula,Outcome,TrainSet,type,plots=plots)
-		redBootCross$boot.model <- modelFitting(Full_formula,TrainSet,type);
+		redBootCross <- bootstrapValidation_Bin(1.0000,bootstrap.steps,redCurmodel_Full$back.formula,Outcome,TrainSet,type,plots=plots)
+#		redBootCross$boot.model <- modelFitting(Full_formula,TrainSet,type);
 
 #		par(mfrow=c(1,1))
-
 #		print(summary(redBootCross$boot.model))
+
 		Full.p <- predictForFresa(redBootCross$boot.model,BlindSet, 'linear');
 		
 		Fullknnclass <- getKNNpredictionFromFormula(UCurModel_Full$formula,KnnTrainSet,BlindSet,Outcome,nk)
@@ -256,17 +258,20 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 		{
 #			cat("In elastic Net\n")
 			foldenet <- try(glmnet::cv.glmnet(as.matrix(TrainSet[,shortVarList]),as.vector(TrainSet[,Outcome]),family="binomial"));
-			cenet <- as.matrix(coef(foldenet))
-			LASSOVariables[[i+1]] <- names(cenet[as.vector(cenet[,1]>0),])
+			cenet <- as.matrix(coef(foldenet,s="lambda.min"))
+#			LASSOVariables[[i+1]] <- names(cenet[as.vector(cenet[,1] != 0),])
+			lanames <- names(cenet[as.vector(cenet[,1] != 0),])
+			LASSOVariables <- append(LASSOVariables,paste(lanames[lanames !=  "(Intercept)" ],collapse=" + "))
+			
 			if (i == 1)
 			{
-				enetSamples <- cbind(BlindSet[,Outcome],predict(foldenet,as.matrix(BlindSet[,shortVarList])),i);
-				enetTrainSamples <- cbind(TrainSet[,Outcome],predict(foldenet,as.matrix(TrainSet[,shortVarList])),i);
+				enetSamples <- cbind(BlindSet[,Outcome],predict(foldenet,as.matrix(BlindSet[,shortVarList]),s="lambda.min"),i);
+				enetTrainSamples <- cbind(TrainSet[,Outcome],predict(foldenet,as.matrix(TrainSet[,shortVarList]),s="lambda.min"),i);
 			}
 			else
 			{
-				enetSamples <- rbind(enetSamples,cbind(BlindSet[,Outcome],predict(foldenet,as.matrix(BlindSet[,shortVarList])),i));
-				enetTrainSamples <- rbind(enetTrainSamples,cbind(TrainSet[,Outcome],predict(foldenet,as.matrix(TrainSet[,shortVarList])),i));
+				enetSamples <- rbind(enetSamples,cbind(BlindSet[,Outcome],predict(foldenet,as.matrix(BlindSet[,shortVarList]),s="lambda.min"),i));
+				enetTrainSamples <- rbind(enetTrainSamples,cbind(TrainSet[,Outcome],predict(foldenet,as.matrix(TrainSet[,shortVarList]),s="lambda.min"),i));
 			}
 #			print(LASSOVariables)
 		}
@@ -293,15 +298,18 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 #				UCurModel_S <- CurModel_S;
 			}
 			modsize <- length(as.list(attr(terms(UCurModel_S$formula),'term.labels')));
-			adjsize <- min(mOrderUpdate*CurModel_S$average.formula.size/pvalue,ncol(data));
-			if (adjsize<2) adjsize=2;
+			adjsize <- min(mOrderUpdate*CurModel_S$random.formula.size/pvalue,ncol(data));
+			if (adjsize<1) adjsize=1;
 			if (elimination.bootstrap.steps > 1)
 			{
+#				print(summary(UCurModel_S$final.model));
 				redCurmodel_S <- bootstrapVarElimination_Bin(object=UCurModel_S$final.model,pvalue=elimination.pValue,Outcome=Outcome,data=TrainSet,startOffset=startOffset,type=type,selectionType=selType,loops=elimination.bootstrap.steps,fraction=fraction,print=print,plots=plots,adjsize=adjsize);	
 				redBootCross_S <- redCurmodel_S$bootCV;
 			}
 			else
 			{
+#				cat("No bootstrapping \n");
+#				print(summary(UCurModel_S$final.model));
 				redCurmodel_S <- backVarElimination_Bin(object=UCurModel_S$final.model,pvalue=elimination.pValue,Outcome=Outcome,data=TrainSet,startOffset=startOffset,type=type,selectionType=selType,adjsize=adjsize);
 				redBootCross_S <- bootstrapValidation_Bin(1.0000,bootstrap.steps,redCurmodel_S$back.formula,Outcome,TrainSet,type,plots=plots)
 				par(mfrow=c(1,1))
@@ -313,6 +321,7 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 			redfoldmodel.BBH <- redCurmodel_S$beforeFSC.model;
 			forwardmodel <- UCurModel_S$final.model;
 			redfoldmodel <- redBootCross_S$boot.model;
+#			redfoldmodel <- redCurmodel_S$back.model;
 
 
 
@@ -508,7 +517,7 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 			cat ("Loop :",i,"No Model.\n")
 		}
 
-		uniEval <- getVar.Bin(Full_formula,TrainSet,Outcome,type = type,testData=BlindSet);
+		uniEval <- getVar.Bin(UCurModel_Full$final.model,TrainSet,Outcome,type = type,testData=BlindSet);
 		if (i==1)
 		{
 			uniTrainAccuracy <- rbind(uniEval$uniTrainAccuracy);
@@ -660,13 +669,13 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 	{
 		uniTrainAccuracy <- as.data.frame(uniTrainAccuracy);
 		uniTestAccuracy <- as.data.frame(uniTestAccuracy);
-		colnames(uniTrainAccuracy) <-  attr(terms(redCurmodel_Full$back.formula),'term.labels');
-		colnames(uniTestAccuracy) <-  attr(terms(redCurmodel_Full$back.formula),'term.labels');
+		colnames(uniTrainAccuracy) <-  attr(terms(UCurModel_Full$formula),'term.labels');
+		colnames(uniTestAccuracy) <-  attr(terms(UCurModel_Full$formula),'term.labels');
 	}
 	
 	result <- list(formula.list=formulas,
 	Models.testPrediction=totSamples,
-	FullBWiMS.testPrediction=Full.totSamples,
+	FullBSWiMS.testPrediction=Full.totSamples,
 	TestRetrained.blindPredictions=blindreboot,
 	LastTrainBSWiMS.bootstrapped=redCurmodel_S$bootCV,
 	Test.accuracy=paracc,
@@ -692,8 +701,8 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 	Models.CVblindMeanSensitivites=sumSen,
 	forwardSelection = CurModel_Full,
 	updateforwardSelection = UCurModel_Full,
-	BiSWiMS = redCurmodel_Full,
-	FullBWiMS.bootstrapped=FullBootCross,
+	BSWiMS = redCurmodel_Full,
+	FullBSWiMS.bootstrapped=FullBootCross,
 	Models.testSensitivities = split.blindSen,
 	FullKNN.testPrediction=Full.KNNSamples,
 	KNN.testPrediction=KNNSamples,
@@ -705,12 +714,14 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 	uniTest.TopCoherence=TopUniCoherenceTest,
 	uniTrain.TopCoherence=TopUniTrainCor,
 	Models.trainPrediction=totTrainSamples,
-	FullBWiMS.trainPrediction=Full.totTrainSamples,
+	FullBSWiMS.trainPrediction=Full.totTrainSamples,
 	LASSO.trainPredictions=enetTrainSamples,
 	BSWiMS.ensemble.prediction = BSWiMS.ensemble.prediction,
 	ForwardFormulas.list = ForwardFormulas,
 	BeforeBHFormulas.list = BeforeBHFormulas,
-	baggFormulas.list = baggFormulas
+	baggFormulas.list = baggFormulas,
+	LassoFilterVarList = enetshortVarList
+	
 	);
 	return (result)
 }

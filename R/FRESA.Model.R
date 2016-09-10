@@ -1,5 +1,5 @@
 FRESA.Model <-
-function(formula,data,OptType=c("Binary","Residual"),pvalue=0.05,filter.p.value=0.10,loops=1,maxTrainModelSize=10,loop.threshold=20,elimination.bootstrap.steps=100,bootstrap.steps=100,interaction=c(1,1),print=TRUE,plots=TRUE,CVfolds=10,repeats=1,nk=0,categorizationType=c("Raw","Categorical","ZCategorical","RawZCategorical","RawTail","RawZTail"),cateGroups=c(0.1,0.9),raw.dataFrame=NULL,var.description=NULL,testType=c("zIDI","zNRI","Binomial","Wilcox","tStudent","Ftest","Both"),zbaggRemoveOutliers=4.0)
+function(formula,data,OptType=c("Binary","Residual"),pvalue=0.05,filter.p.value=0.10,loops=1,maxTrainModelSize=10,loop.threshold=20,elimination.bootstrap.steps=100,bootstrap.steps=100,interaction=c(1,1),print=TRUE,plots=TRUE,CVfolds=10,repeats=1,nk=0,categorizationType=c("Raw","Categorical","ZCategorical","RawZCategorical","RawTail","RawZTail","Tail"),cateGroups=c(0.1,0.9),raw.dataFrame=NULL,var.description=NULL,testType=c("zIDI","zNRI","Binomial","Wilcox","tStudent","Ftest","Both"),zbaggRemoveOutliers=4.0)
 {
 
 	categorizationType <- match.arg(categorizationType);
@@ -120,11 +120,14 @@ function(formula,data,OptType=c("Binary","Residual"),pvalue=0.05,filter.p.value=
 			}
 
 			selectionType = match.arg(testType);
-			elimination.pValue <- pvalue; 	# To test if the variable is part of the model
-			pvalue = pvalue;  			# To test if the variable can be added to the model
+			elimination.pValue <- pvalue; 	# To test if the variable is part of the model 
+			pvalue = pvalue;  			# To test if the variable can be added to the model one tailed test
 			if (filter.p.value<0.5)
 			{
+#				cat(categorizationType,"\n")
+
 				unirank <- uniRankVar(variables,baseModel,Outcome,data,categorizationType,type,rankingTest="zIDI",cateGroups,raw.dataFrame,description="Description")
+#				print(unirank$orderframe[,1:3]);
 				univariate <- unirank$orderframe;
 				varMax <- table(univariate$ZGLM>filter.z.value)['TRUE'] + 1;
 				if (varMax >  nrow(variables)) varMax = nrow(variables);
@@ -143,8 +146,8 @@ function(formula,data,OptType=c("Binary","Residual"),pvalue=0.05,filter.p.value=
 				trainFraction,trainRepetition,elimination.pValue,CVfolds,bootstrap.steps,interaction,nk,unirank,print=print,plots=plots);
 				firstModel <- cvObject$forwardSelection;
 				UpdatedModel <- cvObject$updateforwardSelection;
-				reducedModel <- cvObject$BiSWiMS;
-				bootstrappedModel <- cvObject$FullBWiMS.bootstrapped;
+				reducedModel <- cvObject$BSWiMS;
+				bootstrappedModel <- cvObject$FullBSWiMS.bootstrapped;
 			}
 			else
 			{
@@ -154,22 +157,21 @@ function(formula,data,OptType=c("Binary","Residual"),pvalue=0.05,filter.p.value=
 					if (elimination.bootstrap.steps>1)
 					{
 #						cat ("Update\n");
-#						UpdatedModel <- updateModel.Bin(Outcome=Outcome,covariates=covariates,pvalue=c(pvalue*pvalue,pvalue),VarFrequencyTable=firstModel$ranked.var,variableList=univariate,data=data,type=type,lastTopVariable= 0,timeOutcome=timeOutcome,selectionType=selectionType,interaction=interaction[2],numberOfModels=0,bootLoops=loops)
-						UpdatedModel <- updateModel.Bin(Outcome=Outcome,covariates=covariates,pvalue=c(pvalue,0.99*pvalue),VarFrequencyTable=firstModel$ranked.var,variableList=univariate,data=data,type=type,lastTopVariable= 0,timeOutcome=timeOutcome,selectionType=selectionType,interaction=interaction[2],numberOfModels=0,bootLoops=elimination.bootstrap.steps)
+						UpdatedModel <- updateModel.Bin(Outcome=Outcome,covariates=covariates,pvalue=c(pvalue,2*pvalue),VarFrequencyTable=firstModel$ranked.var,variableList=univariate,data=data,type=type,lastTopVariable= 0,timeOutcome=timeOutcome,selectionType=selectionType,interaction=interaction[2],numberOfModels=0,bootLoops=elimination.bootstrap.steps)
 #						cat ("Elimination \n");
 						modsize <- length(as.list(attr(terms(UpdatedModel$formula),'term.labels')));
-						adjsize <- min(interaction[2]*firstModel$average.formula.size/pvalue,nrow(variables));
-						if (adjsize<2) adjsize=2;
+						adjsize <- min(interaction[2]*firstModel$random.formula.size/pvalue,ncol(data));
+#						cat (firstModel$random.formula.size,":",adjsize," - adj \n");
+						if (adjsize<1) adjsize=1;
 						reducedModel <- bootstrapVarElimination_Bin(object=UpdatedModel$final.model,pvalue=elimination.pValue,Outcome=Outcome,data=data,startOffset=startOffset,type=type,selectionType=selectionType,loops=elimination.bootstrap.steps,fraction=1.0,print=print,plots=plots,adjsize=adjsize);
 						bootstrappedModel <- reducedModel$bootCV;
 					}
 					else
 					{
-#						UpdatedModel <- updateModel.Bin(Outcome=Outcome,covariates=covariates,pvalue=c(pvalue*pvalue,pvalue),VarFrequencyTable=firstModel$ranked.var,variableList=univariate,data=data,type=type,lastTopVariable= 0,timeOutcome=timeOutcome,selectionType=selectionType,interaction=interaction[2],numberOfModels=0,bootLoops=loops)
-						UpdatedModel <- updateModel.Bin(Outcome=Outcome,covariates=covariates,pvalue=c(pvalue,0.99*pvalue),VarFrequencyTable=firstModel$ranked.var,variableList=univariate,data=data,type=type,lastTopVariable= 0,timeOutcome=timeOutcome,selectionType=selectionType,interaction=interaction[2],numberOfModels=0,bootLoops=elimination.bootstrap.steps)
+						UpdatedModel <- updateModel.Bin(Outcome=Outcome,covariates=covariates,pvalue=c(pvalue,2*pvalue),VarFrequencyTable=firstModel$ranked.var,variableList=univariate,data=data,type=type,lastTopVariable= 0,timeOutcome=timeOutcome,selectionType=selectionType,interaction=interaction[2],numberOfModels=0,bootLoops=elimination.bootstrap.steps)
 						modsize <- length(as.list(attr(terms(UpdatedModel$formula),'term.labels')));
-						adjsize <- min(interaction[2]*firstModel$average.formula.size/pvalue,ncol(data));
-						if (adjsize<2) adjsize=2;
+						adjsize <- min(interaction[2]*firstModel$random.formula.size/pvalue,ncol(data));
+						if (adjsize<1) adjsize=1;
 						reducedModel <- backVarElimination_Bin(object=UpdatedModel$final.model,pvalue=elimination.pValue,Outcome=Outcome,data=data,startOffset=startOffset,type=type,selectionType=selectionType,adjsize=adjsize);
 						if (bootstrap.steps>0)
 						{
@@ -236,11 +238,12 @@ function(formula,data,OptType=c("Binary","Residual"),pvalue=0.05,filter.p.value=
 				cvObject <- crossValidationFeatureSelection_Res(size=varMax,fraction=fraction,pvalue=pvalue,loops=loops,covariates=acovariates,Outcome=Outcome,timeOutcome=timeOutcome,variableList=univariate,
 				data=data,maxTrainModelSize=maxTrainModelSize,type=type,testType=testType,
 				loop.threshold=loop.threshold,startOffset=startOffset,elimination.bootstrap.steps=elimination.bootstrap.steps,trainFraction=trainFraction,trainRepetition=trainRepetition,
-				elimination.pValue=elimination.pValue,setIntersect=setIntersect,interaction=interaction,update.pvalue= c(pvalue,0.99*pvalue),unirank=unirank,print=print,plots=plots,
+				elimination.pValue=elimination.pValue,setIntersect=setIntersect,interaction=interaction,update.pvalue= c(pvalue),unirank=unirank,print=print,plots=plots,
 				zbaggRemoveOutliers=zbaggRemoveOutliers);
 				firstModel <- cvObject$forwardSelection;
 				UpdatedModel <- cvObject$updatedforwardModel;
 				reducedModel <- cvObject$BSWiMS;
+				bootstrappedModel <- cvObject$BSWiMS$bootCV;
 			}
 			else
 			{
@@ -250,22 +253,20 @@ function(formula,data,OptType=c("Binary","Residual"),pvalue=0.05,filter.p.value=
 					if (elimination.bootstrap.steps>1)
 					{
 #						cat ("Update\n");
-#						UpdatedModel <- updateModel.Res(Outcome=Outcome,covariates=covariates,pvalue=c(pvalue*pvalue,pvalue),VarFrequencyTable=firstModel$ranked.var,variableList=univariate,data=data,type=type,testType=testType,timeOutcome=timeOutcome,interaction=interaction[2],bootLoops=loops)
-						UpdatedModel <- updateModel.Res(Outcome=Outcome,covariates=covariates,pvalue=c(pvalue,0.99*pvalue),VarFrequencyTable=firstModel$ranked.var,variableList=univariate,data=data,type=type,testType=testType,timeOutcome=timeOutcome,interaction=interaction[2],bootLoops=elimination.bootstrap.steps)
+						UpdatedModel <- updateModel.Res(Outcome=Outcome,covariates=covariates,pvalue=c(pvalue),VarFrequencyTable=firstModel$ranked.var,variableList=univariate,data=data,type=type,testType=testType,timeOutcome=timeOutcome,interaction=interaction[2],bootLoops=elimination.bootstrap.steps)
 #						cat ("Elimination\n");
 						modsize <- length(as.list(attr(terms(UpdatedModel$formula),'term.labels')));
-						adjsize <- min(interaction[2]*firstModel$average.formula.size/pvalue,nrow(data));
-						if (adjsize<2) adjsize=2;
+						adjsize <- min(interaction[2]*firstModel$random.formula.size/pvalue,ncol(data));
+						if (adjsize<1) adjsize=1;
 						reducedModel <- bootstrapVarElimination_Res(object=UpdatedModel$final.model,pvalue=elimination.pValue,Outcome=Outcome,data=data,startOffset=startOffset,type=type,testType=testType,loops=elimination.bootstrap.steps,setIntersect=setIntersect,print=print,plots=plots,adjsize=adjsize);
 						bootstrappedModel <- reducedModel$bootCV;
 					}
 					else
 					{
-#						UpdatedModel <- updateModel.Res(Outcome=Outcome,covariates=covariates,pvalue=c(pvalue*pvalue,pvalue),VarFrequencyTable=firstModel$ranked.var,variableList=univariate,data=data,type=type,testType=testType,timeOutcome=timeOutcome,interaction=interaction[2],bootLoops=loops)
-						UpdatedModel <- updateModel.Res(Outcome=Outcome,covariates=covariates,pvalue=c(pvalue,0.99*pvalue),VarFrequencyTable=firstModel$ranked.var,variableList=univariate,data=data,type=type,testType=testType,timeOutcome=timeOutcome,interaction=interaction[2],bootLoops=elimination.bootstrap.steps)
+						UpdatedModel <- updateModel.Res(Outcome=Outcome,covariates=covariates,pvalue=c(pvalue),VarFrequencyTable=firstModel$ranked.var,variableList=univariate,data=data,type=type,testType=testType,timeOutcome=timeOutcome,interaction=interaction[2],bootLoops=elimination.bootstrap.steps)
 						modsize <- length(as.list(attr(terms(UpdatedModel$formula),'term.labels')));
-						adjsize <- min(interaction[2]*firstModel$average.formula.size/pvalue,ncol(data));
-						if (adjsize<2) adjsize=2;
+						adjsize <- min(interaction[2]*firstModel$random.formula.size/pvalue,ncol(data));
+						if (adjsize<1) adjsize=1;
 						reducedModel <- backVarElimination_Res(object=UpdatedModel$final.model,pvalue=elimination.pValue,Outcome=Outcome,data=data,startOffset=startOffset,type=type,testType=testType,setIntersect=setIntersect,adjsize=adjsize);
 						if (bootstrap.steps>0)
 						{

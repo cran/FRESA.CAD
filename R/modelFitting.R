@@ -33,15 +33,8 @@ function (model.formula,data,type = c("LOGIT", "LM","COX"),fast=FALSE,...)
 		if (!inherits(fittedModel, "try-error"))
 		{
 			s <- is.na(fittedModel$coefficients);
-			if (!any(s))
+			if (any(s))
 			{		
-				if ((max(fittedModel$coefficients)>1.0e10) || (min(fittedModel$coefficients)< -1.0e10))
-				{
-					class(fittedModel) <- c(class(fittedModel),"try-error");
-				}
-			}
-			else
-			{
 				class(fittedModel) <- c(class(fittedModel),"try-error");
 			}
 		}
@@ -72,14 +65,7 @@ function (model.formula,data,type = c("LOGIT", "LM","COX"),fast=FALSE,...)
 		fittedModel$call <- match.call();
 		fittedModel$terms <- terms(model.formula);
 		s <- is.na(fittedModel$coefficients);
-		if (!any(s))
-		{		
-			if ((max(fittedModel$coefficients)>1.0e10) || (min(fittedModel$coefficients)< -1.0e10))
-			{
-				class(fittedModel) <- c(class(fittedModel),"try-error");
-			}
-		}
-		else
+		if (any(s))
 		{
 			class(fittedModel) <- c(class(fittedModel),"try-error");
 		}

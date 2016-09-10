@@ -103,7 +103,8 @@ improvedRes improvedResidualsFunc(const vec &oldResiduals,const vec &newResidual
 double ttest(const vec &x, const vec &y , double mu, bool paired, bool var_equal, std::string tail);
 double wilcoxtest(const vec &xt,const vec &y , double mu, bool paired, std::string tail,bool correct);
 double binomtest(double x, double n, double p , std::string tail);
-gvarNeRI getVarResFunc(const mat &dataframe, std::string type,const mat &testdataP);
+gvarNeRI getVarResFunc(const mat &dataframe, std::string type,const mat &testdataP,int testsamples=0);
+mat equSamples(mat inputsample, unsigned int sort_indx=1,int breakWidth=5);
 
 #endif
 // END

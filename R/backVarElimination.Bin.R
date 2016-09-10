@@ -101,13 +101,15 @@ backVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data,star
 	}
 
 	bkobj <- NULL;
+	beforeFSC.formula <- NULL;
 	if (adjsize>1)
 	{
 		bkobj <- backVarElimination_Bin(object,pvalue,Outcome,data,startOffset,type,selectionType,adjsize=1); 
 		object <- bkobj$back.model;
 		adjsize = floor(adjsize);
 		adjsize <- min(adjsize,ncol(data)-1);
-#		cat("Adjusted Size:",adjsize,"\n");
+		beforeFSC.formula <- bkobj$string.formula;
+#		cat("Adjusted Size:",adjsize,":",bkobj$beforeFSC.formula,"\n");
 	}
 
 	changes=1;
@@ -124,8 +126,8 @@ backVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data,star
 		{
 			modsize <- length(as.list(attr(terms(model),"term.labels")));	
 			if (modsize<1) modsize=1;
-			qvalue <- 4*pvalue;
-			if (qvalue < 0.1) qvalue=0.1 # lests keep a the minimum q-value to 0.1
+			qvalue <- 2*pvalue;
+			if (qvalue < 0.1) qvalue=0.1 # lests keep the minimum q-value to 0.1
 			p.elimin <- min(pvalue,modsize*qvalue/adjsize) # BH alpha the elimination p-value
 		}
 
@@ -181,6 +183,7 @@ backVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data,star
 	back.formula=formula(bk$backfrm),
 	lastRemoved=changes2,
 	beforeFSC.model=beforeFSCmodel,
-	beforeFSC.formula=formula(bkobj$backfrm));
+	string.formula=bk$backfrm,
+	beforeFSC.formula=formula(beforeFSC.formula));
 	return (result);
 }

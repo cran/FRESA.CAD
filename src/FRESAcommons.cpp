@@ -97,6 +97,17 @@ extern "C" SEXP predictForFresaCpp(SEXP _cf,SEXP _newdata,SEXP _typ,SEXP _opc)
 	return result;
 }
 
+extern "C" SEXP equalizedSampling(SEXP _thedata,SEXP _indx,SEXP _breakWidth)
+{
+	Rcpp::NumericMatrix rnewdata(_thedata);
+	unsigned int indx = Rcpp::as<unsigned int>(_indx);
+	unsigned int breakWidth = Rcpp::as<unsigned int>(_breakWidth);
+	mat newdata(rnewdata.begin(), rnewdata.rows(), rnewdata.cols(), false);
+	mat sampledMatrix = equSamples(newdata,indx,breakWidth);
+	Rcpp::NumericMatrix result = Rcpp::wrap(sampledMatrix);
+	return result;
+}
+
                                                           
 double qnorm(double p, double mu, double sigma)
 {
@@ -850,14 +861,10 @@ vec predictForFresaFunc(const vec &cf,const mat &newdata,std::string typ, std::s
 	     if(typ =="prob")  
 	    {
 		  out = 1.0/(1.0+exp(-out));
-//	      for(unsigned int i=0;i<out.n_elem;i++)
-//	       out(i) = 1.0/(1.0+exp(-out(i)));
 	    }
 	    if(typ =="risk")  
 		{
 			out = exp(out);
-//	      for(unsigned int i=0;i<out.n_elem;i++)
-//	       out(i) = exp(out(i));
 		}
 	}
 	else
@@ -866,8 +873,6 @@ vec predictForFresaFunc(const vec &cf,const mat &newdata,std::string typ, std::s
 	    if(typ =="prob")  
 		{
 		  out = 1.0/(1.0+exp(-out));
-//		  for(unsigned int i=0;i<out.n_elem;i++)
-//		 	 out(i) = 1.0/(1.0+exp(-out(i)));
 		}
 	}
 	 	
@@ -882,45 +887,30 @@ vec improveProbFunc(const vec &x1,const vec &x2,const vec &y, unsigned int sampl
 	}
 	else
 	{	
-		const unsigned int trials=5; // set to number of estimations
-		vec imp=improveProbFunc(x1,x2,y);			// imp has the initial estimation
+		const unsigned int trials=6; // set to number of estimations
+		vec imp(4);			
 		mat imppart(imp.n_elem,trials);
 		vec vecx1(samples),vecx2(samples),vecy(samples);
 		vec impt(imp.n_elem);
 		unsigned int i,j,n,nj;
 		unsigned int elem=x1.n_elem;
-		for (j=0;j<imp.n_elem;j++) imppart(j,0)=imp[j];
 		double sd1 = stddev(x1);
 		double sd2 = stddev(x2);
 		if (sd1>sd2) sd1=sd2;
-//		double pchange = 0.25*sd1/samples;
-		for (n=0;n<elem;n++) // fill the first elements with the original data
-		{
-			vecx1[n]=x1[n];
-			vecx2[n]=x2[n];
-			vecy[n]=y[n];
-		}
-		n=elem;
 		for (i=0;i<trials;i++)	
 		{
 			unsigned int off = (randi<imat>(1))[0] % elem;
-			do 
+			for (n=0;n<samples;n++)	
 			{
-//				nj = (randi<imat>(1))[0] % elem;
 				nj = (n+off) % elem;
-				vecx1[n]=x1[nj];	// + pchange*((randn<vec>(1))[0]); // plus some noise ;
-				vecx2[n]=x2[nj];	// + pchange*((randn<vec>(1))[0]); // plus some noise 
+				vecx1[n]=x1[nj];	
+				vecx2[n]=x2[nj];	
 				vecy[n]=y[nj];
-				++n;
 			}
-			while (n<samples);
-			n=0;
 			impt = improveProbFunc(vecx1,vecx2,vecy);
 			for (j=0;j<impt.n_elem;j++) imppart(j,i) = impt[j];
 		}
-		
 		imp = median(imppart,1);
-//		imp = mean(imppart,1);
 		return imp;
 	}
 }
@@ -933,48 +923,55 @@ vec improveProbFunc(const vec &x1,const vec &x2,const vec &y, unsigned int sampl
 */
 
 vec improveProbFunc(const vec &x1,const vec &x2,const vec &y)
-  {
+{
+	double idi = 0.0;
+	double nri = 0.0;
+	double z_idi = 0.0;	
+	double z_nri = 0.0;
     vec d  = x2 - x1;
     vec da=d.elem(find(y==1));
     vec db=d.elem(find(y==0));
-    double n_ev=0;
-    double n_ne=0;
-    double nup_ev = 0;
-    double nup_ne = 0; 
-    double ndown_ev = 0;
-    double ndown_ne = 0;
-    for(unsigned int i=0;i<y.n_elem;i++)
-    {
-    	if (y(i)==1)
-    	{
-    		n_ev++;
-	    	nup_ev += (d(i)>0);
-	    	ndown_ev += (d(i)<0);
-		}
-		if (y(i)==0)
-    	{
-	    	n_ne++;
-	    	nup_ne += (d(i)>0);
-	    	ndown_ne += (d(i)<0);
-		}	
-    }
-    double pup_ev   = nup_ev/n_ev;
-    double pup_ne   = nup_ne/n_ne;
-    double pdown_ev = ndown_ev/n_ev;
-    double pdown_ne = ndown_ne/n_ne;
-    
-    double v_nri_ev = (nup_ev + ndown_ev)/(n_ev*n_ev) - std::pow(nup_ev - ndown_ev,2.0)/std::pow(n_ev,3.0);
-    double v_nri_ne = (ndown_ne + nup_ne)/(n_ne*n_ne) - std::pow(ndown_ne - nup_ne,2.0)/std::pow(n_ne,3.0);
-
-    double nri = pup_ev - pdown_ev - (pup_ne - pdown_ne);
-    double se_nri = std::sqrt(v_nri_ev + v_nri_ne);
-    double z_nri  = nri/se_nri;   
-	double idi = 0.0;
-	double z_idi = 1.0;	
 	if ((db.size()>0)&&(da.size()>0))
 	{
+		double n_ev=0;
+		double n_ne=0;
+		double nup_ev = 0;
+		double nup_ne = 0; 
+		double ndown_ev = 0;
+		double ndown_ne = 0;
+		for(unsigned int i=0;i<y.n_elem;i++)
+		{
+			if (y(i)==1)
+			{
+				n_ev++;
+				nup_ev += (d(i)>0);
+				ndown_ev += (d(i)<0);
+			}
+			if (y(i)==0)
+			{
+				n_ne++;
+				nup_ne += (d(i)>0);
+				ndown_ne += (d(i)<0);
+			}	
+		}
+		double pup_ev   = nup_ev/n_ev;
+		double pup_ne   = nup_ne/n_ne;
+		double pdown_ev = ndown_ev/n_ev;
+		double pdown_ne = ndown_ne/n_ne;
+		double v_ev = (nup_ev - ndown_ev)/n_ev;
+		double v_ne = (ndown_ne - nup_ne)/n_ne;
+		
+		double v_nri_ev = (nup_ev + ndown_ev)/(n_ev*n_ev) - v_ev*v_ev/n_ev;
+		double v_nri_ne = (ndown_ne + nup_ne)/(n_ne*n_ne) - v_ne*v_ne/n_ne;
+
+		nri = pup_ev - pdown_ev - (pup_ne - pdown_ne);
+		double se_nri = std::sqrt(v_nri_ev + v_nri_ne);
+		if (se_nri==0) se_nri=DOUBLEEPS;
+		z_nri =  nri/se_nri;   
 		idi = mean(da) - mean(db);
-		z_idi = idi/std::sqrt((var(da)/da.n_elem)+(var(db)/db.n_elem));
+		double istd =std::sqrt((var(da)/da.n_elem)+(var(db)/db.n_elem));
+		if (istd==0) istd=DOUBLEEPS;
+		z_idi = idi/istd;
 	}
     vec out(4);
     	out(0)=z_idi;
@@ -1145,22 +1142,21 @@ vec residualForFRESAFunc(const vec &cf,const mat &newdata,std::string typ, std::
 			}			
 		}
  		out = 0.8*out + 0.2*outr ; // 20% from half-life residuals 
-// 		out = 0.9*(1.0/(1.0+exp(-lpp))- outcome.col(1)) + 0.1*outr ; // 10% from half-life residuals 
 	}
     if(type=="LM")
 	{
-		out=predictForFresaFunc(cf,newdata,"linear",type)- outcome.col(1);
+		out=predictForFresaFunc(cf,newdata,"linear",type) - outcome.col(1);
 	}
     if(type=="LOGIT")
     {
-//		if (typ == "prob")
-//		{
-			out=predictForFresaFunc(cf,newdata,"prob",type)- outcome.col(1);
-//		}
-//		else
-//		{
-//			out=predictForFresaFunc(cf,newdata,"linear",type)- outcome.col(1);
-//		}
+		if (typ == "linear")
+		{
+			out=predictForFresaFunc(cf,newdata,"linear",type) - outcome.col(1);
+		}
+		else
+		{
+			out=predictForFresaFunc(cf,newdata,"prob",type) - outcome.col(1);
+		}
 	}
 	if (!(out.is_finite())) 
 	{
@@ -1172,49 +1168,37 @@ vec residualForFRESAFunc(const vec &cf,const mat &newdata,std::string typ, std::
 
 improvedRes improvedResidualsFunc(const vec &oldResiduals,const vec &newResiduals, std::string testType,unsigned int samples)
 {
-	if ((samples == 0) || (oldResiduals.n_elem >= samples))
+	if (oldResiduals.n_elem >= samples)
 	{
-		improvedRes imp = improvedResidualsFunc(oldResiduals,newResiduals,testType);
+		vec ored=oldResiduals;
+		vec nred=newResiduals;
+		if ((samples>0)&&(oldResiduals.n_elem > samples))
+		{
+			uvec samSamples = sort_index(randu(oldResiduals.n_elem));	
+			samSamples.resize(samples);
+			ored=oldResiduals(samSamples);
+			nred=newResiduals(samSamples);
+		}
+		improvedRes imp = improvedResidualsFunc(ored,nred,testType);
 		return imp;
 	}
 	else
 	{	
-		unsigned int trials=5; // set to number of estimations
-		improvedRes impt,imp=improvedResidualsFunc(oldResiduals,newResiduals,testType);			// imp has the initial estimation
+		unsigned int trials=6; // set to number of estimations
+		improvedRes impt;			
 		mat imppart(8,trials);
-		
 		vec vecx1(samples),vecx2(samples);
 		unsigned int i,n,nj;
 		unsigned int elem=oldResiduals.n_elem;
-		imppart(0,0)=imp.p1;
-		imppart(1,0)=imp.p2;
-		imppart(2,0)=imp.NeRI;
-		imppart(3,0)=imp.pvalue;
-		imppart(4,0)=imp.binom_pValue;
-		imppart(5,0)=imp.wilcox_pValue;
-		imppart(6,0)=imp.t_test_pValue;
-		imppart(7,0)=imp.F_test_pValue;
-		for (n=0;n<elem;n++) // fill the first elements with the original data
-		{
-			vecx1[n]=oldResiduals[n];
-			vecx2[n]=newResiduals[n];
-		}
-		double sd1 = stddev(oldResiduals);
-		double sd2 = stddev(newResiduals);
-		if (sd1>sd2) sd1=sd2;
-//		double pchange = 0.25*sd1/samples;
-		int startelement=elem;
 		for (i=0;i<trials;i++)	
 		{
 			unsigned int off = (randi<imat>(1))[0] % elem;
-			for (n=startelement;n<samples;n++)
+			for (n=0;n<samples;n++)
 			{
-//				nj = (randi<imat>(1))[0] % elem;
 				nj = (n+off) % elem;
-				vecx1[n]=oldResiduals[nj];	// + pchange*((randn<vec>(1))[0]); // plus some noise ;
-				vecx2[n]=newResiduals[nj];	// + pchange*((randn<vec>(1))[0]); // plus some noise 
+				vecx1[n]=oldResiduals[nj];	
+				vecx2[n]=newResiduals[nj];	
 			}
-			startelement=0;
 			impt = improvedResidualsFunc(vecx1,vecx2,testType);
 			imppart(0,i)=impt.p1;
 			imppart(1,i)=impt.p2;
@@ -1227,16 +1211,16 @@ improvedRes improvedResidualsFunc(const vec &oldResiduals,const vec &newResidual
 		}
 		
 		vec medimp = median(imppart,1);
-		imp.p1=medimp[0];
-		imp.p2=medimp[1];
-		imp.NeRI=medimp[2];
-		imp.pvalue = medimp[3];
-		imp.binom_pValue = medimp[4];
-		imp.wilcox_pValue = medimp[5];
-		imp.t_test_pValue = medimp[6];
-		imp.F_test_pValue = medimp[7];
+		impt.p1=medimp[0];
+		impt.p2=medimp[1];
+		impt.NeRI=medimp[2];
+		impt.pvalue = medimp[3];
+		impt.binom_pValue = medimp[4];
+		impt.wilcox_pValue = medimp[5];
+		impt.t_test_pValue = medimp[6];
+		impt.F_test_pValue = medimp[7];
 		
-		return imp;
+		return impt;
 	}
 }
 
@@ -1252,70 +1236,73 @@ improvedRes improvedResidualsFunc(const vec &oldResiduals,const vec &newResidual
 	double p2=0.0;
 	double pvalue = 1.0;
 	double size = oldResiduals.n_elem;
-
+	double improved = 0.0;
 	if (size==0) 
 	{
 		Rcpp::Rcout<<"Zero Elements:ImproveResiduals \n";
 	}
 
-
-	double size1 = size ;	//Based on estimation of test residuals not training. There is no mean estimation just RMSE estimation
-	double reduction = 0.0;
-	double increase  = 0.0;
 	vec oldres = abs(oldResiduals);
-	vec newres = abs(newResiduals);
-	vec delta = newres - oldres;
-	for (int i=0; i< size;i++)
+	
+	if (sum(oldres)>0)
 	{
-		reduction += (delta[i]<0.0);
-		increase += (delta[i]>0.0);
-	}
-	double improved = (reduction-increase)/size; 									//			# the net improvement in residuals
-	p1 = reduction/size;															//	#proportion of subjects with improved residuals
-	p2 = increase/size;											//#proportion of subjects with worst residuals
-	int sw=0;
-	std::string tail="greater";
+ 
+		vec newres = abs(newResiduals);
+		double reduction = 0.0;
+		double increase  = 0.0;
+		for (int i=0; i< size;i++)
+		{
+			reduction += (newres[i]<oldres[i]);
+			increase += (newres[i]>oldres[i]);
+		}
+		improved = (reduction-increase)/size; 									//			# the net improvement in residuals
+		p1 = reduction/size;															//	#proportion of subjects with improved residuals
+		p2 = increase/size;											//#proportion of subjects with worst residuals
+		int sw=0;
+		std::string tail="greater";
 
-	if (testType=="Binomial") sw=1; else
-	if (testType=="Ftest") sw=2; else
-	if (testType=="Wilcox") sw=3; else
-	if (testType=="tStudent") sw=4;
-	if (reduction>=increase) pbin = binomtest(reduction,size,0.5,tail);
-	switch (sw)
-	{
-		case 1:
+		if (testType=="Binomial") sw=1; else
+		if (testType=="Ftest") sw=2; else
+		if (testType=="Wilcox") sw=3; else
+		if (testType=="tStudent") sw=4;
+		switch (sw)
 		{
-			pvalue = pbin;	
-			break;
-		}
-		case 2:
-		{
-			double rss1 = sum(square(oldResiduals));
-			double rss2 = sum(square(newResiduals))/size1;
-			if (rss2==0) rss2=DOUBLEEPS;
-			pvalue = f_test = 1.0-R::pf(rss1/rss2-size1,1.0,size1,1,0);
-			break;
-		}
-		case 3:
-		{
-			pvalue = pwil = wilcoxtest(oldres, newres,0.0,TRUE,tail,TRUE);
-			break;
-		}
-		case 4:
-		{
-			pvalue = ptstu = ttest(oldres, newres,0.0,TRUE,TRUE,tail);
-			break;
-		}
-		default:
-		{
-			double rss1 = sum(square(oldResiduals));
-			double rss2 = sum(square(newResiduals))/size1;
-			if (rss2==0) rss2=DOUBLEEPS;
-			f_test = 1.0-R::pf(rss1/rss2-size1,1.0,size1,1,0);
-			pvalue =  pbin;
-			if (reduction>=increase) pwil = wilcoxtest(oldres, newres,0.0,TRUE,tail,TRUE);
-			ptstu = ttest(oldres, newres,0.0,TRUE,TRUE,tail);
-			break;
+			case 1:
+			{
+				if (reduction>=increase) pbin = binomtest(reduction,size,0.5,tail);
+				pvalue = pbin;	
+				break;
+			}
+			case 2:
+			{
+				double rss1 = sum(square(oldResiduals));
+				double rss2 = sum(square(newResiduals))/size;
+				if (rss2==0) rss2 = DOUBLEEPS;
+				pvalue = f_test = 1.0-R::pf(rss1/rss2-size,1.0,size,1,0);
+				break;
+			}
+			case 3:
+			{
+				pvalue = pwil = wilcoxtest(oldres, newres,0.0,TRUE,tail,TRUE);
+				break;
+			}
+			case 4:
+			{
+				pvalue = ptstu = ttest(oldres, newres,0.0,TRUE,TRUE,tail);
+				break;
+			}
+			default:
+			{
+				double rss1 = sum(square(oldResiduals));
+				double rss2 = sum(square(newResiduals))/size;
+				if (rss2==0) rss2 = DOUBLEEPS;
+				f_test = 1.0-R::pf(rss1/rss2-size,1.0,size,1,0);
+				if (reduction>=increase) pbin = binomtest(reduction,size,0.5,tail);
+				pvalue =  pbin;
+				if (reduction>=increase) pwil = wilcoxtest(oldres, newres,0.0,TRUE,tail,TRUE);
+				ptstu = ttest(oldres, newres,0.0,TRUE,TRUE,tail);
+				break;
+			}
 		}
 	}
 	
@@ -1442,25 +1429,7 @@ double wilcoxtest(const vec &xt,const vec &y , double mu, bool paired, std::stri
 		if (n>1.0)
 		{
 			vec r = Fresarank(abs(x));
-//			bool exact = (n < 50.0);
 			double stat = sum(r.elem(find(x > 0.0)));
-//			vec un = unique(r);
-//			bool ties = (r.n_elem != un.n_elem);
-//			un.clear();
-
-			// if(exact && !ties && !zeros) 
-			// {
-			   // // if (tail=="greater") pvalue=R::psignrank(stat - 1.0, n,0,0);
-			   // // else if (tail=="less") pvalue=R::psignrank(stat, n,1,0);
-				   // // else
-					// // {
-						// // double p;
-						// // if (stat > (n * (n + 1.0)/4.0)) p = R::psignrank(stat - 1.0, n, 0,0);
-						// // else p = R::psignrank(stat, n,1,0);
-						// // pvalue= std::min(2.0 * p, 1.0);
-					// // }
-			// } 
-			// else 
 			{ 
 				std::map <double, double> rtiesm; 	
                 for(unsigned int i=0;i<r.n_elem;i++)
@@ -1570,7 +1539,7 @@ double binomtest(double x, double n, double p , std::string tail)
 	return(pvalue);
 }
 
-gvarNeRI getVarResFunc(const mat &dataframe, std::string type,const mat &testdataP) 
+gvarNeRI getVarResFunc(const mat &dataframe, std::string type,const mat &testdataP,int testsamples) 
 {
 	gvarNeRI result;
 	mat testdata = testdataP;
@@ -1601,6 +1570,7 @@ gvarNeRI getVarResFunc(const mat &dataframe, std::string type,const mat &testdat
 	vec testmodel_wpvalue(nvar);
 	vec testmodel_fpvalue(nvar);
 	unsigned int samples = dataframe.n_rows;
+	if (testsamples>0) samples=testsamples;
 	if (nvar>1)
 	{
 		for (int  j=0; i<dataframe.n_cols; i++,j++)
@@ -1619,7 +1589,7 @@ gvarNeRI getVarResFunc(const mat &dataframe, std::string type,const mat &testdat
 			{
 				vec redResiduals = residualForFRESAFunc(redModel,dataframe_sh.cols(2,dataframe_sh.n_cols-1)," ",type,dataframe_sh.cols(0,1));
 				vec redTestResiduals = residualForFRESAFunc(redModel,testdata_sh.cols(2,testdata_sh.n_cols-1)," ",type,testdata_sh.cols(0,1));
-				improvedRes iprob = improvedResidualsFunc(redResiduals,FullResiduals," ");
+				improvedRes iprob = improvedResidualsFunc(redResiduals,FullResiduals," ",samples);
 				improvedRes testiprob = improvedResidualsFunc(redTestResiduals,testResiduals," ",samples);
 				model_tpvalue(j) = iprob.t_test_pValue;
 				model_bpvalue(j) = iprob.binom_pValue;
@@ -1659,3 +1629,58 @@ gvarNeRI getVarResFunc(const mat &dataframe, std::string type,const mat &testdat
 	 result.testData_NeRIs=testmodel_neri;
      return (result);
 }
+
+//**************** it will atempt to create a sampled data set with uniform desity distribution of the output
+//* a running window is used to estimate the density of the data. At regions with low desity the data will be duplicated
+// int sort_index the index of the feature to be equilized
+// int breakWidth the width of the sample window in the data. The number of samples per window will be (size/breakWidth) + 1
+// this funtion limits the maximun sample duplication to 4
+//**************************
+mat equSamples(mat inputsample, unsigned int sort_indx, int breakWidth)
+{
+	vec outcome = inputsample.col(sort_indx);
+	unsigned int osize = outcome.size();
+	double omin = min(outcome);
+	double omax = max(outcome);
+	double range = omax-omin;
+	double delta = range/(2.0*osize);
+	
+	outcome = outcome + delta*(randu(osize)-0.5); // we add noise in order to break sample ties
+
+	omin = min(outcome);
+	omax = max(outcome);
+	range = omax-omin;
+	delta = range/osize;
+	
+	uvec indices = sort_index(outcome);
+	uvec uindices(3*osize); // we just assume that all the samples will duplicated three times
+	int sdx=osize/(2*breakWidth); // there will be 2*sdx+1 samples at each density estimation
+	if (sdx<2) sdx=2; // the miniumun number of samples for desity estimation n= 5
+	
+	int indx = 0;
+	for (unsigned int i=0; i < osize;i++)
+	{
+		int ed1 = i;
+		int ed2 = osize-i;
+		int dsdx=sdx;
+		if (ed2<ed1) ed1=ed2;
+		if (dsdx>ed1) dsdx=ed1;
+		if (dsdx<2) dsdx=2;				// We limit the minimum width to 2 at sample extreme
+		int indx1 = (i-dsdx);
+		int indx2 = (i+dsdx);
+		if (indx1<0) indx1 = 0;
+		if (indx2 >= (int)osize) indx2 = osize-1;
+		int idx = indx2-indx1;
+		int nsamplesdx = (int)((outcome[indices[indx2]]-outcome[indices[indx1]])/(idx*delta)+0.5);
+		if (nsamplesdx>3) nsamplesdx=3;  // the maxumun number of replications is three
+		if (nsamplesdx<1) nsamplesdx=1;   // we copy every sample regless of beeing very dense
+		for (int j=0; j< nsamplesdx;j++)
+		{
+			uindices[indx++]=indices[i];
+		}
+// 		Rcout << i << " last:" << indx << " idx: " << idx << " Samples "<< nsamplesdx << " data: " << inputsample.row(i)[1] << "\n";
+	}
+	uindices.resize(indx);
+	return inputsample.rows(uindices);
+}
+

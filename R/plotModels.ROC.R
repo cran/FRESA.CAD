@@ -1,9 +1,12 @@
 plotModels.ROC <-
-function(modelPredictions,number.of.models=0,specificities=c(0.975,0.95,0.90,0.80,0.70,0.60,0.50,0.40,0.30,0.20,0.10,0.05),theCVfolds=1,predictor="Prediction",...) 
+function(modelPredictions,number.of.models=0,specificities=c(0.975,0.95,0.90,0.80,0.70,0.60,0.50,0.40,0.30,0.20,0.10,0.05),theCVfolds=1,predictor="Prediction",cex=1.0,...) 
 {
 
 	number.of.runs=number.of.models;
-	par(mfrow=c(1,1),pty='s');
+	op <- par(no.readonly = TRUE)
+
+#	par(mfrow=c(1,1),pty='s',cex=cex);
+	par(pty='s',cex=cex);
 	rocadded = 0;
 	if (number.of.runs == 0)
 	{
@@ -55,11 +58,6 @@ function(modelPredictions,number.of.models=0,specificities=c(0.975,0.95,0.90,0.8
 		thres = 0;
 	}				
 	dtable <- table(psta$stats[3,]<thres,1-outcomesta$stats[3,])
-	colnames(dtable) <- c("O(+)","O(-)")
-	rownames(dtable) <- c("P(+)","P(-)")
-	Sen=dtable[1,1]/(dtable[1,1]+dtable[2,1])
-	Spe=dtable[2,2]/(dtable[1,2]+dtable[2,2])
-	enauc = 0.5*(Sen+Spe)	
 
 	ley.names <- c(paste("Coherence (",sprintf("%.3f",auc1),")"));
 	ley.colors <- c("darkblue");
@@ -68,11 +66,6 @@ function(modelPredictions,number.of.models=0,specificities=c(0.975,0.95,0.90,0.8
 	ley.colors <- append(ley.colors,"black");
 	ley.lty <- append(ley.lty,3);
 
-    lines(c(1,Spe,0),c(0,Sen,1),col="green",lwd=1.0,lty=1);
-    
-    ley.names <- append(ley.names,paste("Ensemble Prediction (",sprintf("%.3f",enauc),")"));
-    ley.colors <- append(ley.colors,"green");
-    ley.lty <- append(ley.lty,1);
 
 	auc = 0;
 	if (rocadded>1)
@@ -96,16 +89,36 @@ function(modelPredictions,number.of.models=0,specificities=c(0.975,0.95,0.90,0.8
 		ley.lty <- append(ley.lty,c(4,2));
 	}
 
-	legend(0.7,0.20, legend=ley.names,col = ley.colors, lty = ley.lty,bty="n")
 
-    x=1.025
-    y=1.025
-    Acc=(dtable[1,1]+dtable[2,2])/(dtable[1,1]+dtable[2,2]+dtable[1,2]+dtable[2,1])
-    F1=(2*dtable[1,1])/(2*dtable[1,1]+dtable[1,2]+dtable[2,1])
-    text(x,y,paste("(TPR=",sprintf("%.3f",Sen),",TNR=",sprintf("%.3f",Spe),",ACC=",sprintf("%.3f",Acc),",F1=",sprintf("%.3f",F1),",AUC=",sprintf("%.3f",enauc),")"),adj = c(0,1),cex=0.7,col="dark green")
-	par(new=TRUE,plt=c(0.6,0.8,0.37,0.57),pty='s')
-	plot(t(dtable),main="Ensemble",ylab=predictor,xlab="Outcome")
-	par(plt=c(0.0,1.0,0.09,0.91),pty='m')
+	if (nrow(dtable)==ncol(dtable) & (ncol(dtable)>1))
+	{
+		colnames(dtable) <- c("O(+)","O(-)")
+		rownames(dtable) <- c("P(+)","P(-)")
+		Sen=dtable[1,1]/(dtable[1,1]+dtable[2,1])
+		Spe=dtable[2,2]/(dtable[1,2]+dtable[2,2])
+		enauc = 0.5*(Sen+Spe)	
+
+		lines(c(1,Spe,0),c(0,Sen,1),col="green",lwd=1.0,lty=1);
+    
+		ley.names <- append(ley.names,paste("Binary Ensemble Prediction (",sprintf("%.3f",enauc),")"));
+		ley.colors <- append(ley.colors,"green");
+		ley.lty <- append(ley.lty,1);
+
+		legend(0.7,0.20, legend=ley.names,col = ley.colors, lty = ley.lty,bty="n",cex=0.9*cex)
+		Acc=(dtable[1,1]+dtable[2,2])/(dtable[1,1]+dtable[2,2]+dtable[1,2]+dtable[2,1])
+		F1=(2*dtable[1,1])/(2*dtable[1,1]+dtable[1,2]+dtable[2,1])
+		x=1.025
+		y=1.025
+		text(x,y,paste("(TPR=",sprintf("%.3f",Sen),",TNR=",sprintf("%.3f",Spe),",ACC=",sprintf("%.3f",Acc),",F1=",sprintf("%.3f",F1),",AUC=",sprintf("%.3f",enauc),")"),adj = c(0,1),cex=0.7*cex,col="dark green")
+		par(new=TRUE,plt=c(0.6,0.8,0.37,0.57),pty='s',cex=0.9*cex)
+		plot(t(dtable),main="Ensemble",ylab=predictor,xlab="Outcome",cex=0.9*cex)
+	}
+	else
+	{
+		legend(0.7,0.20, legend=ley.names,col = ley.colors, lty = ley.lty,bty="n",cex=0.9*cex)
+	}
+	par(op);
+	
 	result <- list(ROC.AUCs=auclist,
 	mean.sensitivities=sumSen,
 	model.sensitivities=blindSen,

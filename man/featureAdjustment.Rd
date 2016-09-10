@@ -9,7 +9,7 @@
 \usage{
 	featureAdjustment(variableList,
 	                  baseModel,
-	                  strata = "NA",
+	                  strata = NA,
 	                  data,
 	                  referenceframe,
 	                  type = c("LM", "GLS"),

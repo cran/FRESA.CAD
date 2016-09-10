@@ -46,17 +46,26 @@ function (object,testData,Outcome,eta=0.05)
 				out <- predictForFresa(object,testData,'prob') - testData[,Outcome];
 			}
 		},
+		tr =
 		{
-#			if (object$family[1] == "binomial")
-#			{
-#				out <- predictForFresa(object,testData,'prob') - testData[,Outcome];
-#			}
-#			else
-#			{
-#				out <- predictForFresa(object,testData,'linear') - testData[,Outcome];
-#			}
-#		out <- predict(object,testData,'response',na.action=na.omit) - testData[,Outcome];
-		out <- 0 - testData[,Outcome];
+			if (object$type == "LM")
+			{
+				out <- predictForFresa(object,testData,'linear') - testData[,Outcome];
+			}
+			else
+			{
+				out <- predictForFresa(object,testData,'prob') - testData[,Outcome];
+			}
+		},
+		{
+			if (object$family[1] == "binomial")
+			{
+				out <- predictForFresa(object,testData,'prob') - testData[,Outcome];
+			}
+			else
+			{
+				out <- predictForFresa(object,testData,'linear') - testData[,Outcome];
+			}
 		}
 	)	
 	s <- is.na(out);

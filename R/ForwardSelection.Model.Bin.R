@@ -51,16 +51,27 @@ function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,vari
 	    
 	    output<-.Call("ReclassificationFRESAModelCpp",size, fraction, pvalue, loops, covariates, Outcome,as.vector(variableList[,1]), maxTrainModelSize, type, timeOutcome, seltype,loop.threshold, interaction,data.matrix(modelFrame),colNames,cores);
 
-		rloops = min(loops,100);
-		rpvalue = min(pvalue,0.01);
+		rloops = loops;
+		rpvalue = pvalue;
+		randsize = 0;
 	    if (loops>1) 
 		{
+			rloops = min(loops,25);
+			rpvalue = min(pvalue,0.01);
 			randoutput <-.Call("ReclassificationFRESAModelCpp",size, fraction, rpvalue, rloops, covariates, "RANDOM" ,as.vector(variableList[,1]), maxTrainModelSize, type, timeOutcome, seltype,loop.threshold, interaction,data.matrix(modelFrame),colNames,cores);
+			for (i in 1:rloops)
+			{
+	#			cat(output$formula.list[i],"\n")
+				randsize = randsize + str_count(randoutput$formula.list[i],"\\+") - 1;
+			}
+			randsize = (pvalue/rpvalue)*(nrow(variableList)/size)*(randsize/rloops);
+			cat (" Average random size =",randsize,"\n");
 		}
 		else 
 		{
 			randoutput <-output;
 			rpvalue=pvalue;
+			randsize = pvalue*nrow(variableList);
 		}
 		
 		zthr = abs(qnorm(pvalue)); 
@@ -84,15 +95,6 @@ function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,vari
 
 		baseForm = paste(baseForm,paste(" ~ ",acovariates));
 
-		avgsize = 0;
-		for (i in 1:rloops)
-		{
-#			cat(output$formula.list[i],"\n")
-			avgsize = avgsize+ str_count(randoutput$formula.list[i],"\\+") - 1;
-		}
-		avgsize = (pvalue/rpvalue)*(nrow(variableList)/size)*(avgsize/rloops);
-		cat ("To Test Variables:",nrow(variableList),"# Variables:",size," Average size =",avgsize,"\n");
-		if (loops==1) avgsize=0;
 
 			mynames <- output$mynames + 1 
 			topvar <- table(mynames);
@@ -239,7 +241,7 @@ function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,vari
 		ranked.var=topvar,
 		z.selectionType=model_zmin,
 		formula.list=output$formula.list,
-		average.formula.size=avgsize,
+		random.formula.size=randsize,
 		variableList=variableList
 		);
 #		cat ("Final :",frm1,"\n")

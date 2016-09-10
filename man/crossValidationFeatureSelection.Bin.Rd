@@ -132,7 +132,7 @@
 		A data frame with the blind test set predictions (Full B:SWiMS,Median,Bagged,Forward,Backwards Eliminations) made at each fold of the cross validation, where the models used to generate such predictions (\code{formula.list}) were generated via a feature selection process which included only the train set.
 		It also includes a column with the \code{Outcome} of each prediction, and a column with the number of the fold at which the prediction was made.
 	}
-	\item{FullBWiMS.testPrediction}{
+	\item{FullBSWiMS.testPrediction}{
 		A data frame similar to \code{Models.testPrediction}, but where the model used to generate the predictions was the Full model, generated via a feature selection process which included all data.
 	}
 	\item{TestRetrained.blindPredictions}{
@@ -198,10 +198,10 @@
 	\item{updateforwardSelection}{
 		A list containing the values returned by \code{updateModel.Bin} using all data and the model from \code{forwardSelection}
 	}
-	\item{BiSWiMS}{
+	\item{BSWiMS}{
 		A list containing the values returned by \code{bootstrapVarElimination_Bin} using all data and the model from \code{updateforwardSelection}
 	}
-	\item{FullBWiMS.bootstrapped}{
+	\item{FullBSWiMS.bootstrapped}{
 		An object of class \code{bootstrapValidation_Bin} containing the results of the bootstrap validation in the Full model
 	}
 	\item{Models.testSensitivities }{
@@ -237,7 +237,7 @@
 	\item{Models.trainPrediction}{
 		A data frame with the outcome and the train prediction of every model
 	}
-	\item{FullBWiMS.trainPrediction}{
+	\item{FullBSWiMS.trainPrediction}{
 		A data frame with the outcome and the train prediction at each CV fold for the main model
 	}
 	\item{LASSO.trainPredictions}{
@@ -254,6 +254,9 @@
 	}
 	\item{baggFormulas.list}{
 		The list of the bagged models
+	}
+	\item{LassoFilterVarList}{
+		The list of variables used by LASSO fitting
 	}
 
 }

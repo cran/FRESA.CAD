@@ -58,25 +58,29 @@ if (!requireNamespace("nlme", quietly = TRUE)) {
 						f <- summary(model)$fstatistic
 						f1 = f[1];
 						p <- pf(f[1],f[2],f[3],lower.tail=FALSE)			
+						cat(" Variable:\t ",colnamesList[i],"\t F Stats:\t ",f1,"\t P-value:\t",p,"\n");
 					},
 					GLS =
 					{
-						model <- eval(parse(text=paste("try(nlme::gls(formula(",ftm1,"),cstrataref,na.action=na.exclude,correlation = nlme::corAR1(form = ~ 1 | ",correlationGroup,")))")))
+						model <- eval(parse(text=paste("try(nlme::gls(formula(",ftm1,"),cstrataref,na.action=na.exclude,correlation = nlme::corAR1(0.9,form = ~ 1 | ",correlationGroup,")))")))
 						dgf = nrow(cstrataref)-1;
 						rss1 <- var(cstrataref[,colnamesList[i]],na.rm = TRUE)
 						rss2 <- var(model$residuals,na.rm = TRUE);
 						f1 = rss1/rss2;
-						p <- 1-pf(dgf*rss1/rss2-dgf,1,dgf); 
+						p1 <- 1-pf(dgf*rss1/rss2-dgf,1,dgf);
+						reg <- summary(model);						
+						p <- min(p1,reg$tTable[-1,4])
+						cat(" Variable:\t ",colnamesList[i],"\t F Stats:\t ",f1,"\t P-value:\t",p," ",p1,"\n");
 					},
 					{ 
 						model <- lm(ftmp,data=cstrataref,na.action=na.exclude)
 						f <- summary(model)$fstatistic
 						f1 = f[1];
 						p <- pf(f[1],f[2],f[3],lower.tail=FALSE)			
+						cat(" Variable:\t ",colnamesList[i],"\t F Stats:\t ",f1,"\t P-value:\t",p,"\n");
 					}
 				)
 		
-				cat(" Variable:\t ",colnamesList[i],"\t F Stats:\t ",f1,"\t P-value:\t",p,"\n");
 				if (!is.na(p))
 				{
 					switch(type, 

@@ -30,29 +30,42 @@ function (object,testData, predictType = c("prob", "linear"))
 			pred <-.Call("predictForFresaCpp",cf,model.matrix(frm, testData),predictType,object$type);
 			out <- pred$prediction;
 		},
+		tr =
+		{
+			cat("Warning: Fitting error. Object: ",class(object),"\n");
+			out <- rep(0,nrow(testData));
+		},
 		{
 			predictType <- match.arg(predictType)
 			cf <- coef(object)
-			s <- is.na(cf);
-			if (any(s)) 
+			if (is.null(cf))
 			{
-				cf[s] <- 0;
+				cat("Warning: Null object in predict. Object: ",cobj,"\n");
+				out <- rep(0,nrow(testData));
 			}
-			
-			switch(predictType, 
-				linear = 
-					{
-					   out <- as.vector(model.matrix(frm, testData)  %*% cf);
-					}, 
-				prob = 
-					{
-					  out <- as.vector(model.matrix(frm, testData)  %*% cf);
-					  out <- 1.0/(1.0+exp(-out));
-					}, 
-					{
-					  out <- as.vector(model.matrix(frm, testData)  %*% cf);
-					}
-			)
+			else
+			{
+				s <- is.na(cf);
+				if (any(s)) 
+				{
+					cf[s] <- 0;
+				}
+				
+				switch(predictType, 
+					linear = 
+						{
+						   out <- as.vector(model.matrix(frm, testData)  %*% cf);
+						}, 
+					prob = 
+						{
+						  out <- as.vector(model.matrix(frm, testData)  %*% cf);
+						  out <- 1.0/(1.0+exp(-out));
+						}, 
+						{
+						  out <- as.vector(model.matrix(frm, testData)  %*% cf);
+						}
+				)
+			}
 		}
 	)
 	s <- is.na(out);

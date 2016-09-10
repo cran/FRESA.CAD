@@ -1,5 +1,5 @@
 uniRankVar <-
-function(variableList,formula,Outcome,data,categorizationType=c("Raw","Categorical","ZCategorical","RawZCategorical","RawTail","RawZTail"),type=c("LOGIT","LM","COX"),rankingTest=c("zIDI","zNRI","IDI","NRI","NeRI","Ztest","AUC","CStat","Kendall"),cateGroups=c(0.1,0.9),raw.dataFrame=NULL,description=".",uniType=c("Binary","Regression"),FullAnalysis=TRUE) 
+function(variableList,formula,Outcome,data,categorizationType=c("Raw","Categorical","ZCategorical","RawZCategorical","RawTail","RawZTail","Tail"),type=c("LOGIT","LM","COX"),rankingTest=c("zIDI","zNRI","IDI","NRI","NeRI","Ztest","AUC","CStat","Kendall"),cateGroups=c(0.1,0.9),raw.dataFrame=NULL,description=".",uniType=c("Binary","Regression"),FullAnalysis=TRUE) 
 {
 
 
@@ -7,6 +7,7 @@ function(variableList,formula,Outcome,data,categorizationType=c("Raw","Categoric
 	type <- match.arg(type);
 	uniType <- match.arg(uniType);
 	categorizationType <- match.arg(categorizationType);
+#	cat(categorizationType,"\n")
 	rankingTest <- match.arg(rankingTest);
 	colnamesList <- as.vector(variableList[,1]);
 
@@ -56,6 +57,7 @@ function(variableList,formula,Outcome,data,categorizationType=c("Raw","Categoric
 	zNRI <- vector();
 	ROCAUC <- vector();
 	ZGLM <- vector();
+	Beta <- vector();
 
 	NeRI <- vector();
 	BinRes.p <- vector();
@@ -222,6 +224,8 @@ function(variableList,formula,Outcome,data,categorizationType=c("Raw","Categoric
 					if (categorizationType != "Raw")
 					{
 						zthr = sprintf("[,'%s'] < %5.3f )",colnamesList[j],qnorm(cateGroups[1]));
+						
+#						cat(zthr,"\n")
 
 						caseCount1 <- eval(parse(text = paste("sum(caseZsample",zthr)));
 						controlCount1 <- eval(parse(text = paste("sum(controlZsample",zthr)));
@@ -229,14 +233,16 @@ function(variableList,formula,Outcome,data,categorizationType=c("Raw","Categoric
 						categories=length(cateGroups);
 						if (!is.na(cateGroups[categories]))
 						{
-							zthr = sprintf("[,'%s'] < %5.3f )",colnamesList[j],qnorm(cateGroups[categories]));
+							zthr = sprintf("[,'%s'] > %5.3f )",colnamesList[j],qnorm(cateGroups[categories]));
+#						cat(zthr,"\n")
 							caseCount2 <- eval(parse(text = paste("sum(caseZsample",zthr)));
 							controlCount2 <- eval(parse(text = paste("sum(controlZsample",zthr)));
 
 						}
 						else
 						{
-							zthr = sprintf("[,'%s'] < %5.3f )",colnamesList[j],1-qnorm(cateGroups[1]));
+							zthr = sprintf("[,'%s'] > %5.3f )",colnamesList[j],1-qnorm(cateGroups[1]));
+#						cat(zthr,"\n")
 							caseCount2 <- eval(parse(text = paste("sum(caseZsample",zthr)));
 							controlCount2 <- eval(parse(text = paste("sum(controlZsample",zthr)));
 						}
@@ -460,9 +466,50 @@ function(variableList,formula,Outcome,data,categorizationType=c("Raw","Categoric
 								categories = categories+1;
 							}
 						}
+					},
+					Tail =
+					{
+						categories = 0;
+						if (!is.null(sizecaseZsample))
+						{
+							zthr = sprintf("%5.3f",qnorm(cateGroups[1]));
+							if (caseCount1 > caseCount2)
+							{
+								f1= caseCount1/sizecaseZsample;
+								f2= controlCount1/sizecontrolZsample;
+								if (f1>0.00)
+								{
+									catvar = paste("I(",colnamesList[j]);
+									catvar = paste(catvar,"* (");
+									catvar = paste(catvar,colnamesList[j]);
+									catvar = paste(catvar," < ");
+									catvar = paste(catvar,zthr);
+									catvar = paste(catvar,"))");
+									catlist <- append(catlist,catvar);
+									categories = categories+1;
+								}
+							}
+							else
+							{
+								zthr = sprintf("%5.3f",qnorm(1.0-cateGroups[1]));
+								f1= caseCount2/sizecaseZsample;
+								f2= controlCount2/sizecontrolZsample;
+								if (f1>0.00)
+								{
+									catvar = paste("I(",colnamesList[j]);
+									catvar = paste(catvar,"* (");
+									catvar = paste(catvar,colnamesList[j]);
+									catvar = paste(catvar," > ");
+									catvar = paste(catvar,zthr);
+									catvar = paste(catvar,"))");
+									catlist <- append(catlist,catvar);
+									categories = categories+1;
+								}
+							}							
+						}
 					},			
 					{
-						categories=1;
+						categories = 1;
 						catlist <- append(catlist,colnamesList[j]);
 					}
 				)
@@ -488,212 +535,218 @@ function(variableList,formula,Outcome,data,categorizationType=c("Raw","Categoric
 				stdCo <- table(controlZsample[,colnamesList[j]])[2];
 			}
 		}
-		for (n in 1:categories)
+		if (categories>0)
 		{
-			termName <- str_replace_all(catlist[n]," ","");
-			termName <- str_replace_all(termName,"<"," < ");
-			termName <- str_replace_all(termName,">"," > ");
-			termName <- str_replace_all(termName,"&"," & ");
-			termName <- str_replace_all(termName,"=","= ");
-			termName <- str_replace_all(termName,fixed("> ="),">=");
-			termName <- str_replace_all(termName,fixed("*")," * ");
-			frmg <- paste( formula,paste(" + ",termName));
-#			cat(frmg,"\n")
-			ftmg <- formula(frmg);
-			if (type=="COX") 
+			for (n in 1:categories)
 			{
-				zcol=4;
-			}
-			else
-			{
-				zcol=3;
-			}
-			lmodel <- modelFitting(ftmg,data,type)
-#			print(summary(lmodel))
-			if (!inherits(lmodel, "try-error"))
-			{
-				modcoef <- summary(lmodel)$coefficients;
-				sizecoef <- length(lmodel$coef);
-			}
-			else
-			{
-				modcoef <- NULL;
-				sizecoef <- NULL;
-			}
-				Name <- append(Name,termName);
-				parent <- append(parent,colnamesList[j])
-				descrip <- append(descrip,descripList[j])
-				if (uniType=="Binary")
+				termName <- str_replace_all(catlist[n]," ","");
+				termName <- str_replace_all(termName,"<"," < ");
+				termName <- str_replace_all(termName,">"," > ");
+				termName <- str_replace_all(termName,"&"," & ");
+				termName <- str_replace_all(termName,"=","= ");
+				termName <- str_replace_all(termName,fixed("> ="),">=");
+				termName <- str_replace_all(termName,fixed("*")," * ");
+				frmg <- paste( formula,paste(" + ",termName));
+	#			cat(frmg,"\n")
+				ftmg <- formula(frmg);
+				if (type=="COX") 
 				{
-					caseMean <- append(caseMean,meCa); 
-					caseStd <- append(caseStd,stdCa);
-					if (!is.na(kstCa[[1]])) 
+					zcol=4;
+				}
+				else
+				{
+					zcol=3;
+				}
+				lmodel <- modelFitting(ftmg,data,type)
+	#			print(summary(lmodel))
+				if (!inherits(lmodel, "try-error"))
+				{
+					modcoef <- summary(lmodel)$coefficients;
+					sizecoef <- length(lmodel$coef);
+				}
+				else
+				{
+					modcoef <- NULL;
+					sizecoef <- NULL;
+				}
+					Name <- append(Name,termName);
+					parent <- append(parent,colnamesList[j])
+					descrip <- append(descrip,descripList[j])
+					if (uniType=="Binary")
 					{
-						caseKSD <- append(caseKSD,kstCa$statistic);
-						caseKSP <- append(caseKSP,kstCa$p.value);
-						caseZKSP <- append(caseZKSP,kstZCa$p.value);
-						caseZKSD <- append(caseZKSD,kstZCa$statistic);
-					}
-					else
-					{
-						caseKSD <- append(caseKSD,NA);
-						caseKSP <- append(caseKSP,NA);
-						caseZKSP <- append(caseZKSP,NA);
-						caseZKSD <- append(caseZKSD,NA);
-					}
-					controlMean <- append(controlMean,meCo); 
-					controlStd <- append(controlStd,stdCo);
-					if (!is.na(kstCo[[1]]))
-					{
-						controlKSD <- append(controlKSD,kstCo$statistic);
-						controlKSP <- append(controlKSP,kstCo$p.value);
-						controlZKSP <- append(controlZKSP,kstZCo$p.value);
-						controlZKSD <- append(controlZKSD,kstZCo$statistic);
-					}
-					else
-					{
-						controlKSD <- append(controlKSD,NA);
-						controlKSP <- append(controlKSP,NA);
-						controlZKSP <- append(controlZKSP,NA);
-						controlZKSD <- append(controlZKSD,NA);
-					}
-					if (!is.na(rtt[[1]]))
-					{
-						if ( !inherits(rtt, "try-error"))
+						caseMean <- append(caseMean,meCa); 
+						caseStd <- append(caseStd,stdCa);
+						if (!is.na(kstCa[[1]])) 
 						{
-							t.Rawvalue <- append(t.Rawvalue,rtt$statistic);
+							caseKSD <- append(caseKSD,kstCa$statistic);
+							caseKSP <- append(caseKSP,kstCa$p.value);
+							caseZKSP <- append(caseZKSP,kstZCa$p.value);
+							caseZKSD <- append(caseZKSD,kstZCa$statistic);
+						}
+						else
+						{
+							caseKSD <- append(caseKSD,NA);
+							caseKSP <- append(caseKSP,NA);
+							caseZKSP <- append(caseZKSP,NA);
+							caseZKSD <- append(caseZKSD,NA);
+						}
+						controlMean <- append(controlMean,meCo); 
+						controlStd <- append(controlStd,stdCo);
+						if (!is.na(kstCo[[1]]))
+						{
+							controlKSD <- append(controlKSD,kstCo$statistic);
+							controlKSP <- append(controlKSP,kstCo$p.value);
+							controlZKSP <- append(controlZKSP,kstZCo$p.value);
+							controlZKSD <- append(controlZKSD,kstZCo$statistic);
+						}
+						else
+						{
+							controlKSD <- append(controlKSD,NA);
+							controlKSP <- append(controlKSP,NA);
+							controlZKSP <- append(controlZKSP,NA);
+							controlZKSD <- append(controlZKSD,NA);
+						}
+						if (!is.na(rtt[[1]]))
+						{
+							if ( !inherits(rtt, "try-error"))
+							{
+								t.Rawvalue <- append(t.Rawvalue,rtt$statistic);
+							}
+							else
+							{
+								t.Rawvalue <- append(t.Rawvalue,NA);
+							}
+							if ( !inherits(ztt, "try-error"))
+							{
+								t.Zvalue <- append(t.Zvalue,ztt$statistic);
+							}
+							else
+							{
+								t.Zvalue <- append(t.Zvalue,NA);
+							}
 						}
 						else
 						{
 							t.Rawvalue <- append(t.Rawvalue,NA);
+							t.Zvalue <- append(t.Zvalue,NA);
 						}
-						if ( !inherits(ztt, "try-error"))
+						if (!is.na(wtt[[1]]))
 						{
-							t.Zvalue <- append(t.Zvalue,ztt$statistic);
+							wilcox.Zvalue <- append(wilcox.Zvalue,wtt);
 						}
 						else
 						{
-							t.Zvalue <- append(t.Zvalue,NA);
+							wilcox.Zvalue <- append(wilcox.Zvalue,NA);
 						}
 					}
-					else
-					{
-						t.Rawvalue <- append(t.Rawvalue,NA);
-						t.Zvalue <- append(t.Zvalue,NA);
-					}
-					if (!is.na(wtt[[1]]))
-					{
-						wilcox.Zvalue <- append(wilcox.Zvalue,wtt);
-					}
-					else
-					{
-						wilcox.Zvalue <- append(wilcox.Zvalue,NA);
-					}
-				}
-			
-			cohortMean <- append(cohortMean,medf); 
-			cohortStd <- append(cohortStd,stddf);
-			if (!is.na(kstdf[[1]]))
-			{
-				cohortKSD <- append(cohortKSD,kstdf$statistic);
-				cohortKSP <- append(cohortKSP,kstdf$p.value);
-				cohortZKSP <- append(cohortZKSP,kstZdf$p.value);
-				cohortZKSD <- append(cohortZKSD,kstZdf$statistic);
-			}
-			else
-			{
-				cohortKSD <- append(cohortKSD,NA);
-				cohortKSP <- append(cohortKSP,NA);
-				cohortZKSP <- append(cohortZKSP,NA);
-				cohortZKSD <- append(cohortZKSD,NA);
-			}
-			
-			if (!is.na(kendcor[[1]])) 
-			{
-				kendall.r <- append(kendall.r,kendcor$estimate);
-				kendall.p <- append(kendall.p,kendcor$p.value);
-				pearson.r <- append(pearson.r,pearcor$estimate);
-				spearman.r <- append(spearman.r,speacor$estimate);
-				cStatCorr <- append(cStatCorr,cstat[1]);
-			}
-			else
-			{
-				kendall.r <- append(kendall.r,NA);
-				kendall.p <- append(kendall.p,NA);
-				pearson.r <- append(pearson.r,NA);
-				spearman.r <- append(spearman.r,NA);
-				cStatCorr <- append(cStatCorr,NA);
-			}
-			
-			
-			if (is.null(sizecoef) || is.na(lmodel$coef[sizecoef])) 
-			{
-				test=NA;
-				if (uniType=="Binary")
+				
+				cohortMean <- append(cohortMean,medf); 
+				cohortStd <- append(cohortStd,stddf);
+				if (!is.na(kstdf[[1]]))
 				{
-					IDI <- append(IDI,test);
-					NRI <- append(NRI,test);
-					zIDI <- append(zIDI,test);
-					zNRI <- append(zNRI,test);
-					ROCAUC <- append(ROCAUC,test);
-					caseN_Z_Low_Tail <- append(caseN_Z_Low_Tail,test);
-					caseN_Z_Hi_Tail <- append(caseN_Z_Hi_Tail,test);
-					controlN_Z_Low_Tail <- append(controlN_Z_Low_Tail,test);
-					controlN_Z_Hi_Tail <- append(controlN_Z_Hi_Tail,test);
-				}
-				ZGLM <- append(ZGLM,test);
-				NeRI <- append(NeRI,test);
-				BinRes.p <- append(BinRes.p,test);
-				WilcoxRes.p <- append(WilcoxRes.p,test);
-				TstudentRes.p <- append(TstudentRes.p,test);
-				FRes.p <- append(FRes.p,test);
-			}
-			else
-			{
-				if (FullAnalysis)
-				{
-					if (uniType=="Binary")
-					{
-						spredict <- predictForFresa(lmodel,data, 'prob');
-#						iprob <- improveProb(basepredict,spredict,data[,Outcome]);
-						iprob <- .Call("improveProbCpp",basepredict,spredict,data[,Outcome],0);
-						IDI <- append(IDI,iprob$idi);
-						NRI <- append(NRI,iprob$nri);
-						zIDI <- append(zIDI,iprob$z.idi);
-						zNRI <- append(zNRI,iprob$z.nri);
-						if (length(data[,Outcome])==length(spredict))
-						{
-							ROCAUC <- append(ROCAUC,pROC::roc( data[,Outcome], spredict,plot=FALSE,auc=TRUE)$auc[1]);
-						}
-						else 
-						{
-							ROCAUC <- append(ROCAUC,NA);
-						}
-						caseN_Z_Low_Tail <- append(caseN_Z_Low_Tail,caseCount1);
-						caseN_Z_Hi_Tail <- append(caseN_Z_Hi_Tail,caseCount2);
-						controlN_Z_Low_Tail <- append(controlN_Z_Low_Tail,controlCount1);
-						controlN_Z_Hi_Tail <- append(controlN_Z_Hi_Tail,controlCount2);
-					}
-
-					varResiduals <- residualForFRESA(lmodel,data,Outcome);
-#					rprob <- improvedResiduals(baseResiduals,varResiduals);
-					rprob <- .Call("improvedResidualsCpp",baseResiduals,varResiduals," ",0);
-					NeRI <- append(NeRI,rprob$NeRI);
-					BinRes.p <- append(BinRes.p,rprob$p.value);
-					WilcoxRes.p <- append(WilcoxRes.p,rprob$WilcoxP.value);
-					TstudentRes.p <- append(TstudentRes.p,rprob$tP.value);
-					FRes.p <- append(FRes.p,rprob$FP.value);
+					cohortKSD <- append(cohortKSD,kstdf$statistic);
+					cohortKSP <- append(cohortKSP,kstdf$p.value);
+					cohortZKSP <- append(cohortZKSP,kstZdf$p.value);
+					cohortZKSD <- append(cohortZKSD,kstZdf$statistic);
 				}
 				else
 				{
+					cohortKSD <- append(cohortKSD,NA);
+					cohortKSP <- append(cohortKSP,NA);
+					cohortZKSP <- append(cohortZKSP,NA);
+					cohortZKSD <- append(cohortZKSD,NA);
+				}
+				
+				if (!is.na(kendcor[[1]])) 
+				{
+					kendall.r <- append(kendall.r,kendcor$estimate);
+					kendall.p <- append(kendall.p,kendcor$p.value);
+					pearson.r <- append(pearson.r,pearcor$estimate);
+					spearman.r <- append(spearman.r,speacor$estimate);
+					cStatCorr <- append(cStatCorr,cstat[1]);
+				}
+				else
+				{
+					kendall.r <- append(kendall.r,NA);
+					kendall.p <- append(kendall.p,NA);
+					pearson.r <- append(pearson.r,NA);
+					spearman.r <- append(spearman.r,NA);
+					cStatCorr <- append(cStatCorr,NA);
+				}
+				
+				
+				if (is.null(sizecoef) || is.na(lmodel$coef[sizecoef])) 
+				{
+					test=NA;
 					if (uniType=="Binary")
 					{
-						spredict <- predictForFresa(lmodel,data, 'prob');
-						iprob <- .Call("improveProbCpp",basepredict,spredict,data[,Outcome],0);
-						zIDI <- append(zIDI,iprob$z.idi);
+						IDI <- append(IDI,test);
+						NRI <- append(NRI,test);
+						zIDI <- append(zIDI,test);
+						zNRI <- append(zNRI,test);
+						ROCAUC <- append(ROCAUC,test);
+						caseN_Z_Low_Tail <- append(caseN_Z_Low_Tail,test);
+						caseN_Z_Hi_Tail <- append(caseN_Z_Hi_Tail,test);
+						controlN_Z_Low_Tail <- append(controlN_Z_Low_Tail,test);
+						controlN_Z_Hi_Tail <- append(controlN_Z_Hi_Tail,test);
 					}
+					ZGLM <- append(ZGLM,test);
+					NeRI <- append(NeRI,test);
+					BinRes.p <- append(BinRes.p,test);
+					WilcoxRes.p <- append(WilcoxRes.p,test);
+					TstudentRes.p <- append(TstudentRes.p,test);
+					FRes.p <- append(FRes.p,test);
 				}
-				ZGLM  <- append(ZGLM,abs(modcoef[sizecoef,zcol]));
+				else
+				{
+					if (FullAnalysis)
+					{
+						if (uniType=="Binary")
+						{
+							spredict <- predictForFresa(lmodel,data, 'prob');
+	#						iprob <- improveProb(basepredict,spredict,data[,Outcome]);
+							iprob <- .Call("improveProbCpp",basepredict,spredict,data[,Outcome],0);
+							IDI <- append(IDI,iprob$idi);
+							NRI <- append(NRI,iprob$nri);
+							zIDI <- append(zIDI,iprob$z.idi);
+							zNRI <- append(zNRI,iprob$z.nri);
+							if (length(data[,Outcome])==length(spredict))
+							{
+								ROCAUC <- append(ROCAUC,pROC::roc( data[,Outcome], spredict,plot=FALSE,auc=TRUE)$auc[1]);
+							}
+							else 
+							{
+								ROCAUC <- append(ROCAUC,NA);
+							}
+							caseN_Z_Low_Tail <- append(caseN_Z_Low_Tail,caseCount1);
+							caseN_Z_Hi_Tail <- append(caseN_Z_Hi_Tail,caseCount2);
+							controlN_Z_Low_Tail <- append(controlN_Z_Low_Tail,controlCount1);
+							controlN_Z_Hi_Tail <- append(controlN_Z_Hi_Tail,controlCount2);
+						}
+
+						varResiduals <- residualForFRESA(lmodel,data,Outcome);
+	#					rprob <- improvedResiduals(baseResiduals,varResiduals);
+	#					print(baseResiduals)
+	#					print(varResiduals)
+						rprob <- .Call("improvedResidualsCpp",baseResiduals,varResiduals," ",0);
+						NeRI <- append(NeRI,rprob$NeRI);
+						BinRes.p <- append(BinRes.p,rprob$p.value);
+						WilcoxRes.p <- append(WilcoxRes.p,rprob$WilcoxP.value);
+						TstudentRes.p <- append(TstudentRes.p,rprob$tP.value);
+						FRes.p <- append(FRes.p,rprob$FP.value);
+					}
+					else
+					{
+						if (uniType=="Binary")
+						{
+							spredict <- predictForFresa(lmodel,data, 'prob');
+							iprob <- .Call("improveProbCpp",basepredict,spredict,data[,Outcome],0);
+							zIDI <- append(zIDI,iprob$z.idi);
+						}
+					}
+					Beta  <- append(Beta,abs(modcoef[sizecoef,1]));
+					ZGLM  <- append(ZGLM,abs(modcoef[sizecoef,zcol]));
+				}
 			}
 		}
 	}
@@ -704,7 +757,7 @@ function(variableList,formula,Outcome,data,categorizationType=c("Raw","Categoric
 		{
 			orderframe <- data.frame(Name,parent,descrip,cohortMean,cohortStd,cohortKSD,cohortKSP,caseMean,
 			caseStd,caseKSD,caseKSP,caseZKSD,caseZKSP,controlMean,controlStd,controlKSD,controlKSP,controlZKSD,
-			controlZKSP,t.Rawvalue,t.Zvalue,wilcox.Zvalue,ZGLM,zNRI,zIDI,ROCAUC,cStatCorr,NRI,IDI,NeRI,kendall.r,
+			controlZKSP,Beta,t.Rawvalue,t.Zvalue,wilcox.Zvalue,ZGLM,zNRI,zIDI,ROCAUC,cStatCorr,NRI,IDI,NeRI,kendall.r,
 			kendall.p,BinRes.p,TstudentRes.p,WilcoxRes.p,FRes.p,caseN_Z_Low_Tail,caseN_Z_Hi_Tail,controlN_Z_Low_Tail,controlN_Z_Hi_Tail);
 			switch(rankingTest,
 				zIDI=
@@ -747,7 +800,7 @@ function(variableList,formula,Outcome,data,categorizationType=c("Raw","Categoric
 		}
 		else
 		{
-			orderframe <- data.frame(Name,parent,descrip,cohortMean,cohortStd,cohortKSD,cohortKSP,cohortZKSD,cohortZKSP,ZGLM,
+			orderframe <- data.frame(Name,parent,descrip,cohortMean,cohortStd,cohortKSD,cohortKSP,cohortZKSD,cohortZKSP,Beta,ZGLM,
 			NeRI,cStatCorr,spearman.r,pearson.r,kendall.r,kendall.p,BinRes.p,TstudentRes.p,WilcoxRes.p,FRes.p);
 			switch(rankingTest,
 				NeRI=

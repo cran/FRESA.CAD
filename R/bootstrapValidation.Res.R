@@ -15,13 +15,20 @@ function(fraction=1.00,loops=200,model.formula,Outcome,data,type=c("LM","LOGIT",
 	if (length(varsList)>2)
 	{
 		outn <- length(table(data[,Outcome]))
-		basemodel <- modelFitting(model.formula,data,type)
 #		print(summary(basemodel))
 		
 		if ( inherits(basemodel, "try-error"))
 		{
 			print(model.formula);
-			data[,Outcome] = data[,Outcome] + rnorm(nrow(data),0,1e-10);
+			if (type == "LM")
+			{
+				data[,Outcome] = data[,Outcome] + rnorm(nrow(data),0,1e-10);
+			}
+			else
+			{
+				cp <- sample(1:nrow(data),0.05*nrow(data)+1,replace=FALSE);
+				data[cp,Outcome] = 1*(data[cp,Outcome]==0);
+			}
 			basemodel <- modelFitting(model.formula,data,type)
 			if ( inherits(basemodel, "try-error"))
 			{
@@ -48,7 +55,7 @@ function(fraction=1.00,loops=200,model.formula,Outcome,data,type=c("LM","LOGIT",
 		bootvar <- mean(output$testResiduals^2);
 		testRMSE <- sqrt(bootvar);
 
-		wt <- ((1.0e-10+output$bootRMSE)/(1.0e-10+output$testSampledRMSE))^2; # the pre weights an F variance ratio
+		wt <- ((1.0e-10+output$bootRMSE)/(1.0e-10+output$testSampledRMSE)); # the pre weights an F variance ratio
 		
 		pro <- predictForFresa(bootmodel,testData=data,predictType = 'linear');
 		bootResRMSE<- sqrt(mean((pro-data[,Outcome])^2))
@@ -57,8 +64,12 @@ function(fraction=1.00,loops=200,model.formula,Outcome,data,type=c("LM","LOGIT",
 			cat("Base Coefficientes: RMSE:",bootResRMSE,"\n");
 			print(bootmodel$coefficients);
 		}
+
+
 		bootmodel$coefficients <-  apply(output$bcoef,2,weighted.mean,wt = wt, na.rm = TRUE)
+
 		names(bootmodel$coefficients) <- names(basemodel$coefficients);
+
 		pr <- predictForFresa(bootmodel,testData=data,predictType = 'linear');
 		bootmodel$linear.predictors <- pr;
 		bootResRMSE<- sqrt(mean((pr-data[,Outcome])^2))
@@ -67,6 +78,7 @@ function(fraction=1.00,loops=200,model.formula,Outcome,data,type=c("LM","LOGIT",
 			cat("mean Coefficientes: RMSE:",bootResRMSE," Between Predictions RMSE:",sqrt(mean((pr-pro)^2)),"\n");
 			print(bootmodel$coefficients);
 		}
+
 
 		colnames(output$NeRi) <- attr(terms(model.formula),'term.labels');
 		colnames(output$tpvalue) <- attr(terms(model.formula),'term.labels');
@@ -101,6 +113,7 @@ function(fraction=1.00,loops=200,model.formula,Outcome,data,type=c("LM","LOGIT",
 			
 
 		}
+
 
 		result <- structure(llist( data = data,
 			outcome=data[,Outcome],

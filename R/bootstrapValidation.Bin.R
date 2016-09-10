@@ -54,31 +54,8 @@ function(fraction=1.00,loops=200,model.formula,Outcome,data,type=c("LM","LOGIT",
 		baseSen = sen/sizecases;
 		baseSpe = spe/sizecontrol;
 		bootmodel <- basemodel;
-		wt <- 2.0*(output$accuracy-0.5); 			# the linear weights
-		wt <- 0.1+wt*(wt > 0);
+		bootmodel$coefficients <-  apply(output$bcoef,2,median, na.rm = TRUE);
 
-		bootmodel$coefficients <-  apply(output$bcoef,2,weighted.mean,wt = wt, na.rm = TRUE)
-
-
-		if (length(output$sumwts)>0)
-		{
-			for (n in 1:length(output$sumwts))
-			{
-				if (!is.na(output$sumwts[n]))
-				{
-					if (output$sumwts[n] < 0)  
-					{
-						output$sumwts[n] = 1;
-						output$sumwtdcf[n] = 0;  
-					}
-				}
-				else
-				{
-					output$sumwts[n] = 1;
-					output$sumwtdcf[n] = 0;  
-				}
-			}
-		}
 
 		pr <- predictForFresa(bootmodel,testData=data,predictType = 'linear');
 		bootmodel$linear.predictors <- pr;
@@ -92,7 +69,7 @@ function(fraction=1.00,loops=200,model.formula,Outcome,data,type=c("LM","LOGIT",
 		spe = spe/sizecontrol;
 		blidRoc = NULL;
 		bootRoc = NULL;
-		if (plots)
+		if (plots && (nrow(output$testoutcome)>0))
 		{
 			par(mfrow=c(2,2))
 			pROC::roc( data[,Outcome], basemodel$linear.predictors, col="blue",plot=TRUE,smooth=FALSE,progress= 'none');

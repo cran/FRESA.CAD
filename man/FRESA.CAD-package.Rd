@@ -14,8 +14,8 @@
 	\tabular{ll}{
 		Package: \tab FRESA.CAD\cr
 		Type: \tab Package\cr
-		Version: \tab 2.2.0\cr
-		Date: \tab 2016-3-11\cr
+		Version: \tab 2.2.1\cr
+		Date: \tab 2016-4-18\cr
 		License: \tab LGPL (>= 2)\cr
 	}
 	Purpose: The design of diagnostic or prognostic multivariate models via the selection of significantly discriminant features.
@@ -130,7 +130,7 @@ Maintainer: <jose.tamezpena@itesm.mx>
 	hmAll <- heatMaps(variableList = rankedDataCancer,
 	                  Outcome = "pgstat",
 	                  data = dataCancerScale,
-	                  outcomeGain = 10)
+	                  Scale = 10)
 	# Generate a heat map using:
 	# - The top ranked variables
 	# - The scaled data
@@ -138,7 +138,7 @@ Maintainer: <jose.tamezpena@itesm.mx>
 	                  varRank = cancerModel$ranked.var,
 	                  Outcome = "pgstat",
 	                  data = dataCancerScale,
-	                  outcomeGain = 10)
+	                  Scale = 10)
 	# Get a new Cox proportional hazards model using:
 	# - The top 5 ranked variables
 	# - No bootstrapping

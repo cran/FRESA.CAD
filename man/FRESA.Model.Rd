@@ -28,7 +28,8 @@
 	                                   "ZCategorical",
 	                                   "RawZCategorical",
 	                                   "RawTail",
-	                                   "RawZTail"),
+	                                   "RawZTail",
+	                                   "Tail"),
 	            cateGroups = c(0.1, 0.9),
 	            raw.dataFrame = NULL,
 	            var.description = NULL,
@@ -53,10 +54,10 @@
 		Optimization type: Based on the integrated discrimination improvement (Binary) index for binary classification ("Binary"), or based on the net residual improvement (NeRI) index for linear regression ("Residual") 
 	}
 	\item{pvalue}{
-		The maximum \emph{p}-value, associated to the \code{testType}, allowed for a term in the model (controls the false selection rate)
+		The maximum \emph{p}-value, associated to the \code{testType}, allowed for a term in the model (it will control the false selection rate)
 	}
 	\item{filter.p.value}{
-		The maximum \emph{p}-value, associated to the Kendall rank correlation test, allowed for a variable to be included to the feature selection procedure
+		The maximum \emph{p}-value, for a variable to be included to the feature selection procedure
 	}
 	\item{loops}{
 		The number of bootstrap loops for the forward selection procedure
@@ -119,7 +120,7 @@ a  \code{crossValidationFeatureSelection_Bin} or a \code{crossValidationFeatureS
 }
 \value{
 	\item{BSWiMS.model}{
-		An object of class \code{lm}, \code{fastglm}, or \code{coxph} containing the final model
+		An object of class \code{lm}, \code{glm}, or \code{coxph} containing the final model
 	}
 	\item{reducedModel}{
 		The resulting object of the backward elimination procedure

@@ -17,7 +17,7 @@ function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableL
 	modsize=0;
 	maxp <- max(pvalue); # set the pvalue to max so it will get the largest probable size of the non-corrected model
 	loopst = 2;
-	climpvalue = 0.4999 # 	 set to one third
+	quartileValue = 0.25 # 	 set to 75% of pass
 	
 	vnames <- as.vector(variableList[,1]);
 	topvarID <- as.numeric(rownames(VarFrequencyTable));
@@ -69,8 +69,13 @@ function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableL
 
 	loops = 0;
 	changes = 1;
-	if (lastTopVariable < 1) lastTopVariable = length(VarFrequencyTable);
+	topfreq <- 0.1*VarFrequencyTable[1]; #check only features with a 10% bootstrap frequency relative to the top
+	if (lastTopVariable < 1) 
+	{
+		lastTopVariable = sum(1*(VarFrequencyTable>topfreq));
+	}
 	if (lastTopVariable > length(VarFrequencyTable)) lastTopVariable = length(VarFrequencyTable);
+	cat("Top Freq: ",VarFrequencyTable[1],"All Selected Features: ",length(VarFrequencyTable),"To be tested: ",lastTopVariable,"\n");
 	inserted = 1
 	kins=1
 	cpyformula <- frm1;
@@ -83,22 +88,19 @@ function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableL
 		pthrO_s = cthr_s*cthr_s;
 		loops = 0;
 		changes = 1;
-		if (pval>1) theBootLoops=1;
+#		if (pval>1) theBootLoops=1;
 		while ((termsinserted < maxTrainModelSize)&&((changes>0) && (loops<loopst)))
 		{
 			tinserted = 0;
-#			cthr_s = pvalue[pval]*(loops+1)/loopst;
-#			cthr_s = pvalue[pval]/(loops+1);
 			cthr_s = pvalue[pval];
 			cthr = cthr_s;
 			pthrO = min(pthrO_s,cthr^2);
-#			if (changes > 0) cat ("Testing at :",cthr,"\n");
 
 			changes = 0;
 			samples <- nsize;
 			
 			ftmp <- formula(frm1);
-#			cat("Update Formula 1: ",frm1,"\n")
+#			cat("Update Formula 1: ",cthr_s,":",frm1,"\n")
 			bestmodel <- modelFitting(ftmp,myTrainSample,type,TRUE)
 			if ((loops == 0)&&(inherits(bestmodel, "try-error")))
 			{
@@ -133,50 +135,53 @@ function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableL
 					frma <- paste(frm1," + ");
 					frma <-paste(frma,vnames[topvarID[i]]);
 					ftmp <- formula(frma);
+#					cat("Update Formula bf: ",frma,"\n")
 					newmodel <- modelFitting(ftmp,myTrainSample,type,TRUE)
 					if ( !inherits(newmodel, "try-error"))
 					{
-						if (bootLoops<4)
+						if (theBootLoops<4)
 						{
 							iprob <- .Call("improvedResidualsCpp",bestResiduals,residualForFRESA(newmodel,myTrainSample,Outcome),testType,0);
 							piri <- iprob$p.value;
 						}
 						else
 						{
-#							cat("Update Formula 1: ",frma,"\n")
 							iprob <- .Call("improvedResidualsCpp",bestResiduals,residualForFRESA(newmodel,myTrainSample,Outcome),testType,0);
 							piri <- iprob$p.value;
 							if (piri<cthr)
 							{
-#								cat("Update Formula 2: ",frma,"\n")
+#								cat("Update Formula af: ",newmodel$coef,"\n")
 								bootmodel <- bootstrapValidation_Res(1.0000,theBootLoops,ftmp,Outcome,data,type,plots=FALSE)
 								lastc <- ncol(bootmodel$tStudent.pvalues)
 								
 								switch(testType, 
 									tStudent = 
 									{ 
-										ci <- as.vector(quantile(bootmodel$tStudent.pvlaues[,lastc], probs = c(climpvalue, 0.5,1.0 - climpvalue), na.rm = TRUE,names = FALSE, type = 7));
-										ci2 <- median(bootmodel$test.tStudent.pvalues[,lastc]);
+										ci <- as.vector(quantile(bootmodel$tStudent.pvlaues[,lastc], probs = c(quartileValue, 0.5,1.0 - quartileValue), na.rm = TRUE,names = FALSE, type = 7));
+#										ci <- median(bootmodel$tStudent.pvlaues[,lastc],na.rm = TRUE);
+										ci2 <- median(bootmodel$test.tStudent.pvalues[,lastc],na.rm = TRUE);
 									},
 									Wilcox = 
 									{ 
-										ci <- as.vector(quantile(bootmodel$wilcox.pvlaues[,lastc], probs = c(climpvalue, 0.5,1.0 - climpvalue), na.rm = TRUE,names = FALSE, type = 7));
-										ci2 <- median(bootmodel$test.wilcox.pvalues[,lastc]);
+										ci <- as.vector(quantile(bootmodel$wilcox.pvlaues[,lastc], probs = c(quartileValue, 0.5,1.0 - quartileValue), na.rm = TRUE,names = FALSE, type = 7));
+#										ci <- median(bootmodel$wilcox.pvlaues[,lastc],na.rm = TRUE);
+										ci2 <- median(bootmodel$test.wilcox.pvalues[,lastc],na.rm = TRUE);
 									},
 									Binomial =
 									{ 
-										ci <- as.vector(quantile(bootmodel$bin.pvlaues[,lastc], probs = c(climpvalue, 0.5,1.0 - climpvalue), na.rm = TRUE,names = FALSE, type = 7));
-										ci2 <- median(bootmodel$test.bin.pvlaues[,lastc]);
+										ci <- as.vector(quantile(bootmodel$bin.pvlaues[,lastc], probs = c(quartileValue, 0.5,1.0 - quartileValue), na.rm = TRUE,names = FALSE, type = 7));
+#										ci <- median(bootmodel$bin.pvlaues[,lastc],na.rm = TRUE);
+										ci2 <- median(bootmodel$test.bin.pvlaues[,lastc],na.rm = TRUE);
 									},
 									Ftest =
 									{ 
-										ci <- as.vector(quantile(bootmodel$F.pvlaues[,lastc], probs = c(climpvalue, 0.5,1.0 - climpvalue), na.rm = TRUE,names = FALSE, type = 7));
-										ci2 <- median(bootmodel$test.F.pvlaues[,lastc]);
+										ci <- as.vector(quantile(bootmodel$F.pvlaues[,lastc], probs = c(quartileValue, 0.5,1.0 - quartileValue), na.rm = TRUE,names = FALSE, type = 7));
+#										ci <- median(bootmodel$F.pvlaues[,lastc],na.rm = TRUE);
+										ci2 <- median(bootmodel$test.F.pvlaues[,lastc],na.rm = TRUE);
 									},
 								)
 								piri <- max(ci[3],ci2,iprob$p.value)
-#								piri <- max(ci[3],ci2,iprob$p.value); # the maximum of the train, test median or sample p-value
-#								cat(vnames[topvarID[i]],"train: ",ci," Test: ",ci2," All: ",iprob$p.value," Max: ",piri,"\n")
+#								cat("Update Formula 2: ",theBootLoops,":",ci,":",ci2,":",iprob$p.value,":",frma,"\n")
 							}
 						}
 
@@ -215,7 +220,7 @@ function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableL
 									newmodel <- modelFitting(ftmp,myTrainSample,type,TRUE)
 									if ( !inherits(newmodel, "try-error"))
 									{
-										if (bootLoops<4)
+										if (theBootLoops<4)
 										{
 											iprob <- .Call("improvedResidualsCpp",bestResiduals,residualForFRESA(newmodel,myTrainSample,Outcome),testType,0);
 											piri <- iprob$p.value;
@@ -231,26 +236,30 @@ function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableL
 												switch(testType, 
 													tStudent = 
 													{ 
-														ci <- as.vector(quantile(bootmodel$tStudent.pvlaues[,lastc], probs = c(climpvalue, 0.5,1.0 - climpvalue), na.rm = TRUE,names = FALSE, type = 7));
-														ci2 <- median(bootmodel$test.tStudent.pvalues[,lastc]);
+#														ci <- as.vector(quantile(bootmodel$tStudent.pvlaues[,lastc], probs = c(quartileValue, 0.5,1.0 - quartileValue), na.rm = TRUE,names = FALSE, type = 7));
+														ci <- median(bootmodel$tStudent.pvalues[,lastc],na.rm = TRUE);
+														ci2 <- median(bootmodel$test.tStudent.pvalues[,lastc],na.rm = TRUE);
 													},
 													Wilcox = 
 													{ 
-														ci <- as.vector(quantile(bootmodel$wilcox.pvlaues[,lastc], probs = c(climpvalue, 0.5,1.0 - climpvalue), na.rm = TRUE,names = FALSE, type = 7));
-														ci2 <- median(bootmodel$test.wilcox.pvalues[,lastc]);
+#														ci <- as.vector(quantile(bootmodel$wilcox.pvlaues[,lastc], probs = c(quartileValue, 0.5,1.0 - quartileValue), na.rm = TRUE,names = FALSE, type = 7));
+														ci <- median(bootmodel$wilcox.pvalues[,lastc],na.rm = TRUE);
+														ci2 <- median(bootmodel$test.wilcox.pvalues[,lastc],na.rm = TRUE);
 													},
 													Binomial =
 													{ 
-														ci <- as.vector(quantile(bootmodel$bin.pvlaues[,lastc], probs = c(climpvalue, 0.5,1.0 - climpvalue), na.rm = TRUE,names = FALSE, type = 7));
-														ci2 <- median(bootmodel$test.bin.pvlaues[,lastc]);
+#														ci <- as.vector(quantile(bootmodel$bin.pvlaues[,lastc], probs = c(quartileValue, 0.5,1.0 - quartileValue), na.rm = TRUE,names = FALSE, type = 7));
+														ci <- median(bootmodel$bin.pvlaues[,lastc],na.rm = TRUE);
+														ci2 <- median(bootmodel$test.bin.pvlaues[,lastc],na.rm = TRUE);
 													},
 													Ftest =
 													{ 
-														ci <- as.vector(quantile(bootmodel$F.pvlaues[,lastc], probs = c(climpvalue, 0.5,1.0 - climpvalue), na.rm = TRUE,names = FALSE, type = 7));
-														ci2 <- median(bootmodel$test.F.pvlaues[,lastc]);
+#														ci <- as.vector(quantile(bootmodel$F.pvlaues[,lastc], probs = c(quartileValue, 0.5,1.0 - quartileValue), na.rm = TRUE,names = FALSE, type = 7));
+														ci <- median(bootmodel$F.pvlaues[,lastc],na.rm = TRUE);
+														ci2 <- median(bootmodel$test.F.pvlaues[,lastc],na.rm = TRUE);
 													},
 												)
-												piri <- max(ci[3],ci2,iprob$p.value);
+												piri <- max(ci,ci2,iprob$p.value);
 											}
 										}
 										if (is.numeric(piri) && !is.na(piri) && (piri<pthrOl))
@@ -277,12 +286,16 @@ function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableL
 							}
 						}
 					}
+#					else
+#					{
+#						cat("Fitting Error: ",frma,"\n")
+#					}
 					kins=0
 				}
 			}
 			loops = loops+1;
 		}
-#		cat(frm1,"\n");
+#		cat("Formula: ",frm1,"\n");
 	}
 
 	ftmp <- formula(frm1);

@@ -8,7 +8,8 @@
 \usage{
 	rankInverseNormalDataFrame(variableList,
 	                           data,
-	                           referenceframe)
+	                           referenceframe,
+	                           strata=NA)
 }
 \arguments{
 	\item{variableList}{
@@ -19,6 +20,9 @@
 	}
 	\item{referenceframe}{
 		A data frame similar to \code{data}, but with only the control population
+	}
+	\item{strata}{
+		The name of the column in \code{data} that stores the variable that will be used to stratify the model
 	}
 }
 \value{

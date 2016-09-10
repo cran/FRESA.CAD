@@ -103,12 +103,14 @@ backVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data,star
 	}
 
 	bkobj <- NULL;
+	beforeFSC.formula <- NULL;
 	if (adjsize>1)
 	{
 		bkobj <- backVarElimination_Res(object,pvalue,Outcome,data,startOffset,type,testType,setIntersect,adjsize=1); # remove features that do not improve residuals
 		object <- bkobj$back.model;
 		adjsize = floor(adjsize);
 		adjsize <- min(adjsize,ncol(data)-1);
+		beforeFSC.formula <- bkobj$string.formula;
 #		cat("Adjusted Size:",adjsize,"\n");
 	}
 
@@ -124,8 +126,8 @@ backVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data,star
 		{		
 			modsize <- length(as.list(attr(terms(model),"term.labels")));	
 			if (modsize<1) modsize=1;
-			qvalue <- 4*pvalue;
-			if (qvalue < 0.1) qvalue=0.1 # lests keep a the minimum q-value to 0.1
+			qvalue <- 2*pvalue;
+			if (qvalue < 0.1) qvalue=0.1 # lests keep the minimum q-value to 0.1
 			p.elimin <- min(pvalue,modsize*qvalue/adjsize) # BH alpha  the elimination p-value
 		}
 
@@ -184,6 +186,7 @@ backVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data,star
 	lastRemoved=changes2,
 	number.of.independent=adjsize,
 	beforeFSC.model=beforeFSCmodel,
-	beforeFSC.formula=formula(bkobj$backfrm));
+	string.formula=bk$backfrm,
+	beforeFSC.formula=formula(beforeFSC.formula));
 	return (result);
 }
