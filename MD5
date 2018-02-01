@@ -1,6 +1,6 @@
-95bd3a8423fa8efafd3953a881f34db2 *DESCRIPTION
-2406b78b1c246d814b57329e708cce3f *NAMESPACE
-5aac66a0cba2706eaf025ca0fa922cee *NEWS
+d3f5b7c5b6fb250d4d8f93517430e1a8 *DESCRIPTION
+35f28cb7fb8334be3a281ccb504f29ab *NAMESPACE
+7807b6bdf1e2dd0c47225cb6f1f4d445 *NEWS
 8f806eb6ba9ba48a83cfcbf2d021a6a0 *R/BSWiMS.r
 6246ba9cc4a0d02cda00a1a42625a336 *R/EmpiricalSurvDiff.r
 dcc4d25543eab54c62ae4d696e2cb198 *R/FRESA.Model.R
@@ -47,7 +47,7 @@ c157545b944f0d7bd26325b5113b6e33 *R/uniRankVar.R
 c52294ca540ac6efea8cf5e09584fa23 *man/BSWiMS.Rd
 c2619dad77848bf58b21bf362653a3e0 *man/CancerVarNames.Rd
 a5518544ce67b24896c568f8b539f83b *man/EmpiricalSurvDiff.Rd
-c4f7364a3be385ea0cf9360361b396c0 *man/FRESA.CAD-package.Rd
+7cb4e693d4b19c2cd8be17004a5d7ae5 *man/FRESA.CAD-package.Rd
 6e40f917c9cc104351a54c9754713989 *man/FRESA.Model.Rd
 4628e8e6629ab17d280c3ce456d2c18c *man/ForwardModel.Bin.Rd
 dd87fd1e8b75d391f3615d4040f3880d *man/ForwardModel.Res.Rd
@@ -88,12 +88,11 @@ c75de2e0efe40e4191f65ae6dc7bd6d8 *man/summaryReport.Rd
 4dfd16f7aa470e10210eb77d46009e1e *man/update.uniRankVar.Rd
 1be39d45982aca34ddf269f7d9f9ba38 *man/updateModel.Bin.Rd
 551832055a3ba6cbcda1152952aff1ad *man/updateModel.Res.Rd
-25c2185bf3984dfe2fa0cd141330ccde *src/FRESACAD_init.cpp
+7eaa3b5b0338ad4d0e775eb9b9a85104 *src/FRESACAD_init.cpp
 ddb5b47ad4774c765048ad01bf71fb8b *src/FRESAcommons.cpp
 734b814eeeb674db339223bb0cc1c2ba *src/FRESAcommons.h
 702e28bd03377b4d314afa4225a7bf70 *src/Makevars
 3f2ceba2c06ce8a92f4d62a417410d70 *src/Makevars.win
 2e29c13022d680b08831cb7ae5143d4f *src/binaryFeatureSelectionCpp.cpp
-55be6b5c77f4d3ece7dc108458f50397 *src/outcheck.txt
 c1bfc696919a813854e9d8d692becee7 *src/rankInverseNormalCpp.cpp
 0439e7b122268f9f28b9c9bb4507c5af *src/regresionFeatureSelectionCpp.cpp

@@ -1,4 +1,3 @@
-useDynLib(FRESA.CAD,.registration = TRUE)
 export(backVarElimination_Bin)
 export(backVarElimination_Res)
 export(baggedModel)
@@ -37,6 +36,7 @@ export(summary.fitFRESA)
 export(BSWiMS.model)
 export(nearestneighborimpute)
 export(EmpiricalSurvDiff)
+useDynLib(FRESA.CAD,.registration = TRUE)
 
 import(stringr,miscTools,Hmisc,pROC)
 importFrom(Rcpp, evalCpp)

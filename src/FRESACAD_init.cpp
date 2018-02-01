@@ -63,4 +63,9 @@ extern "C" void R_init_FRESA_CAD(DllInfo *dll)
     R_useDynamicSymbols(dll, FALSE);
 }
 
+extern "C" void R_init_FRESACAD(DllInfo *dll)
+{
+    R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
+    R_useDynamicSymbols(dll, FALSE);
+}
 

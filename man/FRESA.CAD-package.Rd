@@ -14,8 +14,8 @@ Utilities include functions for: univariate/longitudinal analysis, data conditio
     \tabular{ll}{
         Package: \tab FRESA.CAD\cr
         Type: \tab Package\cr
-        Version: \tab 3.0.0\cr
-        Date: \tab 2018-01-09\cr
+        Version: \tab 3.0.1\cr
+        Date: \tab 2018-02-01\cr
         License: \tab LGPL (>= 2)\cr
     }
     Purpose: The design of diagnostic or prognostic multivariate models via the selection of significantly discriminant features.
