@@ -7,20 +7,20 @@ backVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data,star
 		seltype <- match.arg(selectionType)
 		type <- match.arg(type);
 	  
-		varsList <- as.list(attr(terms(object),"variables"))
+		varsList <- unlist(as.list(attr(terms(object),"variables")))
+		termList <- str_replace_all(attr(terms(object),"term.labels"),":","\\*")
 		
 		
 		cthr = abs(qnorm(pvalue));
 		removeID = 0;
 
 		outCome = paste(varsList[2]," ~ ");
-		startlist = 3 ;
 		frm1 = outCome;
-		if (length(varsList)>=startlist)
+		if (length(termList)>0)
 		{
-			for ( i in startlist:length(varsList))
+			for ( i in 1:length(termList))
 			{
-				frm1 <- paste(frm1,paste(" + ",varsList[i]));
+				frm1 <- paste(frm1,paste("+",termList[i]));
 			}
 		}
 		else
@@ -30,31 +30,30 @@ backVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data,star
 		
 		ftmp <- formula(frm1);
 		bckform <- frm1;
-		FullModel <- modelFitting(ftmp,data,type)
-		startSearch = startlist + startOffset;
+		FullModel <- modelFitting(ftmp,data,type,TRUE)
+		startSearch = 1 + startOffset;
 		if ( !inherits(FullModel, "try-error"))
 		{
-			FullPredict <- predictForFresa(FullModel,data,'prob');
-			if (length(varsList)>startSearch)
+			FullPredict <- predict.fitFRESA(FullModel,data,'prob');
+			if (length(termList)>startSearch)
 			{
-				for ( i in startSearch:length(varsList))
+				for ( i in startSearch:length(termList))
 				{
 				
 					frm1 = outCome;
-					for ( j in startlist:length(varsList))
+					for ( j in 1:length(termList))
 					{
 						if (i!=j)
 						{
-							frm1 <- paste(frm1,paste(" + ",varsList[j]));
+							frm1 <- paste(frm1,paste("+",termList[j]));
 						}
 					}
 					ftmp <- formula(frm1);
 					redModel <- modelFitting(ftmp,data,type,TRUE)
 					if ( !inherits(redModel, "try-error"))
 					{
-						redPredict <- predictForFresa(redModel,data,'prob');
-#						iprob <- improveProb(redPredict,FullPredict,data[,Outcome]);
-						iprob <- .Call("improveProbCpp",redPredict,FullPredict,data[,Outcome],0);
+						redPredict <- predict.fitFRESA(redModel,data,'prob');
+						iprob <- .Call("improveProbCpp",redPredict,FullPredict,data[,Outcome]);
 						if (seltype=="zIDI") 
 						{
 							ztst = iprob$z.idi;
@@ -74,7 +73,7 @@ backVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data,star
 			}
 		}
 
-		if ((length(varsList) == startSearch) && (removeID == startSearch)) 
+		if ((length(termList) == startSearch) && (removeID == startSearch)) 
 		{
 			removeID = -1;
 		}
@@ -82,16 +81,16 @@ backVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data,star
 		if (removeID > 0)
 		{
 			frm1 = outCome;
-			for ( i in startlist:length(varsList))
+			for ( i in 1:length(termList))
 			{
 				if (i != removeID)
 				{
-					frm1 = paste(frm1,paste(" + ",varsList[i]));
+					frm1 = paste(frm1,paste("+",termList[i]));
 				}
 			}
 			ftmp <- formula(frm1);
 			bckform <- frm1;
-			FullModel <- modelFitting(ftmp,data,type)
+			FullModel <- modelFitting(ftmp,data,type,TRUE)
 		}
 #		cat("removed : ",removeID,"Final Model: \n")
 #		print(summary(FullModel));
@@ -124,10 +123,10 @@ backVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data,star
 		p.elimin <- pvalue;
 		if (adjsize>1)
 		{
-			modsize <- length(as.list(attr(terms(model),"term.labels")));	
+			modsize <- length(attr(terms(model),"term.labels"));	
 			if (modsize<1) modsize=1;
-			qvalue <- 2*pvalue;
-			if (qvalue < 0.1) qvalue=0.1 # lests keep the minimum q-value to 0.1
+			qvalue <- 4.0*pvalue;
+			if (qvalue < 0.05) qvalue=0.05 # lests keep the minimum q-value to 0.1
 			p.elimin <- min(pvalue,modsize*qvalue/adjsize) # BH alpha the elimination p-value
 		}
 
@@ -136,43 +135,19 @@ backVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data,star
 		changes = as.integer(bk$Removed);
 		if (changes>0)
 		{
-		  loops = loops + 1;
-		  changes2<- as.character(as.list(attr(terms(model),"variables")))[which(!(as.character(as.list(attr(terms(model),"variables")))%in%as.character(as.list(attr(terms(bk$Model),"variables")))))]
+		  changes2<- attr(terms(model),"term.labels")[which(!(attr(terms(model),"term.labels") %in% attr(terms(bk$Model),"term.labels")))]
 		  model = bk$Model;
 		  if (length(changes2)>1)
 			{
 				changes2<-changes2[2]
 			}
-				if (adjsize>1)
-				{
-					weight <- 1.0;
-					
-					if ((length(beforeFSCmodel$coefficients)>0)&&(length(model$coefficients)>0))
-					{
-						for (i in 1:length(beforeFSCmodel$coefficients))
-						{
-							notadded = TRUE;
-							for (j in 1:length(model$coefficients))
-							{
-								if (names(beforeFSCmodel$coefficients)[i] == names(model$coefficients)[j])
-								{
-									beforeFSCmodel$coefficients[i] <- (weight*beforeFSCmodel$coefficients[i] + (1-weight)*model$coefficients[j]); # it will average the two
-									notadded=FALSE;
-								}
-							}
-							if (notadded)
-							{
-								beforeFSCmodel$coefficients[i] <- weight*beforeFSCmodel$coefficients[i]; # it will average with zero
-							}
-						}
-					}
-				}
 		}
 		if (changes < 0)
 		{
 			changes2<- changes
 		}
 		model = bk$Model;
+		  loops = loops + 1;
 	}
 #	print(summary(model));
 #	cat("Reduced Model:",bk$backfrm,"\n")
@@ -182,7 +157,7 @@ backVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data,star
 	reclas.info=modelReclas,
 	back.formula=formula(bk$backfrm),
 	lastRemoved=changes2,
-	beforeFSC.model=beforeFSCmodel,
+	at.opt.model=beforeFSCmodel,
 	string.formula=bk$backfrm,
 	beforeFSC.formula=formula(beforeFSC.formula));
 	return (result);

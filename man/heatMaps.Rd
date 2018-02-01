@@ -5,7 +5,7 @@
 	This function creates a heat map for a data set based on a univariate or frequency ranking
 }
 \usage{
-	heatMaps(variableList,
+	heatMaps(variableList=NULL,
 	         varRank = NULL,
 	         Outcome,
 	         data,
@@ -53,7 +53,7 @@
 		transpose the heatmap 
 	}
 	\item{...}{
-		aditional parameters for the heatmap.2 function
+		additional parameters for the heatmap.2 function
 	}
 }
 \value{
@@ -67,64 +67,34 @@
 		A list with the values returned by the \code{heatmap.2} function (\code{gplots} package)
 	}
 }
-\author{Jose G. Tamez-Pena and Antonio Martinez-Torteya}
+
 \examples{
 	\dontrun{
-	# Start the graphics device driver to save all plots in a pdf format
-	pdf(file = "Example.pdf")
-	# Get the stage C prostate cancer data from the rpart package
-	library(rpart)
-	data(stagec)
-	# Split the stages into several columns
-	dataCancer <- cbind(stagec[,c(1:3,5:6)],
-	                    gleason4 = 1*(stagec[,7] == 4),
-	                    gleason5 = 1*(stagec[,7] == 5),
-	                    gleason6 = 1*(stagec[,7] == 6),
-	                    gleason7 = 1*(stagec[,7] == 7),
-	                    gleason8 = 1*(stagec[,7] == 8),
-	                    gleason910 = 1*(stagec[,7] >= 9),
-	                    eet = 1*(stagec[,4] == 2),
-	                    diploid = 1*(stagec[,8] == "diploid"),
-	                    tetraploid = 1*(stagec[,8] == "tetraploid"),
-	                    notAneuploid = 1-1*(stagec[,8] == "aneuploid"))
-	# Remove the incomplete cases
-	dataCancer <- dataCancer[complete.cases(dataCancer),]
-	# Load a pre-stablished data frame with the names and descriptions of all variables
-	data(cancerVarNames)
-	# Rank the variables:
-	# - Analyzing the raw data
-	# - According to the zIDI
-	rankedDataCancer <- univariateRankVariables(variableList = cancerVarNames,
-	                                            formula = "Surv(pgtime, pgstat) ~ 1",
-	                                            Outcome = "pgstat",
-	                                            data = dataCancer,
-	                                            categorizationType = "Raw",
-	                                            type = "COX",
-	                                            rankingTest = "zIDI",
-	                                            description = "Description")
-	# Get a Cox proportional hazards model using:
-	# - 10 bootstrap loops
-	# - Age as a covariate
-	# - zIDI as the feature inclusion criterion
-	cancerModel <- ForwardSelection.Model.Bin(loops = 10,
-	                                           covariates = "1 + age",
-	                                           Outcome = "pgstat",
-	                                           variableList = rankedDataCancer,
-	                                           data = dataCancer,
-	                                           type = "COX",
-	                                           timeOutcome = "pgtime",
-	                                           selectionType = "zIDI")
-	# Scale the C prostate cancer data for a heatmap
-	dataCancerScale <- as.data.frame(scale(dataCancer))
-	# Generate a heat map using:
-	# - The top ranked variables
-	# - The scaled data
-	hmTop <- heatMaps(variableList = rankedDataCancer,
-	                  varRank = cancerModel$ranked.var,
-	                  Outcome = "pgstat",
-	                  data = dataCancerScale,
-	                  Scale = 10)
-	# Shut down the graphics device driver
-	dev.off()}
+
+		library(rpart)
+		data(stagec)
+
+		# Set the options to keep the na
+		options(na.action='na.pass')
+		# create a model matrix with all the NA values imputed
+		stagecImputed <- as.data.frame(nearestneighborimpute(model.matrix(~.,stagec)[,-1]))
+
+		# the simple heat map
+		hm <- heatMaps(Outcome="pgstat",data=stagecImputed,title="Heat Map",Scale=TRUE) 
+
+		# transposing the heat-map with clustered colums
+		hm <- heatMaps(Outcome="pgstat",data=stagecImputed,title="Heat Map",Scale=TRUE,
+					   transpose= TRUE,hCluster = TRUE,
+					   cexRow=0.80,cexCol=0.50,srtCol=35) 
+
+		# transposing the heat-map with reds and time to event as outcome
+		hm <- heatMaps(Outcome="pgtime",data=stagecImputed,title="Heat Map",Scale=TRUE,
+					   theFiveColors=c("black","red","orange","yellow","white"),
+					   cexRow=0.50,cexCol=0.80,srtCol=35) 
+	}
 }
+
+
+\author{Jose G. Tamez-Pena and Antonio Martinez-Torteya}
+
 \keyword{Data_Inspection}

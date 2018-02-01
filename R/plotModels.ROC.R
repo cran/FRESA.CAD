@@ -8,33 +8,141 @@ function(modelPredictions,number.of.models=0,specificities=c(0.975,0.95,0.90,0.8
 #	par(mfrow=c(1,1),pty='s',cex=cex);
 	par(pty='s',cex=cex);
 	rocadded = 0;
-	if (number.of.runs == 0)
-	{
-		number.of.runs=max(modelPredictions[,"Model"]) %/% theCVfolds;
-	}
 	auclist <- vector()
 	sumSen <- NULL;
 	blindSen <- NULL;
+	ensemblePrediction <- NULL;
+	ensemble.auc <- NULL;
+	rout <- NULL;
 	
 
-	for (n in 1:number.of.runs)
+	if (theCVfolds>1)
 	{
-		mm = n;
-		blindmodel <- modelPredictions[which(((modelPredictions[,3]-1) %/% theCVfolds) + 1  == mm),];
-		if ( (sum(blindmodel[,"Outcome"]==1) > 3) && (sum(blindmodel[,"Outcome"]==0) > 3))
+		if (number.of.runs == 0)
 		{
-			auclist <- append(auclist,pROC::roc(blindmodel[,"Outcome"],blindmodel[,predictor],auc=TRUE,plot=TRUE,col="lightgray",lty=4,lwd=1)$auc)
+			number.of.runs=max(modelPredictions[,"Model"]) %/% theCVfolds;
+		}
+		for (n in 1:number.of.runs)
+		{
+			mm = n;
+			blindmodel <- modelPredictions[which(((modelPredictions[,3]-1) %/% theCVfolds) + 1  == mm),];
+			if ( (sum(blindmodel[,"Outcome"]==1) > 3) && (sum(blindmodel[,"Outcome"]==0) > 3))
+			{
+				auclist <- append(auclist,pROC::roc(as.vector(blindmodel[,"Outcome"]),blindmodel[,predictor],auc=TRUE,plot=TRUE,col="lightgray",lty=4,lwd=1)$auc)
+				par(new=TRUE)
+				sen <- pROC::roc(as.vector(blindmodel[,"Outcome"]),blindmodel[,predictor],auc=TRUE,plot=FALSE,ci=TRUE,progress='none',of='se',specificities=specificities,boot.n=100,smooth=FALSE,lty=3,lwd=1)$ci[,2]
+				if (n == 1) 
+				{
+					blindSen <- sen;
+				}
+				else
+				{
+					blindSen <- rbind(sen,blindSen);
+				}
+				rocadded = rocadded +1;
+			}
+		}
+		psta <- boxplot(modelPredictions[,predictor]~rownames(modelPredictions),plot=FALSE)
+		outcomesta <- boxplot(modelPredictions$Outcome~rownames(modelPredictions),plot=FALSE)
+		rout <- pROC::roc(outcomesta$stats[3,],psta$stats[3,],col="black",auc=TRUE,plot=TRUE,smooth=FALSE,lty=3,lwd=3,...)
+		ensemble.auc <- rout$auc
+		par(new=TRUE)
+		auc1 <- pROC::roc(as.vector(modelPredictions[,"Outcome"]),modelPredictions[,predictor],col="darkblue",auc=TRUE,plot=TRUE,smooth=FALSE,...)$auc
+
+		ensemblePrediction <- cbind(outcomesta$stats[3,],psta$stats[3,]);
+		rownames(ensemblePrediction) <- psta$names
+		colnames(ensemblePrediction) <- c("Outcome",predictor);
+		thres = 0.5
+		if (min(psta$stats[3,])<0) 
+		{
+			thres = 0;
+		}				
+		dtable <- table(psta$stats[3,]<thres,1-outcomesta$stats[3,])
+		ley.names <- c(paste("Coherence (",sprintf("%.3f",auc1),")"));
+		ley.colors <- c("darkblue");
+		ley.lty <- c(1);
+		ley.names <- append(ley.names,paste("Ensemble (",sprintf("%.3f",ensemble.auc),")"));
+		ley.colors <- append(ley.colors,"black");
+		ley.lty <- append(ley.lty,3);
+	}
+	else
+	{
+		if (class(modelPredictions) == "data.frame")
+		{ 
+			if (!is.null(modelPredictions$Model)) modelPredictions$Model <- NULL;
+		}
+		lastcol <- ncol(modelPredictions);
+		eblindmodel <- NULL;
+		if (lastcol>2)
+		{
+			for (n in 2:lastcol)
+			{
+				mm = n;
+				blindmodel <- modelPredictions[,c(1,n)];
+				colnames(blindmodel) <- c("Outcome",predictor);
+				if ( (sum(blindmodel[,"Outcome"]==1) > 3) && (sum(blindmodel[,"Outcome"]==0) > 3))
+				{
+					auclist <- append(auclist,pROC::roc(blindmodel[,"Outcome"],blindmodel[,predictor],auc=TRUE,plot=TRUE,col="lightgray",lty=4,lwd=1)$auc)
+					par(new=TRUE)
+					sen <- pROC::roc(as.vector(blindmodel[,"Outcome"]),blindmodel[,predictor],auc=TRUE,plot=FALSE,ci=TRUE,progress='none',of='se',specificities=specificities,boot.n=100,smooth=FALSE,lty=3,lwd=1)$ci[,2]
+					if (n == 1) 
+					{
+						blindSen <- sen;
+					}
+					else
+					{
+						blindSen <- rbind(sen,blindSen);
+					}
+					rocadded = rocadded +1;
+				}
+				eblindmodel <- rbind(eblindmodel,blindmodel);
+			}
+			psta <- modelPredictions[,2:lastcol];
+			if (ncol(psta)>1)
+			{
+				psta <- rowMedians(psta,na.rm=TRUE);
+			}
+			outcomesta <- modelPredictions[,1];
+			rout <- pROC::roc(outcomesta,psta,col="black",auc=TRUE,plot=TRUE,smooth=FALSE,lty=3,lwd=3,...)
+			ensemble.auc <- rout$auc
 			par(new=TRUE)
-			sen <- pROC::roc(blindmodel[,"Outcome"],blindmodel[,predictor],auc=TRUE,plot=FALSE,ci=TRUE,progress='none',of='se',specificities=specificities,boot.n=100,smooth=FALSE,lty=3,lwd=1)$ci[,2]
-			if (n == 1) 
+			auc1 <- pROC::roc(as.vector(eblindmodel[,1]),eblindmodel[,2],col="darkblue",auc=TRUE,plot=TRUE,smooth=FALSE,...)$auc
+
+			ensemblePrediction <- cbind(outcomesta,psta);
+			rownames(ensemblePrediction) <- rownames(modelPredictions);
+			colnames(ensemblePrediction) <- c("Outcome",predictor);
+			thres = 0.5
+			if (min(psta)<0) 
 			{
-				blindSen <- sen;
-			}
-			else
+				thres = 0;
+			}				
+			dtable <- table(psta<thres,1-outcomesta);
+			ley.names <- c(paste("Coherence (",sprintf("%.3f",auc1),")"));
+			ley.colors <- c("darkblue");
+			ley.lty <- c(1);
+			ley.names <- append(ley.names,paste("Ensemble (",sprintf("%.3f",ensemble.auc),")"));
+			ley.colors <- append(ley.colors,"black");
+			ley.lty <- append(ley.lty,3);
+		}
+		else
+		{
+			rout <- roc(as.vector(modelPredictions[,1]),modelPredictions[,2]);
+			specificities=seq(0, 1, .05);	
+			ci.sp.obj <- ci.sp(rout , sensitivities=seq(0, 1, .05), boot.n=100,progress= 'none')
+			blindSen <- ci.se(rout , specificities=seq(0, 1, .05), boot.n=100,progress= 'none')
+			plot(rout,grid=c(0.1, 0.1),grid.col=c("gray", "gray"),print.auc=FALSE,...) 
+			plot(ci.sp.obj, type="s", col="gray")
+			plot(blindSen, type="s", col="light gray")
+			auclist <- rout$auc;
+			thres = 0.5
+			if (min(modelPredictions[,2])<0) 
 			{
-				blindSen <- rbind(sen,blindSen);
-			}
-			rocadded = rocadded +1;
+				thres = 0;
+			}				
+			dtable <- table(modelPredictions[,2]<thres,1-modelPredictions[,1]);
+			ley.names <- c(paste("AUC: ",sprintf("%.3f",rout$auc),")"));
+			ley.colors <- c("black");
+			ley.lty <- c(1);
 		}
 	}
 	if (rocadded>1)
@@ -43,31 +151,9 @@ function(modelPredictions,number.of.models=0,specificities=c(0.975,0.95,0.90,0.8
 		boxplot(blindSen,add=TRUE, axes = FALSE,boxwex=0.04,at=specificities);
 		par(new=TRUE)
 	}
-	psta <- boxplot(modelPredictions[,predictor]~rownames(modelPredictions),plot=FALSE)
-	outcomesta <- boxplot(modelPredictions$Outcome~rownames(modelPredictions),plot=FALSE)
-	ensemble.auc <- pROC::roc(outcomesta$stats[3,],psta$stats[3,],col="black",auc=TRUE,plot=TRUE,smooth=FALSE,lty=3,lwd=3,...)$auc
-	par(new=TRUE)
-	auc1 <- pROC::roc(modelPredictions[,"Outcome"],modelPredictions[,predictor],col="darkblue",auc=TRUE,plot=TRUE,smooth=FALSE,...)$auc
-
-	ensemblePrediction <- cbind(outcomesta$stats[3,],psta$stats[3,]);
-	rownames(ensemblePrediction) <- psta$names
-	colnames(ensemblePrediction) <- c("Outcome",predictor);
-	thres = 0.5
-	if (min(psta$stats[3,])<0) 
-	{
-		thres = 0;
-	}				
-	dtable <- table(psta$stats[3,]<thres,1-outcomesta$stats[3,])
-
-	ley.names <- c(paste("Coherence (",sprintf("%.3f",auc1),")"));
-	ley.colors <- c("darkblue");
-	ley.lty <- c(1);
-	ley.names <- append(ley.names,paste("Ensemble (",sprintf("%.3f",ensemble.auc),")"));
-	ley.colors <- append(ley.colors,"black");
-	ley.lty <- append(ley.lty,3);
-
 
 	auc = 0;
+	enauc = -1;
 	if (rocadded>1)
 	{
 #		boxplot(blindSen,add=TRUE, axes = FALSE,boxwex=0.04,at=specificities);
@@ -93,14 +179,14 @@ function(modelPredictions,number.of.models=0,specificities=c(0.975,0.95,0.90,0.8
 	if (nrow(dtable)==ncol(dtable) & (ncol(dtable)>1))
 	{
 		colnames(dtable) <- c("O(+)","O(-)")
-		rownames(dtable) <- c("P(+)","P(-)")
+		rownames(dtable) <- c("T(+)","T(-)")
 		Sen=dtable[1,1]/(dtable[1,1]+dtable[2,1])
 		Spe=dtable[2,2]/(dtable[1,2]+dtable[2,2])
 		enauc = 0.5*(Sen+Spe)	
 
 		lines(c(1,Spe,0),c(0,Sen,1),col="green",lwd=1.0,lty=1);
-    
-		ley.names <- append(ley.names,paste("Binary Ensemble Prediction (",sprintf("%.3f",enauc),")"));
+	
+		ley.names <- append(ley.names,paste("Class AUC (",sprintf("%.3f",enauc),")"));
 		ley.colors <- append(ley.colors,"green");
 		ley.lty <- append(ley.lty,1);
 
@@ -111,7 +197,7 @@ function(modelPredictions,number.of.models=0,specificities=c(0.975,0.95,0.90,0.8
 		y=1.025
 		text(x,y,paste("(TPR=",sprintf("%.3f",Sen),",TNR=",sprintf("%.3f",Spe),",ACC=",sprintf("%.3f",Acc),",F1=",sprintf("%.3f",F1),",AUC=",sprintf("%.3f",enauc),")"),adj = c(0,1),cex=0.7*cex,col="dark green")
 		par(new=TRUE,plt=c(0.6,0.8,0.37,0.57),pty='s',cex=0.9*cex)
-		plot(t(dtable),main="Ensemble",ylab=predictor,xlab="Outcome",cex=0.9*cex)
+		plot(t(dtable),main="Confusion Matrix",ylab="Test",xlab="Outcome",cex=0.9*cex)
 	}
 	else
 	{
@@ -125,6 +211,10 @@ function(modelPredictions,number.of.models=0,specificities=c(0.975,0.95,0.90,0.8
 	specificities=specificities,
 	senAUC=auc,
 	ensemblePrediction=ensemblePrediction,
-	predictionTable=dtable)
+	predictionTable=dtable,
+	ensemble.auc=ensemble.auc,
+	clasification.auc=enauc,
+	roc.predictor=rout
+	)
 	return (result)
 }

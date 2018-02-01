@@ -41,6 +41,7 @@ function(variableList,data,referenceframe,strata=NA)
 			nrowsCtr =  nrow(cstrataref);
 			nrows = nrow(cstrata);
 			InverseFrame = cstrata;
+			idxs <- as.integer(0.01*nrowsCtr); #for outlies smoothing
 			for (i in 1:size)
 			{ 
 				if (length(table(cstrata[,colnamesList[i]]))>2)
@@ -48,9 +49,17 @@ function(variableList,data,referenceframe,strata=NA)
 					SortedCtr[,colnamesList[i]]<-SortedCtr[order(cstrataref[,colnamesList[i]]),colnamesList[i]];
 					minvalue <- SortedCtr[1,colnamesList[i]];
 					maxvalue <- SortedCtr[nrowsCtr,colnamesList[i]];
-					cat(" Variable: ",colnamesList[i],"Min: ",minvalue," Max: ",maxvalue,"\n")      
+					cat(" Variable: ",colnamesList[i],"Min: ",minvalue," Max: ",maxvalue)      
+					if (idxs>0)
+					{
+						for (n in idxs:1) SortedCtr[n,colnamesList[i]] <- 0.5*(SortedCtr[n,colnamesList[i]]+SortedCtr[n+1,colnamesList[i]]);
+						for (n in (nrowsCtr-idxs):nrowsCtr) SortedCtr[n,colnamesList[i]] <- 0.5*(SortedCtr[n,colnamesList[i]]+SortedCtr[n-1,colnamesList[i]]);
+						minvalue <- SortedCtr[1,colnamesList[i]];
+						maxvalue <- SortedCtr[nrowsCtr,colnamesList[i]];
+						cat("-> NMin: ",minvalue," NMax: ",maxvalue)      
+					}
+					cat("\n")      
 					InverseFrame[,colnamesList[i]]<-.Call("rankInverseNormalCpp",nrows,cstrata[,colnamesList[i]],minvalue,maxvalue,SortedCtr[,colnamesList[i]]);
-			  
 				}
 			}
 		}

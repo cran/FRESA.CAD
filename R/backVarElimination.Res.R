@@ -5,8 +5,8 @@ backVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data,star
 	{
 		type <- match.arg(type);
 	  
-		varsList <- as.list(attr(terms(object),"variables"))
-		termList <- as.list(attr(terms(object),"term.labels"))
+		varsList <- unlist(as.list(attr(terms(object),"variables")))
+		termList <- str_replace_all(attr(terms(object),"term.labels"),":","\\*")
 		
 		modsize <- length(termList);
 		
@@ -21,36 +21,35 @@ backVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data,star
 		{
 			outCome = paste(outCome," 1  ");
 		}
-		startlist = 3 ;
 		frm1 = outCome;
 		cpv = pvalue; 
-		if (length(varsList)>=startlist)
+		if (length(termList)>0)
 		{
-			for ( i in startlist:length(varsList))
+			for ( i in 1:length(termList))
 			{
-				frm1 <- paste(frm1,paste(" + ",varsList[i]));
+				frm1 <- paste(frm1,paste("+",termList[i]));
 			}
 		}
 #		cat ("Len: ",length(termList)," : ",frm1,"\n")
 		ftmp <- formula(frm1);
 		bckform <- frm1;
-		startSearch = startlist + startOffset;
+		startSearch = 1 + startOffset;
 		if (length(termList)>1)
 		{
-			FullModel <- modelFitting(ftmp,data,type)
+			FullModel <- modelFitting(ftmp,data,type,TRUE)
 			FullResiduals <- residualForFRESA(FullModel,data,Outcome);
 
-			if (length(varsList)>startSearch)
+			if (length(termList)>startSearch)
 			{
-				for ( i in startSearch:length(varsList))
+				for ( i in startSearch:length(termList))
 				{
 				
 					frm1 = outCome;
-					for ( j in startlist:length(varsList))
+					for ( j in 1:length(termList))
 					{
 						if (i!=j)
 						{
-							frm1 <- paste(frm1,paste(" + ",varsList[j]));
+							frm1 <- paste(frm1,paste("+",termList[j]));
 						}
 					}
 					ftmp <- formula(frm1);
@@ -70,7 +69,7 @@ backVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data,star
 					}
 				}
 			}
-			if ((length(varsList) == startSearch) && (removeID == startSearch)) 
+			if ((length(termList) == startSearch) && (removeID == startSearch)) 
 			{
 				removeID = -1;
 			}
@@ -78,17 +77,17 @@ backVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data,star
 			if (removeID>0)
 			{
 				frm1 = outCome;
-				for ( i in startlist:length(varsList))
+				for ( i in 1:length(termList))
 				{
 					if (i != removeID)
 					{
-						frm1 = paste(frm1,paste(" + ",varsList[i]));
+						frm1 = paste(frm1,paste("+",termList[i]));
 					}
 				}
 				ftmp <- formula(frm1);
 				bckform <- frm1;
 #				cat("formula :",frm1,"\n")
-				FullModel <- modelFitting(ftmp,data,type)
+				FullModel <- modelFitting(ftmp,data,type,TRUE)
 			}
 		}
 		else
@@ -124,10 +123,10 @@ backVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data,star
 		p.elimin <- pvalue;
 		if (adjsize>0)
 		{		
-			modsize <- length(as.list(attr(terms(model),"term.labels")));	
+			modsize <- length(attr(terms(model),"term.labels"));	
 			if (modsize<1) modsize=1;
-			qvalue <- 2*pvalue;
-			if (qvalue < 0.1) qvalue=0.1 # lests keep the minimum q-value to 0.1
+			qvalue <- 4.0*pvalue;
+			if (qvalue < 0.05) qvalue=0.05 # lests keep the minimum q-value to 0.1
 			p.elimin <- min(pvalue,modsize*qvalue/adjsize) # BH alpha  the elimination p-value
 		}
 
@@ -137,35 +136,12 @@ backVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data,star
 		if (changes>0)
 		{
 		  loops = loops + 1;
-			changes2<- as.character(as.list(attr(terms(model),"variables")))[which(!(as.character(as.list(attr(terms(model),"variables")))%in%as.character(as.list(attr(terms(bk$Model),"variables")))))]
+			changes2<- attr(terms(model),"term.labels")[which(!(attr(terms(model),"term.labels") %in% attr(terms(bk$Model),"term.labels")))]
 			model = bk$Model;
 			if (length(changes2)>1)
 			{
 				changes2<-changes2[2]
 			}
-				if (adjsize>1)
-				{
-					weight <- 1.0;
-					if ((length(beforeFSCmodel$coefficients)>0)&&(length(model$coefficients)>0))
-					{
-						for (i in 1:length(beforeFSCmodel$coefficients))
-						{
-							notadded = TRUE;
-							for (j in 1:length(model$coefficients))
-							{
-								if (names(beforeFSCmodel$coefficients)[i] == names(model$coefficients)[j])
-								{
-									beforeFSCmodel$coefficients[i] <- (weight*beforeFSCmodel$coefficients[i] + (1-weight)*model$coefficients[j]); # it will average the two
-									notadded=FALSE;
-								}
-							}
-							if (notadded)
-							{
-								beforeFSCmodel$coefficients[i] <- weight*beforeFSCmodel$coefficients[i]; # it will average with zero
-							}
-						}
-					}
-				}
 		}
 		if (changes < 0)
 		{
@@ -185,7 +161,7 @@ backVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data,star
 	bootCV=NULL,
 	lastRemoved=changes2,
 	number.of.independent=adjsize,
-	beforeFSC.model=beforeFSCmodel,
+	at.opt.model=beforeFSCmodel,
 	string.formula=bk$backfrm,
 	beforeFSC.formula=formula(beforeFSC.formula));
 	return (result);

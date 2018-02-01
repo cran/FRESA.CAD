@@ -14,13 +14,12 @@
 	                     Outcome, 
 	                     variableList, 
 	                     data, 
-	                     maxTrainModelSize = 10, 
+	                     maxTrainModelSize = 20, 
 	                     type = c("LM", "LOGIT", "COX"), 
 	                     testType=c("Binomial", "Wilcox", "tStudent", "Ftest"),
 	                     timeOutcome = "Time",
-	                     loop.threshold = 20,
-	                     interaction = 1,
-	                     cores = 4)
+	                     cores = 4,
+	                     randsize = 0)
 }
 \arguments{
 	\item{size}{
@@ -59,14 +58,11 @@
 	\item{timeOutcome}{
 		The name of the column in \code{data} that stores the time to event (needed only for a Cox proportional hazards regression model fitting)
 	}
-	\item{loop.threshold}{
-		After \code{loop.threshold} cycles, only variables that have already been selected in previous cycles will be candidates to be selected in posterior cycles
-	}
-	\item{interaction}{
-		Set to either 1 for first order models, or to 2 for second order models
-	}
 	\item{cores}{
 		Cores to be used for parallel processing
+	}
+	\item{randsize}{
+		the model size of a random outcome. If randsize is less than zero. It will estimate the size
 	}
 }
 \value{
@@ -94,53 +90,5 @@
 }
 \author{Jose G. Tamez-Pena and Antonio Martinez-Torteya}
 \seealso{\code{\link{ForwardSelection.Model.Bin}}}
-\examples{
-	\dontrun{
-	# Start the graphics device driver to save all plots in a pdf format
-	pdf(file = "Example.pdf")
-	# Get the stage C prostate cancer data from the rpart package
-	library(rpart)
-	data(stagec)
-	# Split the stages into several columns
-	dataCancer <- cbind(stagec[,c(1:3,5:6)],
-	                    gleason4 = 1*(stagec[,7] == 4),
-	                    gleason5 = 1*(stagec[,7] == 5),
-	                    gleason6 = 1*(stagec[,7] == 6),
-	                    gleason7 = 1*(stagec[,7] == 7),
-	                    gleason8 = 1*(stagec[,7] == 8),
-	                    gleason910 = 1*(stagec[,7] >= 9),
-	                    eet = 1*(stagec[,4] == 2),
-	                    diploid = 1*(stagec[,8] == "diploid"),
-	                    tetraploid = 1*(stagec[,8] == "tetraploid"),
-	                    notAneuploid = 1-1*(stagec[,8] == "aneuploid"))
-	# Remove the incomplete cases
-	dataCancer <- dataCancer[complete.cases(dataCancer),]
-	# Load a pre-stablished data frame with the names and descriptions of all variables
-	data(cancerVarNames)
-	# Rank the variables:
-	# - Analyzing the raw data
-	# - Using a Cox proportional hazards fitting
-	# - According to the NeRI
-	rankedDataCancer <- univariateRankVariables(variableList = cancerVarNames,
-	                                            formula = "Surv(pgtime, pgstat) ~ 1",
-	                                            Outcome = "pgstat",
-	                                            data = dataCancer,
-	                                            categorizationType = "Raw",
-	                                            type = "COX",
-	                                            rankingTest = "NeRI",
-	                                            description = "Description")
-	# Get a Cox proportional hazards model using:
-	# - 10 bootstrap loops
-	# - The ranked variables
-	# - The Wilcoxon rank-sum test as the feature inclusion criterion
-	cancerModel <- ForwardSelection.Model.Res(loops = 10,
-	                                    Outcome = "pgstat",
-	                                    variableList = rankedDataCancer,
-	                                    data = dataCancer,
-	                                    type = "COX",
-	                                    testType= "Wilcox",
-	                                    timeOutcome = "pgtime")
-	# Shut down the graphics device driver
-	dev.off()}
-}
+
 \keyword{Model_Generation}

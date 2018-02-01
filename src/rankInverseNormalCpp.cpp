@@ -34,11 +34,11 @@ extern "C" SEXP rankInverseNormalCpp(SEXP _nrows,SEXP _obs, SEXP _minvalue, SEXP
 	double zmin = R::qnorm(1.0/(1.0+size), 0.0, 1.0, 1, 0);
 	double zmx = R::qnorm(static_cast<double>(size)/(1.0+size), 0.0, 1.0, 1, 0);
 
-	int i=1;
+//	int i=1;
         for (unsigned int j = 0; j < nrows; ++j)
         {
 				double mrank=0;
-		        i=1;
+		        int i=1;
 				zout=0.0;
 		        while ((obs[j] >= dataframe[i-1]) & (i <= size))
 		        {

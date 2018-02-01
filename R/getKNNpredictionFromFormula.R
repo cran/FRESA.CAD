@@ -6,23 +6,27 @@ if (!requireNamespace("class", quietly = TRUE)) {
    install.packages("class", dependencies = TRUE)
 } 
 
-
-	temslist <- attr(terms(model.formula),"term.labels")
-	varlist <- vector()
-
-	for (i in 1:length(temslist))
+#	print(as.character(model.formula))
+#	cat(Outcome,"\n")
+	varlist <- NULL;
+	if (class(model.formula) == "character")
 	{
-		varlist <- append(varlist,str_replace_all(unlist(strsplit(
-						str_replace_all(
-							str_replace_all(
-								str_replace_all(
-									str_replace_all(temslist[i],"I\\("," ")
-								,"\\("," ")
-							,">","\\*")
-						,"<","\\*")
-				,"\\*"))[1]," ",""))
+		if (length(model.formula)==1)
+		{
+			model.formula <- formula(model.formula);
+		}
+		else
+		{
+			varlist <- model.formula;
+		}
 	}
-	varlist <- as.vector(rownames(table(varlist)))
+	if (class(model.formula) == "formula")
+	{
+		varlist <- as.character(model.formula)
+		varlist <- all.vars(formula(paste(Outcome,"~",varlist[3])));
+		names(varlist) <- varlist;
+		varlist <- varlist[!(varlist %in% Outcome)];
+	}
 
 	nrows <- nrow(trainData);
 	ncolms <- length(varlist);

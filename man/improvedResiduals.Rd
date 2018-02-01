@@ -60,58 +60,5 @@
 	}
 }
 \author{Jose G. Tamez-Pena and Antonio Martinez-Torteya}
-\examples{
-	\dontrun{
-	# Start the graphics device driver to save all plots in a pdf format
-	pdf(file = "Example.pdf")
-	# Get the stage C prostate cancer data from the rpart package
-	library(rpart)
-	data(stagec)
-	# Split the stages into several columns
-	dataCancer <- cbind(stagec[,c(1:3,5:6)],
-	                    gleason4 = 1*(stagec[,7] == 4),
-	                    gleason5 = 1*(stagec[,7] == 5),
-	                    gleason6 = 1*(stagec[,7] == 6),
-	                    gleason7 = 1*(stagec[,7] == 7),
-	                    gleason8 = 1*(stagec[,7] == 8),
-	                    gleason910 = 1*(stagec[,7] >= 9),
-	                    eet = 1*(stagec[,4] == 2),
-	                    diploid = 1*(stagec[,8] == "diploid"),
-	                    tetraploid = 1*(stagec[,8] == "tetraploid"),
-	                    notAneuploid = 1-1*(stagec[,8] == "aneuploid"))
-	# Remove the incomplete cases
-	dataCancer <- dataCancer[complete.cases(dataCancer),]
-	# Load a pre-stablished data frame with the names and descriptions of all variables
-	data(cancerVarNames)
-	# Get a Cox proportional hazards model using:
-	# - 10 bootstrap loops
-	# - All variables except for age
-	# - The Wilcoxon rank-sum test as the feature inclusion criterion
-	cancerModel <- ForwardSelection.Model.Res(loops = 10,
-	                                    Outcome = "pgstat",
-	                                    variableList = cancerVarNames[-1,],
-	                                    data = dataCancer,
-	                                    type = "COX",
-	                                    testType= "Wilcox",
-	                                    timeOutcome = "pgtime")
-	# Add age to the formula of the obtained model
-	frm <- format(cancerModel$formula)
-	frm[length(frm)] <- paste(frm[length(frm)], "+ age")
-	# Fit the new formula to the same data
-	cancerModelAge <- modelFitting(formula(frm), dataCancer, "COX")
-	# Get the residuals of the original model
-	cancerModelRes <- residualForFRESA(object = cancerModel$final.model,
-	                                   testData = dataCancer,
-	                                   Outcome = "pgstat")
-	# Get the residuals of the model with the added term
-	cancerModelAgeRes <- residualForFRESA(object = cancerModelAge,
-	                                      testData = dataCancer,
-	                                      Outcome = "pgstat")
-	# Estimate the significance of the NeRI when adding age to the model
-	NeRI <- improvedResiduals(oldResiduals = cancerModelRes,
-	                          newResiduals = cancerModelAgeRes,
-	                          testType = "Wilcox")
-	# Shut down the graphics device driver
-	dev.off()}
-}
+
 \keyword{Model_Inspection}

@@ -14,7 +14,8 @@
 	                    Outcome,
 	                    data,
 	                    type = c("LM", "LOGIT", "COX"),
-	                    plots = TRUE)
+	                    plots = FALSE,
+						best.model.formula=NULL)
 }
 \arguments{
 	\item{fraction}{
@@ -37,6 +38,9 @@
 	}
 	\item{plots}{
 		Logical. If \code{TRUE}, density distribution plots are displayed
+	}
+	\item{best.model.formula}{
+		An object of class \code{formula} with the formula to be used for the best model
 	}
 }
 \details{
@@ -148,49 +152,5 @@
 \seealso{\code{\link{bootstrapValidation_Res},
 				 \link{plot.bootstrapValidation_Bin},
 				 \link{summary.bootstrapValidation_Bin}}}
-\examples{
-	\dontrun{
-	# Start the graphics device driver to save all plots in a pdf format
-	pdf(file = "Example.pdf")
-	# Get the stage C prostate cancer data from the rpart package
-	library(rpart)
-	data(stagec)
-	# Split the stages into several columns
-	dataCancer <- cbind(stagec[,c(1:3,5:6)],
-	                    gleason4 = 1*(stagec[,7] == 4),
-	                    gleason5 = 1*(stagec[,7] == 5),
-	                    gleason6 = 1*(stagec[,7] == 6),
-	                    gleason7 = 1*(stagec[,7] == 7),
-	                    gleason8 = 1*(stagec[,7] == 8),
-	                    gleason910 = 1*(stagec[,7] >= 9),
-	                    eet = 1*(stagec[,4] == 2),
-	                    diploid = 1*(stagec[,8] == "diploid"),
-	                    tetraploid = 1*(stagec[,8] == "tetraploid"),
-	                    notAneuploid = 1-1*(stagec[,8] == "aneuploid"))
-	# Remove the incomplete cases
-	dataCancer <- dataCancer[complete.cases(dataCancer),]
-	# Load a pre-stablished data frame with the names and descriptions of all variables
-	data(cancerVarNames)
-	# Get a Cox proportional hazards model using:
-	# - 10 bootstrap loops
-	# - Age as a covariate
-	# - zIDI as the feature inclusion criterion
-	cancerModel <- ForwardSelection.Model.Bin(loops = 10,
-	                                           covariates = "1 + age",
-	                                           Outcome = "pgstat",
-	                                           variableList = cancerVarNames,
-	                                           data = dataCancer,
-	                                           type = "COX",
-	                                           timeOutcome = "pgtime",
-	                                           selectionType = "zIDI")
-	# Validate the previous model:
-	# - Using 50 bootstrap loops
-	bootCancerModel <- bootstrapValidation_Bin(loops = 50,
-	                                       model.formula = cancerModel$formula,
-	                                       Outcome = "pgstat",
-	                                       data = dataCancer,
-	                                       type = "COX")
-	# Shut down the graphics device driver
-	dev.off()}
-}
+
 \keyword{Model_Diagnosis}

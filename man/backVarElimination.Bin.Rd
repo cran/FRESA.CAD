@@ -37,7 +37,7 @@
 		The type of index to be evaluated by the \code{improveProb} function (\code{Hmisc} package): \emph{z}-score of IDI or of NRI
 	}
 	\item{adjsize}{
-		The size to be used for BH FSR correction
+		The expected size of a random model for multiple selection correction
 	}
 }
 \details{
@@ -63,7 +63,7 @@
 	\item{lastRemoved}{
 		The name of the last term that was removed (-1 if all terms were removed)
 	}
-	\item{beforeFSC.model}{
+	\item{at.opt.model}{
 		the model before the BH procedure
 	}
 	\item{beforeFSC.formula}{
@@ -75,57 +75,5 @@
 \seealso{\code{\link{backVarElimination_Res}, 
 				 \link{bootstrapVarElimination_Bin},
 				 \link{bootstrapVarElimination_Res}}}
-\examples{
-	\dontrun{
-	# Start the graphics device driver to save all plots in a pdf format
-	pdf(file = "Example.pdf")
-	# Get the stage C prostate cancer data from the rpart package
-	library(rpart)
-	data(stagec)
-	# Split the stages into several columns
-	dataCancer <- cbind(stagec[,c(1:3,5:6)],
-	                    gleason4 = 1*(stagec[,7] == 4),
-	                    gleason5 = 1*(stagec[,7] == 5),
-	                    gleason6 = 1*(stagec[,7] == 6),
-	                    gleason7 = 1*(stagec[,7] == 7),
-	                    gleason8 = 1*(stagec[,7] == 8),
-	                    gleason910 = 1*(stagec[,7] >= 9),
-	                    eet = 1*(stagec[,4] == 2),
-	                    diploid = 1*(stagec[,8] == "diploid"),
-	                    tetraploid = 1*(stagec[,8] == "tetraploid"),
-	                    notAneuploid = 1-1*(stagec[,8] == "aneuploid"))
-	# Remove the incomplete cases
-	dataCancer <- dataCancer[complete.cases(dataCancer),]
-	# Load a pre-stablished data frame with the names and descriptions of all variables
-	data(cancerVarNames)
-	# Get a Cox proportional hazards model using:
-	# - A lax p-value
-	# - 10 bootstrap loops
-	# - Age as a covariate
-	# - zIDI as the feature inclusion criterion
-	# - First order interactions
-	cancerModel <- ForwardSelection.Model.Bin(pvalue = 0.1,
-	                                           loops = 10,
-	                                           covariates = "1 + age",
-	                                           Outcome = "pgstat",
-	                                           variableList = cancerVarNames,
-	                                           data = dataCancer,
-	                                           type = "COX",
-	                                           timeOutcome = "pgtime",
-	                                           selectionType = "zIDI",
-	                                           interaction = 2)
-	# Remove not significant variables from the previous model:
-	# - Using a strict p-value
-	# - Excluding the covariate as a candidate for feature removal 
-	# - Using zIDI as the feature removal criterion
-	reducedCancerModel <- backVarElimination_Bin(object = cancerModel$final.model,
-	                                         pvalue = 0.005,
-	                                         Outcome = "pgstat",
-	                                         data = dataCancer,
-	                                         startOffset = 1,
-	                                         type = "COX",
-	                                         selectionType = "zIDI")
-	# Shut down the graphics device driver
-	dev.off()}
-}
+
 \keyword{Model_Generation}

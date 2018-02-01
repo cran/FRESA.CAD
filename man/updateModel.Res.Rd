@@ -15,9 +15,8 @@
 	                testType=c("Binomial", "Wilcox", "tStudent"), 
 	                lastTopVariable = 0, 
 	                timeOutcome = "Time",
-	                interaction = 1,
-	                maxTrainModelSize = -1,
-					bootLoops=1)
+	                maxTrainModelSize = -1
+					)
 }
 \arguments{
 	\item{Outcome}{
@@ -50,14 +49,8 @@
 	\item{timeOutcome}{
 		The name of the column in \code{data} that stores the time to event (needed only for a Cox proportional hazards regression model fitting)
 	}
-	\item{interaction}{
-		Set to either 1 for first order models, or to 2 for second order models
-	}
 	\item{maxTrainModelSize}{
 		Maximum number of terms that can be included in the model
-	}
-	\item{bootLoops}{
-		the number of loops for bootstrap estimation of test error
 	}
 }
 \value{
@@ -73,72 +66,8 @@
 	\item{z.NeRI}{
 		A vector in which each element represents the \emph{z}-score of the NeRI, associated to the \code{testType}, for each feature found in the final model
 	}
-	\item{loops}{
-		The number of loops it took for the model to stabilize
-	}
 }
 \author{Jose G. Tamez-Pena and Antonio Martinez-Torteya}
 \seealso{\code{\link{updateModel.Bin}}}
-\examples{
-	\dontrun{
-	# Start the graphics device driver to save all plots in a pdf format
-	pdf(file = "Example.pdf")
-	# Get the stage C prostate cancer data from the rpart package
-	library(rpart)
-	data(stagec)
-	# Split the stages into several columns
-	dataCancer <- cbind(stagec[,c(1:3,5:6)],
-	                    gleason4 = 1*(stagec[,7] == 4),
-	                    gleason5 = 1*(stagec[,7] == 5),
-	                    gleason6 = 1*(stagec[,7] == 6),
-	                    gleason7 = 1*(stagec[,7] == 7),
-	                    gleason8 = 1*(stagec[,7] == 8),
-	                    gleason910 = 1*(stagec[,7] >= 9),
-	                    eet = 1*(stagec[,4] == 2),
-	                    diploid = 1*(stagec[,8] == "diploid"),
-	                    tetraploid = 1*(stagec[,8] == "tetraploid"),
-	                    notAneuploid = 1-1*(stagec[,8] == "aneuploid"))
-	# Remove the incomplete cases
-	dataCancer <- dataCancer[complete.cases(dataCancer),]
-	# Load a pre-stablished data frame with the names and descriptions of all variables
-	
-	data(cancerVarNames)
-	
-	# Rank the variables:
-	# - Analyzing the raw data
-	# - Using a Cox proportional hazards fitting
-	# - According to the NeRI
-	rankedDataCancer <- univariateRankVariables(variableList = cancerVarNames,
-	                                            formula = "Surv(pgtime, pgstat) ~ 1",
-	                                            Outcome = "pgstat",
-	                                            data = dataCancer,
-	                                            categorizationType = "Raw",
-	                                            type = "COX",
-	                                            rankingTest = "NeRI",
-	                                            description = "Description")
-	# Get a Cox proportional hazards model using:
-	# - 10 bootstrap loops
-	# - The ranked variables
-	# - The Wilcoxon rank-sum test as the feature inclusion criterion
-	cancerModel <- ForwardSelection.Model.Res(loops = 10,
-	                                    Outcome = "pgstat",
-	                                    variableList = rankedDataCancer,
-	                                    data = dataCancer,
-	                                    type = "COX",
-	                                    testType= "Wilcox",
-	                                    timeOutcome = "pgtime")
-	# Update the model, adding first order interactions
-	
-	uCancerModel <- updateModel.Res(Outcome = "pgstat",
-	        VarFrequencyTable = cancerModel$ranked.var,
-	        variableList = cancerVarNames,
-	        data = dataCancer,
-	        type = "COX",
-	        testType = "Wilcox",
-	        timeOutcome = "pgtime",
-	        interaction = 2)
-	# Shut down the graphics device driver
-	dev.off()}
-}
 
 \keyword{Model_Generation}

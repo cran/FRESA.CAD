@@ -10,10 +10,14 @@
 	                          pvalue = 0.05,
 	                          data,
 	                          variableList,
-	                          Outcome = "Class", 
+	                          Outcome = "Class",
+	                          timeOutcome=NULL,
 	                          type = c("LOGIT", "LM", "COX"),
-	                          eqFrac = 0.9,
-	                          description = ".")
+	                          eqPGain = 1.0,
+	                          description = ".",
+	                          method="BH",
+	                          osize=0,
+	                          fitFRESA=TRUE)
 }
 \arguments{
 	\item{object}{
@@ -31,65 +35,45 @@
 	\item{Outcome}{
 		The name of the column in \code{data} that stores the variable to be predicted by the model
 	}
+	\item{timeOutcome}{
+		The name of the column in \code{data} that stores the time to event
+	}
 	\item{type}{
 		Fit type: Logistic ("LOGIT"), linear ("LM"), or Cox proportional hazards ("COX")
 	}
-	\item{eqFrac}{
+	\item{eqPGain}{
 		A fraction to which the \emph{z}-score will be relaxed, for a pair of variables to be considered equivalent
 	}
 	\item{description}{
 		The name of the column in \code{variableList} that stores the variable description
 	}
+	\item{method}{
+		The method used by the p-value adjustment algorithm
+	}
+	\item{osize}{
+		The number of features used for p-value adjustment
+	}
+	\item{fitFRESA}{
+		if TRUE it will use the cpp based fitting method 
+	}
 }
 \value{
+	\item{pvalueList}{
+		A list with all the unadjusted p-values of the equivalent features per model variable
+	}
+	\item{equivalentMatrix}{
 	A data frame with three columns. The first column is the original variable of the model. 
 	The second column lists all variables that, if interchanged, will not statistically affect the performance of the model.
 	The third column lists the corresponding \emph{z}-scores of the IDI for each equivalent variable.
+	}
+	\item{formulaList}{
+	 a character vector with all the equivalent formulas 
+	}
+	\item{equivalentModel}{
+	 a bagged model that used all the equivalent formulas. The model size is limited by the number of observations
+	}
+	
 }
-\author{Jose G. Tamez-Pena and Antonio Martinez-Torteya}
-\examples{
-	\dontrun{
-	# Start the graphics device driver to save all plots in a pdf format
-	pdf(file = "Example.pdf")
-	# Get the stage C prostate cancer data from the rpart package
-	library(rpart)
-	data(stagec)
-	# Split the stages into several columns
-	dataCancer <- cbind(stagec[,c(1:3,5:6)],
-	                    gleason4 = 1*(stagec[,7] == 4),
-	                    gleason5 = 1*(stagec[,7] == 5),
-	                    gleason6 = 1*(stagec[,7] == 6),
-	                    gleason7 = 1*(stagec[,7] == 7),
-	                    gleason8 = 1*(stagec[,7] == 8),
-	                    gleason910 = 1*(stagec[,7] >= 9),
-	                    eet = 1*(stagec[,4] == 2),
-	                    diploid = 1*(stagec[,8] == "diploid"),
-	                    tetraploid = 1*(stagec[,8] == "tetraploid"),
-	                    notAneuploid = 1-1*(stagec[,8] == "aneuploid"))
-	# Remove the incomplete cases
-	dataCancer <- dataCancer[complete.cases(dataCancer),]
-	# Load a pre-stablished data frame with the names and descriptions of all variables
-	data(cancerVarNames)
-	# Get a Cox proportional hazards model using:
-	# - 10 bootstrap loops
-	# - zIDI as the feature inclusion criterion
-	cancerModel <- ForwardSelection.Model.Bin(loops = 10,
-	                                           Outcome = "pgstat",
-	                                           variableList = cancerVarNames,
-	                                           data = dataCancer,
-	                                           type = "COX",
-	                                           timeOutcome = "pgtime",
-	                                           selectionType = "zIDI")
-	# Get a data frame with variables that could be interchanged:
-	# - Relaxing by a factor of 0.7 the z-score of the IDI
-	eqVars <- reportEquivalentVariables(object = cancerModel$final.model,
-	                                    data = dataCancer,
-	                                    variableList = cancerVarNames,
-	                                    Outcome = "pgstat", 
-	                                    type = "COX",
-	                                    eqFrac = 0.7,
-	                                    description = "Description")
-	# Shut down the graphics device driver
-	dev.off()}
-}
+\author{Jose G. Tamez-Pena}
+
 \keyword{Model_Inspection}

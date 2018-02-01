@@ -1,5 +1,5 @@
 ForwardSelection.Model.Res <-
-function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,variableList,data,maxTrainModelSize=10,type=c("LM","LOGIT","COX"),testType=c("Binomial","Wilcox","tStudent","Ftest"),timeOutcome="Time",loop.threshold=20,interaction = 1,cores = 4)
+function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,variableList,data,maxTrainModelSize=20,type=c("LM","LOGIT","COX"),testType=c("Binomial","Wilcox","tStudent","Ftest"),timeOutcome="Time",cores = 4,randsize = 0)
 {
 #	R_CStackLimit = -1;
 
@@ -13,10 +13,10 @@ function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,vari
 	testType <- match.arg(testType)
 	Outcome<-as.character(Outcome);
 
-	if (type=="COX")
+	if (type == "COX")
 		timeOutcome<-as.character(timeOutcome)
 	else
-		timeOutcome="";
+		timeOutcome=".";
 
 	vnames <- as.vector(variableList[,1]);
 	acovariates <- covariates[1];
@@ -24,18 +24,34 @@ function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,vari
 	{
 		for (i in 2:length(covariates))
 		{	
-			acovariates <- paste(acovariates," + ",covariates[i])
+			acovariates <- paste(acovariates,"+",covariates[i])
 		}
 	}
-
-	if (nrow(variableList)>1)
+	mcnt=0;
+	i=1;
+	if (length(vnames)<size) size = length(vnames)
+	while ((mcnt==0)&&(i<=size))
 	{
-		if (nrow(variableList)<size) size = nrow(variableList)
-		frm <- paste(Outcome,"~",acovariates," + ",timeOutcome);
+		mcnt = mcnt+str_count(vnames[i],"\\*");
+		i = i + 1;
+	}
+
+	if ( mcnt>0 )
+	{
+#		cat(Outcome," :",nrow(data),":",nrow(variableList)," Model Frames\n")
+		if (timeOutcome == ".") 
+		{
+			frm <- paste(Outcome,"~",acovariates);
+		}
+		else
+		{
+			frm <- paste(Outcome,"~",acovariates,"+",timeOutcome);
+		}
 		for (i in 1:size)
 		{
-			frm <- paste(frm," + ",vnames[i])
+			frm <- paste(frm,"+",vnames[i]);
 		}
+#		cat(frm,"\n")
 		modelFrame <- model.frame(formula(frm),data);
 	}
 	else
@@ -44,29 +60,41 @@ function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,vari
 	}
 
 	colNames=colnames(modelFrame);
-	
-	output<-.Call("ForwardResidualModelCpp",size, fraction, pvalue, loops, covariates, Outcome,as.vector(variableList[,1]), maxTrainModelSize, type, timeOutcome, testType,loop.threshold, interaction,data.matrix(modelFrame),colNames,cores);
-	randoutput <- output;
-	rloops = loops;
-	rpvalue = pvalue;
-	randsize = 0;
-	if (loops>1) 
+	if (randsize >= 0)
 	{
-		rloops = min(loops,25);
-		rpvalue = min(pvalue,0.01);
-		randoutput<-.Call("ForwardResidualModelCpp",size, fraction, rpvalue, rloops, covariates, "RANDOM",as.vector(variableList[,1]), maxTrainModelSize, type, timeOutcome, testType,loop.threshold, interaction,data.matrix(modelFrame),colNames,cores);
-		for (i in 1:rloops)
-		{
-			randsize = randsize+ str_count(randoutput$formula.list[i],"\\+") - 1;
-		}
-		randsize = (pvalue/rpvalue)*(nrow(variableList)/size)*(randsize/rloops);
-		cat ("Average Random Size = ",randsize,"\n");
+		output<-.Call("ForwardResidualModelCpp",size, fraction, pvalue, loops, covariates, Outcome,vnames, maxTrainModelSize, type, timeOutcome, testType,data.matrix(modelFrame),colNames,cores);
 	}
 	else
 	{
-		randoutput <- output;
-		rpvalue=pvalue;
-		randsize = pvalue*nrow(variableList);
+		if (timeOutcome!=".") modelFrame[,timeOutcome] <- runif(nrow(modelFrame));
+		output<-.Call("ForwardResidualModelCpp",size, fraction, pvalue, loops, "1", paste("RANDOM",Outcome,sep=""),vnames, maxTrainModelSize, type, timeOutcome, testType,data.matrix(modelFrame),colNames,cores);
+	}
+
+	random.fraction <- 1.0
+	if (randsize<0)
+	{
+		covcount <- 1;
+		mcount=0;
+		pfind <- 0;
+		randsize <- 0;
+#		print(output$formula.list);
+		for (i in 1:loops)
+		{
+		    plusc = str_count(output$formula.list[i],"\\+");
+			if (plusc>=covcount)
+			{
+				randsize <- randsize + plusc - covcount;
+				pfind <- pfind + 1*(plusc>covcount);
+				mcount <- mcount+1;
+			}
+		}
+		random.fraction <- pfind/loops;
+		randsize = (nrow(variableList)/size)*(randsize/loops);
+		cat ("\n Vars:",nrow(variableList),"Size:",size,sprintf(", Fraction= %6.3f,  Average random size = %6.2f, Size:%6.2f",random.fraction,randsize,randsize/pvalue),"\n");
+	}
+	else
+	{
+		if (randsize==0) randsize = pvalue*nrow(variableList);
 	}
 
 	mynames <- output$mynames + 1;
@@ -78,11 +106,10 @@ function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,vari
 #For Cox  models 
 	if (type == "COX")
 	{
-	  baseForm = paste("Surv(",timeOutcome);
-	  baseForm = paste(baseForm,paste(",",paste(Outcome,")")));
+	  baseForm = paste("Surv(",timeOutcome,",",Outcome,")");
 	}
 
-	baseForm = paste(baseForm,paste(" ~ ",acovariates));
+	baseForm = paste(baseForm,"~",acovariates);
 
 	
 
@@ -100,12 +127,12 @@ function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,vari
 			topvar <- topvar[order(-topvar)];
 			topvarID <- as.numeric(rownames(topvar));
 
-			frm1 <- paste(frm1," + ");
+			frm1 <- paste(frm1,"+");
 			frm1 <- paste(frm1,vnames[topvarID[1]]);
 			
 			ftmp <- formula(frm1);
-			bestmodel <- modelFitting(ftmp,data,type)
-	#		cat(frm1,"b \n")
+			bestmodel <- modelFitting(ftmp,data,type,TRUE)
+#			cat(frm1,"b \n")
 
 			bestResiduals <- residualForFRESA(bestmodel,data,Outcome);
 
@@ -116,20 +143,9 @@ function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,vari
 			inserted = 1
 			for ( i in 2:length(topvar))
 			{
-				if (loops > loop.threshold) 
-				{
-					frec <- topvar[i];
-					if (!is.na(frec))
-					{
-						if ((frec/loops) < 1.0/(2.0*loop.threshold+1.0)) 
-						{ 
-							topvar[i] <- 0;
-						}
-					}
-				}
 				if(topvar[i] > 0)
 				{
-					frma <- paste(frm1," + ");
+					frma <- paste(frm1,"+");
 					frma <- paste(frma,vnames[topvarID[i]]);
 	#				cat(frma," b \n");
 
@@ -139,78 +155,32 @@ function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,vari
 					kins = 0
 					if ( !inherits(newmodel, "try-error"))
 					{
-	#					iprob <- improvedResiduals(bestResiduals,residualForFRESA(newmodel,data,Outcome),testType);
 						iprob <- .Call("improvedResidualsCpp",bestResiduals,residualForFRESA(newmodel,data,Outcome),testType,0);
-	#					cat(frma," c \n");
 						piri <- iprob$p.value;
 						if (piri<pthr)
 						{
 							bestResiduals <- residualForFRESA(newmodel,data,Outcome);
-	#						cat(frma," d \n");
-							frm1 <- paste(frm1," + ");
+							frm1 <- paste(frm1,"+");
 							frm1 <- paste(frm1,vnames[topvarID[i]]);
-	#						cat(frm1," 1a \n");
 							varlist <- append(varlist,topvarID[i]);
 							vnames_model <- append(vnames_model,vnames[topvarID[i]]);
 							model_ziri <- append(model_ziri,abs(qnorm(piri)));
-		#					print(summary(newmodel));
 							inserted = inserted + 1;
 							kins = 1
 						}	
-						if (interaction == 2)
-						{
-							for (nlist in 1:inserted)
-							{
-								if (kins==1)
-								{
-									pthrOl=pthr;
-									frma <- paste(frm1," + I(",vnames[varlist[nlist]],"*",vnames[topvarID[i]],")")
-								}
-								else
-								{
-									frma <- paste(frm1," + ",vnames[topvarID[i]]," + I(",vnames[varlist[nlist]],"*",vnames[topvarID[i]],")")
-									pthrOl=pthrO;
-								}
-								ftmp <- formula(frma);
-								newmodel <- modelFitting(ftmp,data,type,TRUE)
-								if ( !inherits(newmodel, "try-error"))
-								{
-	#								print(summary(newmodel));
-	#								iprob <- improvedResiduals(bestResiduals,residualForFRESA(newmodel,data,Outcome),testType);
-									iprob <- .Call("improvedResidualsCpp",bestResiduals,residualForFRESA(newmodel,data,Outcome),testType,0);
-									
-									piri <- iprob$p.value;
-									if (is.numeric(piri) && !is.na(piri) && (piri<pthrOl))
-									{
-										bestResiduals <- residualForFRESA(newmodel,data,Outcome);
-										frm1 <- frma;
-										vnames_model <- append(vnames_model,vnames[topvarID[i]]);
-										model_ziri <- append(model_ziri,abs(qnorm(piri)));
-										if (kins == 0)
-										{
-											varlist <- append(varlist,topvarID[i]);
-											inserted = inserted + 1;
-										}
-										kins =1
-									}
-								}							
-							}
-						}
 					}
 				}
 			}
-	#		barplot(topvar);
-	#		titname <- paste ( "Var Frequency Completed");
-	#		title(main=titname);
-	#		print(topvar)
 		}
 
 
 		ftmp <- formula(frm1);
-		bestmodel <- modelFitting(ftmp,data,type)
+		bestmodel <- modelFitting(ftmp,data,type,TRUE);
 
 	#	cat(frm1," Final \n");
-	
+	base.Zvalues <- -1.0*qnorm(as.vector(output$Base.values));
+	names(base.Zvalues) <- vnames[1:size];
+
 	result <- list(final.model=bestmodel,
 	var.names=vnames_model,
 	formula=ftmp,
@@ -218,7 +188,10 @@ function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,vari
 	z.NeRIs=model_ziri,
 	formula.list=formula.list,
 	random.formula.size=randsize,
-	variableList=variableList);
+	random.fraction = random.fraction,
+	variableList=variableList,
+	base.Zvalues=base.Zvalues
+	);
 	
 	return (result);
 }

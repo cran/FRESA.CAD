@@ -1,5 +1,5 @@
 updateModel.Bin <-
-function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableList,data,type=c("LM","LOGIT","COX"), lastTopVariable= 0,timeOutcome="Time",selectionType=c("zIDI","zNRI"),numberOfModels=3,interaction=1,maxTrainModelSize=0,bootLoops=1)
+function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableList,data,type=c("LM","LOGIT","COX"), lastTopVariable= 0,timeOutcome="Time",selectionType=c("zIDI","zNRI"),maxTrainModelSize=0)
 {
 	type <- match.arg(type)
   	seltype <- match.arg(selectionType)
@@ -9,303 +9,129 @@ function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableL
 	{
 		for (i in 2:length(covariates))
 		{	
-			acovariates <- paste(acovariates," + ",covariates[i])
+			acovariates <- paste(acovariates,"+",covariates[i])
 		}
 	}
 	covariates <- acovariates;
 
-	
 	vnames <- as.vector(variableList[,1]);
 	topvarID <- as.numeric(rownames(VarFrequencyTable));
 	
-	casesample = subset(data,get(Outcome)  == 1);
-	controlsample = subset(data,get(Outcome) == 0);
-
-	sizecases = nrow(casesample);
-	sizecontrol = nrow(controlsample);
-	minsize = min(sizecases,sizecontrol);
-	varsize = ncol(data)-1;
-
-	if (numberOfModels <= 0) 
-	{
-		numberOfModels = 1;
-	}
 	if (maxTrainModelSize == 0)
 	{
-		maxTrainModelSize = as.integer(minsize/5);
+		maxTrainModelSize = as.integer(ncol(data)/2);
 	}
 
-	
+	nvars <- length(VarFrequencyTable);
 	baseForm = Outcome;
+	theoutcome <- data[,Outcome];
 					
 	#For Cox  models 
 	if (type == "COX")
 	{
-		baseForm = paste("Surv(",timeOutcome);
-		baseForm = paste(baseForm,paste(",",paste(Outcome,")")));
+		baseForm = paste("Surv(",timeOutcome,",",Outcome,")",sep="");
 	}
 		
 	vnames_model <- vector();
 	model_zmin <- vector();
-	topvarCpy <- topvarID
 
 	
-	topfreq <- 0.1*VarFrequencyTable[1]; #check only features with a 10% bootstrap frequency relative to the top
+	topfreq <- as.integer(0.05*VarFrequencyTable[1]+0.5); #check only features with a 5% bootstrap frequency relative to the top
 	if (lastTopVariable < 1) 
 	{
-		lastTopVariable = sum(1*(VarFrequencyTable>topfreq));
+		lastTopVariable = sum(1*(VarFrequencyTable > topfreq));
 	}
 	if (lastTopVariable > length(VarFrequencyTable)) lastTopVariable = length(VarFrequencyTable);
-	cat("Top Freq: ",VarFrequencyTable[1],"All Selected Features: ",length(VarFrequencyTable),"To be tested: ",lastTopVariable,"\n");
-	firstVar = 1
-	formulaList <- vector();
-	varlist <- vector();
-	inserted = 0
-	loops = 0
+#	cat("Top Freq: ",VarFrequencyTable[1],"All Selected Features: ",length(VarFrequencyTable),"To be tested: ",lastTopVariable,"\n");
+#	print(variableList[topvarID,1]);
+
+
 	bestmodel <- NULL;
 	ftmp <- NULL;
 	frm1 <- NULL;
-	modsize = 0;
-	maxp <- max(pvalue);	# set the pvalue to maxp so it will get the most probable size of the non-corrected model 
-	
-	mysample <- data;
-	quartileValue = 0.49;	# 
-	loopst = 2;
-	maxp <- min(2.0*maxp,0.20);
-	theBootLoops=bootLoops;
-	if (lastTopVariable>1)
+	error <- 1.0;
+	tol = 1.0e-12; # if error less than tol exit
+	if (lastTopVariable>0)
 	{
+		termsinserted = 0;
+		frm1 = paste(baseForm,"~",covariates,"+",vnames[topvarID[1]]);
 
-
-		for (nMod in 1:numberOfModels)
+		vnames_model <- append(vnames_model,vnames[topvarID[1]]);
+		model_zmin <- append(model_zmin,NA);
+		topvarID[1] = 0;
+		termsinserted = 1;
+		ftmp <- formula(frm1);
+		bestmodel <- modelFitting(ftmp,data,type,TRUE)
+		if ( !inherits(bestmodel, "try-error"))
 		{
-			loops = 0;
-			inserted = 0;
-			termsinserted = 0;
-			if (firstVar>0)
+			bestpredict <- predict.fitFRESA(bestmodel,data,'prob');
+			for (pidx in 1:length(pvalue))
 			{
-				varlist <- vector();
-				for (pidx in 1:length(pvalue))
+				cthr <- abs(qnorm(termsinserted*pvalue[pidx]/nvars));	
+				i = 2;
+				while ((i<=lastTopVariable)&&(error>tol))
 				{
-					cthr = cthr_s = abs(qnorm(pvalue[pidx]));	
-					zthrO = zthrO_s = abs(qnorm((pvalue[pidx]^2)));
-					changes = 1;
-#					if (pidx>1) theBootLoops=1;
-					while ((termsinserted < maxTrainModelSize)&&((changes>0) && (loops<loopst)))
+					if ((VarFrequencyTable[i]>0) && (topvarID[i]>0) && (termsinserted < maxTrainModelSize))
 					{
-						cthr_s = abs(qnorm(pvalue[pidx]));
-						zthrO_s = abs(qnorm((pvalue[pidx]^2)));
-						cthr = cthr_s;
-						zthrO = zthrO_s;
-						tinserted = 0;
-#						if (changes > 0) cat ("Testing at :",cthr,"\n");
-						changes = 0;
-
-						if ((loops == 0)&&(topvarID[firstVar]>0))
+						frma <- paste(frm1,"+",vnames[topvarID[i]]);
+						ftmp <- formula(frma);
+						newmodel <- modelFitting(ftmp,data,type,TRUE);
+						if ( !inherits(newmodel, "try-error"))
 						{
-							frm1 = paste(baseForm,paste(" ~ ",covariates));
-							frm1 <- paste(frm1," + ");
-							frm1 <- paste(frm1,vnames[topvarID[firstVar]]);
-							varlist <- append(varlist,topvarID[firstVar]);
-							vnames_model <- append(vnames_model,vnames[topvarID[firstVar]]);
-							model_zmin <- append(model_zmin,NA);
-							topvarID[firstVar] = 0;
-							inserted = 1;
-							tinserted = 1;
-							termsinserted = termsinserted + 1;
-							ftmp <- formula(frm1);
-							bestmodel <- modelFitting(ftmp,mysample,type,TRUE)
-						}
-						else
-						{									
-							ftmp <- formula(frm1);
-							bestmodel <- modelFitting(ftmp,mysample,type,TRUE)							
-						}
-						sizetrain <- nrow(mysample);
-						if ( !inherits(bestmodel, "try-error"))
-						{
-							bestpredict <- predictForFresa(bestmodel,mysample,'prob');
-
-							firstVar = 1;
-							for ( i in 2:lastTopVariable)
+							curpredict <-predict.fitFRESA(newmodel,data,'prob');
+							iprob_t <- .Call("improveProbCpp",bestpredict,curpredict,theoutcome);
+							if (seltype=="zIDI") 
 							{
-								if ((VarFrequencyTable[i]>0) && (topvarID[i]>0) && (termsinserted < maxTrainModelSize))
+								zmin <- iprob_t$z.idi;
+							}
+							else
+							{
+								zmin <- iprob_t$z.nri;
+							}
+							if (!is.nan(zmin) && !is.na(zmin))
+							{
+								error <- mean(abs(curpredict-theoutcome));
+								if (zmin>cthr)
 								{
-
-									kinserted = 0
-									frma <- paste(frm1," + ");
-									frma <-paste(frma,vnames[topvarID[i]]);
-									ftmp <- formula(frma);
-									newmodel <- modelFitting(ftmp,mysample,type,TRUE)
-									if ( !inherits(newmodel, "try-error"))
-									{
-										iprob_t <- .Call("improveProbCpp",bestpredict,predictForFresa(newmodel,mysample,'prob'),mysample[,Outcome],0);
-										if (seltype=="zIDI") 
-										{
-											zmin <- iprob_t$z.idi;
-										}
-										else
-										{
-											zmin <- iprob_t$z.nri;
-										}
-										if (is.numeric(zmin) && !is.na(zmin))
-										{
-											if ((theBootLoops>4)&&(zmin>cthr))
-											{
-												idiCV <- bootstrapValidation_Bin(1.0000,theBootLoops,ftmp,Outcome,mysample,type,plots=FALSE)
-												lastc <- ncol(idiCV$z.IDIs)
-												if (seltype=="zIDI")
-												{
-													ci <- as.vector(quantile(idiCV$z.IDIs[,lastc], probs = c(quartileValue, 0.5, 1.0-quartileValue), na.rm = TRUE,names = FALSE, type = 7));
-#													ci <- median(idiCV$z.IDIs[,lastc], na.rm = TRUE);
-													ci2 <- median(idiCV$test.z.IDIs[,lastc], na.rm = TRUE);
-												}
-												else
-												{
-													ci <- as.vector(quantile(idiCV$z.NRIs[,lastc], probs = c(quartileValue, 0.5, 1.0-quartileValue), na.rm = TRUE,names = FALSE, type = 7));
-#													ci <- median(idiCV$z.NRIs[,lastc], na.rm = TRUE);
-													ci2 <- median(idiCV$test.z.NRIs[,lastc], na.rm = TRUE);
-												}
-												zmin = min(ci[1],ci2,zmin);
-											}
-
-											if (is.numeric(zmin) && !is.na(zmin)&&(zmin>cthr))
-											{
-												bestpredict <-predictForFresa(newmodel,mysample,'prob');
-
-												frm1 <- frma;
-												vnames_model <- append(vnames_model,vnames[topvarID[i]]);
-												model_zmin <- append(model_zmin,zmin);
-												varlist <- append(varlist,topvarCpy[i]);
-												changes = changes + 1;
-												inserted = inserted + 1;
-												tinserted = tinserted + 1;
-												termsinserted = termsinserted + 1;
-												topvarID[i] = 0
-											}
-											if (is.numeric(zmin) && !is.na(zmin)&&(zmin<=cthr))
-											{
-												if (firstVar == 1) firstVar = i;
-											}
-										}
-										if (interaction == 2)
-										{
-											chkin <- (topvarID[i] > 0);
-											for (nlist in 1:inserted)
-											{
-												if (termsinserted < maxTrainModelSize)
-												{
-													if (topvarID[i] == 0)
-													{
-														frma <- paste(frm1," + I(",vnames[varlist[nlist]],"*",vnames[topvarCpy[i]],")")
-														zthrOl = cthr;
-													}
-													else
-													{
-														frma <- paste(frm1," + ",vnames[topvarCpy[i]]," + I(",vnames[varlist[nlist]],"*",vnames[topvarCpy[i]],")")
-														zthrOl = zthrO;
-													}
-													ftmp <- formula(frma);
-													newmodel <- modelFitting(ftmp,mysample,type,TRUE)
-													if ( !inherits(newmodel, "try-error"))
-													{
-														iprob_t <- .Call("improveProbCpp",bestpredict,predictForFresa(newmodel,mysample,'prob'),mysample[,Outcome],0);
-														if (seltype=="zIDI") 
-														{
-															zmin <- iprob_t$z.idi;
-														}
-														else
-														{
-															zmin <- iprob_t$z.nri;
-														}
-														if (is.numeric(zmin)&&!is.na(zmin))
-														{
-															if ((theBootLoops>4)&&(zmin>zthrOl))
-															{
-																idiCV <- bootstrapValidation_Bin(1.0000,theBootLoops,ftmp,Outcome,mysample,type,plots=FALSE)
-																lastc <- ncol(idiCV$z.IDIs)
-																if (seltype=="zIDI")
-																{
-#																	ci <- as.vector(quantile(idiCV$z.IDIs[,lastc], probs = c(quartileValue, 0.5, 1.0-quartileValue), na.rm = TRUE,names = FALSE, type = 7));
-																	ci <- median(idiCV$z.IDIs[,lastc], na.rm = TRUE);
-																	ci2 <- median(idiCV$test.z.IDIs[,lastc], na.rm = TRUE);
-																}
-																else
-																{
-#																	ci <- as.vector(quantile(idiCV$z.NRIs[,lastc], probs = c(quartileValue, 0.5, 1.0-quartileValue), na.rm = TRUE,names = FALSE, type = 7));
-																	ci <- median(idiCV$z.NRIs[,lastc], na.rm = TRUE);
-																	ci2 <- median(idiCV$test.z.NRIs[,lastc], na.rm = TRUE);
-																}
-																zmin = min(ci,ci2,zmin);
-															}
-
-															if (is.numeric(zmin)&&!is.na(zmin)&&(zmin>zthrOl))
-															{
-																bestpredict <- predictForFresa(newmodel,mysample,'prob');
-																
-																frm1 <- frma;
-																vnames_model <- append(vnames_model,vnames[topvarCpy[i]]);
-																model_zmin <- append(model_zmin,zmin);
-																changes = changes + 1;
-																kinserted = kinserted + 1;
-																termsinserted = termsinserted + 1;
-																tinserted = tinserted + 1;
-																if (topvarID[i] != 0)
-																{
-																	termsinserted = termsinserted + 1;
-																	tinserted = tinserted + 1;
-																}
-																topvarID[i] = 0
-															}
-														}
-													}
-												}
-											}
-											if ((kinserted > 0) && chkin ) 
-											{
-												varlist <- append(varlist,topvarCpy[i]);
-												inserted = inserted + 1;
-												if (firstVar == 1) firstVar = i;
-											}
-										}
-									}
+									bestpredict <-curpredict;
+									bestmodel <- newmodel;
+									frm1 <- frma;
+									vnames_model <- append(vnames_model,vnames[topvarID[i]]);
+									model_zmin <- append(model_zmin,zmin);
+									termsinserted = termsinserted + 1;
+									topvarID[i] = 0;
 								}
 							}
-							loops = loops+1;
 						}
 					}
-#					cat (frm1,"\n")
+					i = i+1;
 				}
-				formulaList <- append(formulaList,frm1)
-				ftmp <- formula(frm1);
+#				cat (pidx," :",frm1,"\n")
 			}
 		}
+		ftmp <- formula(frm1);
 	}
-	if (length(formulaList)==0)
+	if (length(vnames_model)==0)
 	{
-		frm1 = paste(baseForm," ~ ",covariates," + ",vnames[topvarID[1]]);
-#		cat ("Update Formula: ",frm1,"\n")
-		formulaList <- append(formulaList,frm1)
-		ftmp <- formula(formulaList[1]);
-		bestmodel <- modelFitting(ftmp,data,type)
+		frm1 = paste(baseForm,"~",covariates,"+",vnames[topvarID[1]]);
+		ftmp <- formula(frm1);
+		bestmodel <- modelFitting(ftmp,data,type,TRUE)
 	}
 	else
 	{
-#		cat("Top Formula: \n")
-		ftmp <- formula(formulaList[1]);
-#		cat ("Update Formula: ",formulaList[1],"\n")
-		bestmodel <- modelFitting(ftmp,data,type)
+		bestmodel <- modelFitting(ftmp,data,type,TRUE)
 	}
 #	print(summary(bestmodel));
 
-#	cat ("Update Formula:",formulaList[1],"\n")
+	
+	environment(bestmodel$formula) <- globalenv()
+	environment(bestmodel$terms) <- globalenv()
 	
   	result <- list(final.model=bestmodel,
 	var.names=vnames_model,
-	formula=ftmp,
-	z.selectionType=model_zmin,
-	loops=loops,
-	formula.list=formulaList);
+	formula=frm1,
+	z.selectionType=model_zmin
+	);
   
 	return (result);
 }

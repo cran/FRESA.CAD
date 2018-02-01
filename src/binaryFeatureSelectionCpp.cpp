@@ -40,18 +40,25 @@ int redCurmodel_S_lastRemoved;
 //********************************************************************************************
 //**==========================================================================================
 //********************************************************************************************
-extern "C" SEXP bootstrapValidationBinCpp(SEXP _fraction,SEXP _loops,SEXP _dataframe,SEXP _type,SEXP _response)
+extern "C" SEXP bootstrapValidationBinCpp(SEXP _fraction,SEXP _loops,SEXP _dataframe,SEXP _type,SEXP _response,SEXP _bestdataframe)
 {
 	try 
 	{  //R_CStackLimit=(uintptr_t)-1;
+//		arma_rng::set_seed_random();
 		double fraction = Rcpp::as<double>(_fraction);
 		int loops = Rcpp::as<int>(_loops);
 		std::string type = Rcpp::as<std::string>(_type);
 		Rcpp::NumericMatrix dataf(_dataframe);
 		Rcpp::NumericMatrix resp(_response);
+		Rcpp::NumericMatrix bestX(_bestdataframe);
+
 	    mat dataframe;
+		mat bestXframe;
+
 	    mat Response(resp.rows(), 2);
 		mat dat(dataf.begin(), dataf.rows(), dataf.cols(), false);
+		mat bestdatX(bestX.begin(), bestX.rows(), bestX.cols(), false);
+
 		vec dtime=ones<vec>(Response.n_rows);
 		if (resp.cols()==1) 
 			{
@@ -69,11 +76,22 @@ extern "C" SEXP bootstrapValidationBinCpp(SEXP _fraction,SEXP _loops,SEXP _dataf
         if (type=="COX")
 		{
 			dataframe=dat.cols(1,dat.n_cols-1);
-		}else dataframe=dat;
+			bestXframe=bestdatX.cols(1,bestdatX.n_cols-1);
+		}
+		else 
+		{
+			dataframe=dat;
+			bestXframe=bestdatX;
+		}
 		int n_var=dataframe.n_cols;
+
 	    mat casesample=join_rows(Response.rows(find(Outcome==1)),dataframe.rows(find(Outcome==1)));
 	    mat controlsample=join_rows(Response.rows(find(Outcome==0)),dataframe.rows(find(Outcome==0)));
 
+	    mat bestCaseSample = join_rows(Response.rows(find(Outcome==1)),bestXframe.rows(find(Outcome==1)));
+	    mat bestControlSample = join_rows(Response.rows(find(Outcome==0)),bestXframe.rows(find(Outcome==0)));
+		
+		
 		int sizecases   =casesample.n_rows;
 		int sizecontrol =controlsample.n_rows;
 		int minsize = std::min(sizecases,sizecontrol);
@@ -96,8 +114,6 @@ extern "C" SEXP bootstrapValidationBinCpp(SEXP _fraction,SEXP _loops,SEXP _dataf
 		mat test_zIDI=zeros<mat>(loops,n_var2); 
 		mat NRI=zeros<mat>(loops,n_var2); 
 		mat IDI=zeros<mat>(loops,n_var2); 
-		vec sumwtdcf=zeros<vec>(n_var);
-		vec sumwts = sumwtdcf;
 		double gacc = 0.0; 
 		double gsen = 0.0; 
 		double gspe = 0.0; 
@@ -109,26 +125,28 @@ extern "C" SEXP bootstrapValidationBinCpp(SEXP _fraction,SEXP _loops,SEXP _dataf
 		vec rawbetas = modelFittingFunc(Response,dataframe,type);
 
 		
-		#pragma omp parallel for schedule(dynamic) ordered shared(lastInserted,sumwtdcf,sumwts,testoutcome,testprediction,gacc,gsen,gspe,smaptot,smapsen,smapspe,trainRoc,bcoef,accuracy,sensitivity,specificity,taccuracy,tsensitivity,tspecificity,zNRI,zIDI,test_zNRI,test_zIDI,NRI,IDI)  
+		#pragma omp parallel for schedule(dynamic) ordered shared(lastInserted,testoutcome,testprediction,gacc,gsen,gspe,smaptot,smapsen,smapspe,trainRoc,bcoef,accuracy,sensitivity,specificity,taccuracy,tsensitivity,tspecificity,zNRI,zIDI,test_zNRI,test_zIDI,NRI,IDI)  
 		for (int doOver=0;doOver<loops;doOver++)
 		{ 
 			mat trainingSample;
+			mat bestTrainingSample;
 			mat myTestCases;
 			mat myTestControl;
+			mat bestTestCases;
+			mat bestTestControl;
 			uvec nsamCaseTest;
 			uvec nsamControlTest;
-			unsigned int minTest=0.25*totSamples; // at least 25% of samples for test evaluation
-			if (minTest<1) minTest = 1;
+			unsigned int minTest=2; // at least 25% of samples for test evaluation
+			uvec samCases;
+			uvec samControl;
 			do
 			{
-				uvec samCases= randi<uvec>(totSamples, distr_param(0,sizecases-1));
-				uvec samControl=randi<uvec>(totSamples, distr_param(0,sizecontrol-1));
+				samCases= randi<uvec>(totSamples, distr_param(0,sizecases-1));
+				samControl=randi<uvec>(totSamples, distr_param(0,sizecontrol-1));
 				vec auxcasesample=zeros<vec>(sizecases);
 				vec auxcontrolsample=zeros<vec>(sizecontrol);
 				for (int i =0;i<totSamples;i++)
 				{
-					trainingSample=join_cols(trainingSample,casesample.row((samCases(i))));
-					trainingSample=join_cols(trainingSample,controlsample.row((samControl(i))));
 					auxcasesample[samCases(i)]=1;
 					auxcontrolsample[samControl(i)]=1;
 				}
@@ -136,8 +154,12 @@ extern "C" SEXP bootstrapValidationBinCpp(SEXP _fraction,SEXP _loops,SEXP _dataf
 				nsamControlTest = find(auxcontrolsample==0);
 			} while ((nsamCaseTest.n_elem<minTest)||(nsamControlTest.n_elem<minTest));
 
-		    vec trainmodel = modelFittingFunc(trainingSample.cols(0,1),trainingSample.cols(2,trainingSample.n_cols-1),type);
-			if (is_finite(trainmodel))
+			trainingSample=join_cols(casesample.rows(samCases),controlsample.rows(samControl));
+			bestTrainingSample=join_cols(bestCaseSample.rows(samCases),bestControlSample.rows(samControl));
+			
+			
+		    vec trainmodel = modelFittingFunc(trainingSample.cols(0,1),trainingSample.cols(2,trainingSample.n_cols-1)+100.0*DOUBLEEPS*randn(trainingSample.n_rows,trainingSample.n_cols-2),type);
+			if (!trainmodel.has_nan())
 			{
 				// the model beta coefficients
 				vec coef=trainmodel;
@@ -150,22 +172,28 @@ extern "C" SEXP bootstrapValidationBinCpp(SEXP _fraction,SEXP _loops,SEXP _dataf
 
 				myTestCases=casesample.rows(nsamCaseTest);
 				myTestControl=controlsample.rows(nsamControlTest);
+				bestTestCases=bestCaseSample.rows(nsamCaseTest);
+				bestTestControl=bestControlSample.rows(nsamControlTest);
 
 
 				int ncases = myTestCases.n_rows;
 				int ncontrol = myTestControl.n_rows;
-				int ntesmin = std::min(ncases,ncontrol);
-				int randnum = (randi<imat>(1))[0];
+				int ntesmin = std::max(ncases,ncontrol);
+				int randnum = (randi<uvec>(1))[0];
 				
 // forcing to have the same number of cases and controls
 				mat testSample(2*ntesmin,myTestCases.n_cols);
+				mat bestTestSample(2*ntesmin,bestTestCases.n_cols);
 				for (int i=0;i<ntesmin;i++)
 				{
 					testSample.row(2*i) =  myTestCases.row((i + randnum) % ncases);
 					testSample.row(2*i+1) = myTestControl.row((i + randnum) % ncontrol);
+					bestTestSample.row(2*i) = bestTestCases.row((i + randnum) % ncases);
+					bestTestSample.row(2*i+1) = bestTestControl.row((i + randnum) % ncontrol);
 				}
 				ncases = ntesmin;
 				ncontrol = ntesmin;
+				
 
 				
 				// predicting the test
@@ -174,8 +202,8 @@ extern "C" SEXP bootstrapValidationBinCpp(SEXP _fraction,SEXP _loops,SEXP _dataf
 				vec trainmodel_predictors = predictForFresaFunc(trainmodel,trainingSample.cols(2,trainingSample.n_cols-1),"prob",type);
 
 				// performance AUC and NRI/IDI
-				double auul = rocAUC(trainingSample.col(1), trainmodel_predictors,"auto","auc");
-				getVReclass modelReclas = getVarBinFunc(trainingSample,type,testSample);
+				double auul = rocAUC(trainingSample.col(1), trainmodel_predictors,"auto");
+				getVReclass modelReclas = getVarBinFunc(trainingSample,type,testSample,bestTrainingSample,bestTestSample);
 				
 				double acc = 0.0;
 				double sen = 0.0;
@@ -211,28 +239,6 @@ extern "C" SEXP bootstrapValidationBinCpp(SEXP _fraction,SEXP _loops,SEXP _dataf
 				tracc = tracc/trainingSample.n_rows;
 				trsen = trsen/totSamples;
 				trspe = trspe/totSamples;
-
-				vec wtsIdi = modelReclas.z_IDIs;
-				for (unsigned int n=0;n<wtsIdi.n_elem;n++)
-				{
-					wtsIdi(n) = 1;
-/*					if (is_finite(modelReclas.tz_IDIs(n)) && is_finite(modelReclas.IDIs(n)))
-				 	{
-						if (modelReclas.tz_IDIs(n) > 0) 
-						{
-							wtsIdi(n) = (modelReclas.IDIs(n)-std::abs(modelReclas.IDIs(n)-modelReclas.tIDIs(n)))/modelReclas.tIDIs(n);
-							if (wtsIdi(n) < 0) 
-					 		{
-								wtsIdi(n) = 0;	// just down-weight bad prediction
-							}
-						}
-					}
-*/
-				}
-				if (type != "COX") 
-				{
-					wtsIdi.insert_rows(0,ones<vec>(1));
-				}
 				
 				
 #pragma omp critical
@@ -251,8 +257,6 @@ extern "C" SEXP bootstrapValidationBinCpp(SEXP _fraction,SEXP _loops,SEXP _dataf
 				acc = acc/testSample.n_rows;
 				sen = sen/ncases;
 				spe = spe/ncontrol;
-				sumwtdcf = sumwtdcf+(wtsIdi % coef);
-				sumwts = sumwts+wtsIdi;
 
 				trainRoc(lastInserted) = auul;
 				bcoef.row(lastInserted) = coef.t();	
@@ -297,7 +301,7 @@ extern "C" SEXP bootstrapValidationBinCpp(SEXP _fraction,SEXP _loops,SEXP _dataf
 		double BlindSpecificity=0;
 		if (lastInserted>0)
 		{
-			blindAUC = rocAUC(testoutcome,testprediction,"auto","auc");
+			blindAUC = rocAUC(testoutcome,testprediction,"auto");
 			BlindAccuracy = gacc/static_cast<double>(smaptot);
 			BlindSensitivity = gsen/static_cast<double>(smapsen);
 			BlindSpecificity = gspe/static_cast<double>(smapspe);
@@ -318,8 +322,6 @@ extern "C" SEXP bootstrapValidationBinCpp(SEXP _fraction,SEXP _loops,SEXP _dataf
 						Rcpp::Named("trainRoc")=Rcpp::wrap(trainRoc), 
 						Rcpp::Named("NRI")=Rcpp::wrap(NRI), 
 						Rcpp::Named("IDI")=Rcpp::wrap(IDI), 
-						Rcpp::Named("sumwtdcf")=Rcpp::wrap(sumwtdcf), 
-						Rcpp::Named("sumwts")=Rcpp::wrap(sumwts), 
 						Rcpp::Named("taccuracy")=Rcpp::wrap(taccuracy), 
 						Rcpp::Named("tsensitivity")=Rcpp::wrap(tsensitivity), 
 						Rcpp::Named("tspecificity")=Rcpp::wrap(tspecificity), 
@@ -345,11 +347,11 @@ extern "C" SEXP bootstrapValidationBinCpp(SEXP _fraction,SEXP _loops,SEXP _dataf
 	}
 }
 
-std::string binaryFowardSelection(const unsigned int size,const int totSamples,const double zthr2,const std::string selType,
-								const int loops,std::string Outcome,const std::string timeOutcome,const std::string type,const unsigned int maxTrainModelSize,
-								const mat &casesample,const mat &controlsample,const  std::vector < std::string > &ovnames,
-								std::map<std::string, int> &lockup,const std::string baseForm,std::vector <int> &mynamesLoc, 
-								const std::vector<std::string> &covari)
+std::string binaryFowardSelection(const unsigned int size,const int totSamples,const double zthr2,const std::string &selType,
+								const int loops,const std::string &Outcome,const std::string &timeOutcome,const std::string &type,const unsigned int maxTrainModelSize,
+								const mat &casesample,const mat &controlsample, std::vector < std::string > &ovnames,
+								std::map<std::string, int> &lockup,const std::string &baseForm,std::vector <int> &mynamesLoc, 
+								const std::vector<std::string> &covari, vec &basevalues,bool isRandom)
 {
 	unsigned int inserted = 0;
 	double zmin = 0;
@@ -370,24 +372,13 @@ std::string binaryFowardSelection(const unsigned int size,const int totSamples,c
 	vec singleTestPredict;
 	std::vector < std::string > vnames = ovnames;
 	std::string gfrm1;
+
   	const int z_idi=0;
   	const int z_nri=1;
 	int sizecases = casesample.n_rows;
 	int sizecontrol = controlsample.n_rows;
 	int trainsize = totSamples*2;
-
-	vec outRandomCases;
-	vec outRandomControl;
-	int outcomeidx =  0;
-	if (Outcome=="RANDOM")
-	{
-		outRandomCases = randi<vec>(sizecases,distr_param(0,1));
-		outRandomControl = randi<vec>(sizecontrol,distr_param(0,1));
-	}
-	else
-	{
-		outcomeidx = lockup[Outcome];
-	}
+	int outcomeidx =  lockup[Outcome];
 
 
 	
@@ -395,51 +386,76 @@ std::string binaryFowardSelection(const unsigned int size,const int totSamples,c
 	{
 		uvec ntestcases;
 		uvec ntestcontrol;
-		unsigned int minnsamples = 0.2*totSamples;
+		unsigned int minnsamples = 2;
 		mat myTestCases;
 		mat myTestControl;
 		vec auxcasesample=zeros<vec>(sizecases);
 		vec auxcontrolsample=zeros<vec>(sizecontrol);
+		uvec samCases;
+		uvec samControl;
 		do
 		{
-			uvec samCases = randi<uvec>(totSamples, distr_param(0,sizecases-1));
-			uvec samControl = randi<uvec>(totSamples, distr_param(0,sizecontrol-1));
 			auxcasesample=zeros<vec>(sizecases);
 			auxcontrolsample=zeros<vec>(sizecontrol);
+			samCases = randi<uvec>(totSamples, distr_param(0,sizecases-1));
+			samControl = randi<uvec>(totSamples, distr_param(0,sizecontrol-1));
 			for (int i =0;i<totSamples;i++)
 			{
-				mysample=join_cols(mysample,casesample.row((samCases(i))));
-				mysample=join_cols(mysample,controlsample.row((samControl(i))));
 				auxcasesample[(samCases(i))]=1;
 				auxcontrolsample[(samControl(i))]=1;
-				if (Outcome=="RANDOM")
-				{
-					mysample.col(outcomeidx)(2*i) = outRandomCases(samCases(i));
-					mysample.col(outcomeidx)(2*i+1) = outRandomControl(samControl(i));
-				}
-			}
+			}				
 			ntestcases = find(auxcasesample==0);
 			ntestcontrol = find(auxcontrolsample==0);
 		}
 		while ((ntestcases.n_elem<minnsamples) || (ntestcontrol.n_elem<minnsamples));
-		myTestCases=casesample.rows(ntestcases);
-		myTestControl=controlsample.rows(ntestcontrol);
-		if (Outcome=="RANDOM") 
+
+		mysample=join_cols(casesample.rows(samCases),controlsample.rows(samControl));
+		myTestsample=join_cols(casesample.rows(ntestcases),controlsample.rows(ntestcontrol));
+		vec outcome = mysample.col(outcomeidx);
+		vec testoutcome = myTestsample.col(outcomeidx);
+//		Rcout << endl << size << ":(" << mysample.n_rows << "," << mysample.n_cols << ")" << endl;
+//		Rcout << endl << sizecases << "<-cases :" << sizecontrol << "<-Control: Total->" << totSamples << endl;
+//		Rcout << mysample.row(1)[1] << mysample.row(1)[2]<< "," << mysample.row(1)[3] << endl;
+		if (isRandom) 
 		{
-			myTestCases.col(outcomeidx) = outRandomCases(ntestcases);
-			myTestControl.col(outcomeidx) = outRandomControl(ntestcontrol);
+			if ((size+1)<casesample.n_cols) // if true will randomy sample columns
+			{
+				vec outcome = mysample.col(outcomeidx);
+				arma::mat randcases;
+				arma::mat randcontrol;
+				uvec rindex= randi<uvec>(1,distr_param(1,casesample.n_cols-1));
+				if (size>1)
+				{
+					rindex = sort_index(randu<vec>(casesample.n_cols-1))+ones<uvec>(casesample.n_cols-1);
+					rindex.resize(size);
+				}
+				randcases = casesample.cols(rindex);
+				randcontrol = controlsample.cols(rindex);
+				mysample=join_cols(randcases.rows(samCases),randcontrol.rows(samControl));
+				mysample.insert_cols(outcomeidx,1);
+//				Rcout << endl << "Ca(" << mysample.n_rows << "," << mysample.n_cols << ")" << endl;
+				myTestsample=join_cols(randcases.rows(ntestcases),randcontrol.rows(ntestcontrol));
+				myTestsample.insert_cols(outcomeidx,1);
+//				Rcout << endl << "Co(" << myTestsample.n_rows << "," << myTestsample.n_cols << ")" << endl;
+			}
+			mysample.col(outcomeidx) = outcome(sort_index(randu(mysample.n_rows)));
+			myTestsample.col(outcomeidx) = testoutcome(sort_index(randu(myTestsample.n_rows)));;
 		}
-
-		int ncases = myTestCases.n_rows;
-		int ncontrol = myTestControl.n_rows;
-		int ntesmin = std::min(ncases,ncontrol);
-		int randnum = (randi<imat>(1))[0];
-
-		myTestsample = zeros<mat>(2*ntesmin,myTestCases.n_cols);
-		for (int i=0;i<ntesmin;i++)
+		else
 		{
-			myTestsample.row(2*i) =  myTestCases.row((i + randnum) % ncases);
-			myTestsample.row(2*i+1) = myTestControl.row((i + randnum) % ncontrol);
+			myTestCases=casesample.rows(ntestcases);
+			myTestControl=controlsample.rows(ntestcontrol);
+			int ncases = myTestCases.n_rows;
+			int ncontrol = myTestControl.n_rows;
+			int ntesmin = std::max(ncases,ncontrol);
+			int randnum = (randi<uvec>(1))[0];
+
+			myTestsample = zeros<mat>(2*ntesmin,myTestCases.n_cols);
+			for (int i=0;i<ntesmin;i++)
+			{
+				myTestsample.row(2*i) =  myTestCases.row((i + randnum) % ncases);
+				myTestsample.row(2*i+1) = myTestControl.row((i + randnum) % ncontrol);
+			}
 		}
 	}
 	else
@@ -448,8 +464,9 @@ std::string binaryFowardSelection(const unsigned int size,const int totSamples,c
   	  	myTestsample=join_cols(casesample,controlsample);
 	}
 
+//	Rcout << endl << size << ":(" << mysample.n_rows << "," << mysample.n_cols << ")" << endl;
+//	Rcout << mysample.row(1)[1] << mysample.row(1)[2]<< "," << mysample.row(1)[3] << endl;
 	
-			
     mat myoutcome(mysample.n_rows,2);
 	myoutcome.col(1)=mysample.col(outcomeidx);
        
@@ -457,16 +474,25 @@ std::string binaryFowardSelection(const unsigned int size,const int totSamples,c
 	myTestsampleMatbase.set_size(myTestsample.n_rows);
 	mysampleMatbase.fill(1.0);
 	myTestsampleMatbase.fill(1.0);
-	if (type == "COX")
-	{
-		myoutcome.col(0)=mysample.col(lockup[timeOutcome]);
-	}
 	if (covari[0]!="1")
-	for (unsigned int i=0;i<covari.size();i++)
 	{
-	  	mysampleMatbase=join_rows(mysampleMatbase,mysample.col(lockup[covari[i]]));
-	  	myTestsampleMatbase=join_rows(myTestsampleMatbase,myTestsample.col(lockup[covari[i]]));		  
-  	}
+		if (type == "COX")
+		{
+			myoutcome.col(0)=mysample.col(lockup[timeOutcome]);
+		}
+		for (unsigned int i=0;i<covari.size();i++)
+		{
+			mysampleMatbase=join_rows(mysampleMatbase,mysample.col(lockup[covari[i]]));
+			myTestsampleMatbase=join_rows(myTestsampleMatbase,myTestsample.col(lockup[covari[i]]));		  
+		}
+	}
+	else
+	{
+		if (type == "COX")
+		{
+			myoutcome.col(0)=mysample.col(lockup[timeOutcome]);
+		}
+	}
     if((mysampleMatbase.n_cols>1)or(type=="COX"))
 	{
         bestmodel =modelFittingFunc(myoutcome,mysampleMatbase,type);
@@ -476,14 +502,14 @@ std::string binaryFowardSelection(const unsigned int size,const int totSamples,c
        bestmodel=mean(myoutcome.col(1));
        if (type=="LOGIT") 
 	   {
-		   if ((bestmodel(0)>0)&&(bestmodel(0)<1))  
+		   if ((bestmodel(0) >= DOUBLEEPS)&&(bestmodel(0) < 1))  
 		   {
-			   bestmodel=log(bestmodel/(1-bestmodel));
+			   bestmodel=log(bestmodel/(1.0-bestmodel));
 		   }
 		   else 
 		   {
-			   if (bestmodel(0)==0) bestmodel(0) = MTHRESH;
-			   else bestmodel(0) = THRESH;
+			   if (bestmodel(0) == 1 ) bestmodel(0) = THRESH;
+			   else bestmodel(0) = MTHRESH;
 		   }
 	   }
 	}
@@ -493,114 +519,155 @@ std::string binaryFowardSelection(const unsigned int size,const int totSamples,c
 	int jmax = -1;
   	unsigned int j;
 	std::string inname = "Inserted";
+	vec testoutvec = myTestsample.col(outcomeidx);
+	vec trainoutvec = mysample.col(outcomeidx);
+	double merror=1.0;
+	double tol=1.0e-8; // error tolerance
+	int cycle=0;
+	vec iprob(6);
+	vec iprob_t(6);
 	while (changes>0)
 	{
 		changes = 0;
-	  	maxrec = 0;
+	  	maxrec = zthr2;
 	  	jmax = -1;
+		merror=1.0;
 	  	for ( j=0; j<size;j++)
 	  	{
-			vec iprob;
-			vec iprob_t;
 			zmin=0.0;
 	  		if (vnames[j] != inname)
 	  		{
-				mysampleMat=join_rows(mysampleMatbase,mysample.col(lockup[vnames[j]]));
-				if (loops > 1) myTestsampleMat=join_rows(myTestsampleMatbase,myTestsample.col(lockup[vnames[j]]));
+				unsigned int vidx = lockup[vnames[j]];
+				mysampleMat=join_rows(mysampleMatbase,mysample.col(vidx));
+				if (loops > 1) myTestsampleMat=join_rows(myTestsampleMatbase,myTestsample.col(vidx));
 	  			gfrm1 = frm1+" + "+vnames[j];
 	  			singleTrainPredict.clear();
 	  			singleTestPredict.clear();
              	if((mysampleMat.n_cols>1)or(type=="COX"))
 				{
 					newmodel =modelFittingFunc(myoutcome,mysampleMat,type);
+					if (newmodel.has_nan())
+					{
+//						Rcout << "*";
+						mysampleMat=mysampleMat+100.0*DOUBLEEPS*randn(mysampleMat.n_rows,mysampleMat.n_cols);
+						newmodel =modelFittingFunc(myoutcome,mysampleMat,type);
+					}
 				}
 				else
 				{
 					newmodel=mean(myoutcome.col(1));
 					if (type=="LOGIT") 	
 					{
-						if ((newmodel(0)>0)&&(newmodel(0)<1))  
+						if ((newmodel[0] >= DOUBLEEPS)&&(newmodel[0] < 1))  
 						{
 							newmodel=log(newmodel/(1.0-newmodel));
 						}
 						else 
 						{
-						   if (newmodel(0)==0) newmodel(0) = MTHRESH;
-						   else newmodel(0) = THRESH;
+						   if (newmodel[0] == 1) newmodel[0] = THRESH;
+						   else newmodel[0] = MTHRESH;
 						}
 					}
 				}
-				if (is_finite(newmodel)) 
+				if (!newmodel.has_nan()) 
 	  			{
   					singleTrainPredict=predictForFresaFunc(newmodel,mysampleMat,"prob",type);
-					iprob_t = improveProbFunc(bestpredict_train,singleTrainPredict,mysample.col(outcomeidx));            
+					iprob_t = improveProbFunc(bestpredict_train,singleTrainPredict,trainoutvec,0.0,0.0);            
+					merror = mean(abs(singleTrainPredict-trainoutvec)); // train estimation error
 					if (loops > 1) 
 					{
 						singleTestPredict=predictForFresaFunc(newmodel,myTestsampleMat,"prob",type);
-						iprob = improveProbFunc(bestpredict,singleTestPredict,myTestsample.col(outcomeidx),trainsize);
-						if ((is_finite(iprob)) and (is_finite(iprob_t)))
+						iprob = improveProbFuncSamples(bestpredict,singleTestPredict,testoutvec,trainsize,0.0,0.0);
+						if (!iprob.has_nan() && !iprob_t.has_nan())
 						{
 							if (selType=="zIDI") 
 							{
-								zmin = std::min(iprob(z_idi),iprob_t(z_idi));
+								zmin = std::min(iprob[z_idi],iprob_t[z_idi]);
 							}
 							else
 							{
-								zmin = std::min(iprob(z_nri),iprob_t(z_nri));
+								zmin = std::min(iprob[z_nri],iprob_t[z_nri]);
 							}
 						}
 					}
 					else
 					{
-//						Rcout << iprob_t(z_idi) <<":"<<iprob_t(z_nri)<< endl;
 						if (selType=="zIDI") 
 						{
-							zmin=iprob_t(z_idi);
+							zmin=iprob_t[z_idi];
 						}
 						else
 						{
-							zmin=iprob_t(z_nri);
+							zmin=iprob_t[z_nri];
 						}
 					}
-					if (zmin  > maxrec)
+					if (( zmin  > zthr2 )&&( zmin > maxrec ))
 					{
 						jmax = j;
 						maxrec = zmin;
 					}
-	  			}
+					if (cycle==0) basevalues[j] = iprob_t[z_idi];
+					else
+					{
+						if (merror<tol)
+						{
+							j=size; // lets stop.
+						}
+					}
+				}
+//				else
+//				{
+//					Rcout << "*";
+//				}
 			}
+			int jitter = (int)((j > (size/50))*(size/100));
+			if (isRandom) jitter=0;
+			if ((cycle>0)&&(jitter>1)) j += (randi<uvec>(1))[0] % jitter;
 	  	}
-		if ((jmax >= 0) and (maxrec > zthr2) and (vnames[jmax] != inname) and (inserted<maxTrainModelSize))   
+
+		if ((jmax >= 0) && (maxrec > zthr2) && (inserted<maxTrainModelSize))   
 	  	{
-			gfrm1 = frm1+" + ";
-	  		gfrm1 = gfrm1+ovnames[jmax];
-	  		mysampleMatbase=join_rows(mysampleMatbase,mysample.col(lockup[vnames[jmax]]));
-           	bestmodel =modelFittingFunc(myoutcome,mysampleMatbase,type);
-			if (loops > 1) 
+			unsigned int vidx=lockup[vnames[jmax]];
+			
+			if (vnames[jmax] != inname)
 			{
-				myTestsampleMatbase=join_rows(myTestsampleMatbase,myTestsample.col(lockup[vnames[jmax]]));
-				bestpredict = predictForFresaFunc(bestmodel,myTestsampleMatbase,"prob",type);
+				gfrm1 = frm1+" + ";
+				gfrm1 = gfrm1+ovnames[jmax];
+				mysampleMatbase=join_rows(mysampleMatbase,mysample.col(vidx));
+
+				bestmodel = modelFittingFunc(myoutcome,mysampleMatbase,type);
+				bestpredict_train = predictForFresaFunc(bestmodel,mysampleMatbase,"prob",type);
+
+				if (loops > 1) 
+				{
+					myTestsampleMatbase=join_rows(myTestsampleMatbase,myTestsample.col(vidx));
+					bestpredict = predictForFresaFunc(bestmodel,myTestsampleMatbase,"prob",type);
+				}
+				merror = max(abs(bestpredict_train-trainoutvec)); // train estimation error
+				frm1 = gfrm1;	
+				mynamesLoc.push_back(jmax);
+				inserted = inserted + 1;
+//				changes = changes + 1;
+				if (merror>tol) 
+				{
+					changes = changes + 1;
+				}
 			}
-	  		bestpredict_train = predictForFresaFunc(bestmodel,mysampleMatbase,"prob",type);
-           	frm1 = gfrm1;	
-	  		changes = changes + 1;
-	  		mynamesLoc.push_back(jmax);
-	  		vnames[jmax] = inname;
-	  		jmax = 0;
-	  		maxrec = 0;
-	  		inserted = inserted + 1;
+			vnames[jmax] = inname;
 	  	}
-//		if (loops==1) Rcout << endl << frm1 << endl;		
+		++cycle;  		
 	}
+	ovnames=vnames;
 	return frm1;
 }
 
-extern "C" SEXP ReclassificationFRESAModelCpp(SEXP _size, SEXP _fraction,SEXP _pvalue, SEXP _loops,  SEXP _covariates, SEXP _Outcome, SEXP _variableList, SEXP _maxTrainModelSize, SEXP _type, SEXP _timeOutcome, SEXP _selType,SEXP _loop_threshold, SEXP _interaction, SEXP _dataframe,SEXP _colnames,SEXP _cores)
+extern "C" SEXP ReclassificationFRESAModelCpp(SEXP _size, SEXP _fraction,SEXP _pvalue, SEXP _loops,  SEXP _covariates, SEXP _Outcome, SEXP _variableList, SEXP _maxTrainModelSize, SEXP _type, SEXP _timeOutcome, SEXP _selType, SEXP _dataframe,SEXP _colnames,SEXP _cores)
 {
 try {   // R_CStackLimit=(uintptr_t)-1;
  		#ifdef _OPENMP
 //		Rcout<<"::============ Available CPU Cores(Threads) : "<<omp_get_num_procs()<<" ===Requested Threads : "<< as<unsigned int>(_cores) << endl;
 	    omp_set_num_threads(as<unsigned int>(_cores));
+//	    omp_set_num_threads(1);
 		#endif	
 		unsigned int size = as<unsigned int>(_size); 
 		double fraction = as<double>(_fraction);
@@ -620,7 +687,33 @@ try {   // R_CStackLimit=(uintptr_t)-1;
 		std::vector<std::string> formulas;
 		std::vector<int> mynames;
 		std::vector<std::string> ovnames=as<std::vector<std::string> >(CharacterVector(_variableList)); 
-		double zthr = std::abs(qnorm(pvalue,0.0,1.0)); //double zthr = abs(Rf_qnorm5(pvalue,0.0, 1.0, 1, 0));
+		vec basevalues=zeros<vec>(size);
+		vec bbasevalues=zeros<vec>(size);
+		double zthr = -1.0*(qnorm(pvalue,0.0,1.0)); //double zthr = abs(Rf_qnorm5(pvalue,0.0, 1.0, 1, 0));
+
+		int len_outcome=Outcome.size();
+		bool israndom=false;
+		if (len_outcome>6)
+		{
+			std::string key=Outcome;
+			key.resize(6);
+			if (key=="RANDOM")
+			{
+				israndom=true;
+				Outcome=Outcome.substr(6,len_outcome-6);
+				if (size<ovnames.size())
+				{
+					for (unsigned int i=1; i<=size; i++) 
+					{
+						ovnames[i-1]=colnames[i];
+					}
+				}
+			}
+		}
+
+
+
+
 		for(int i=0;i<CharacterVector(colnames).size();i++)
 		{
 			lockup[std::string(CharacterVector(colnames)[i])]=i;
@@ -637,6 +730,11 @@ try {   // R_CStackLimit=(uintptr_t)-1;
 		
 
 		int indoutcome=lockup[Outcome];
+		if (israndom)
+		{
+			vec outcome = dataframe.col(indoutcome);
+			dataframe.col(indoutcome)=outcome(sort_index(randu(dataframe.n_rows)));
+		}
 		mat casesample = dataframe.rows(find(dataframe.col(indoutcome)==1));
 		mat controlsample = dataframe.rows(find(dataframe.col(indoutcome)==0));
 		int sizecases   = casesample.n_rows;
@@ -651,41 +749,44 @@ try {   // R_CStackLimit=(uintptr_t)-1;
 		}
 		if (zthr2<std::abs(qnorm(0.1,0,1))) zthr2 = std::abs(qnorm(0.1,0,1)); 
 
-//		Rcout<<pvalue<<" <-pv : z-> "<<zthr2<<" Form: "<<  baseForm << "\n";
+//		Rcout << "\n" <<pvalue<<" <-pv : z-> "<<zthr2<<" Cases: "<<  sizecases <<" Controls: "<<  sizecontrol << "\n";
 
 		if (size > ovnames.size()) size = ovnames.size();
 		std::string inname = "Inserted";
 		for(unsigned int j=0;j<covari.size();j++)
 		    for(unsigned int i=0;i<ovnames.size();i++)
 					 if (covari[j]==ovnames[i]) ovnames[i]=inname;  	
-#pragma omp parallel for schedule(dynamic) ordered shared (mynames,formulas)  
+#pragma omp parallel for schedule(dynamic) ordered shared (mynames,formulas,bbasevalues)  
     	for (int doOver=0; doOver<loops;doOver++)
 	 	{
-			std::string selt = selType;
-			if (selType=="Both") 
-			{
-				if ( 3*doOver > loops) selt = "zIDI"; else selt="zNRI";
-			}
-
+			std::vector<std::string> oovnames=ovnames;
 			std::vector <int> mynamesLoc;
-			std::string  frm = binaryFowardSelection(size,totSamples,zthr2,selt,loops,
-			Outcome,timeOutcome,type,maxTrainModelSize,casesample,controlsample,
-			ovnames,lockup,baseForm,mynamesLoc,covari);
+//			int doBootstrapSample = 1+loops*((doOver % 20)!=0);
 
-			if ((doOver%10)==0) 
+			std::string  frm = binaryFowardSelection(size,totSamples,zthr2,selType,loops,
+			Outcome,timeOutcome,type,maxTrainModelSize,casesample,controlsample,
+			oovnames,lockup,baseForm,mynamesLoc,covari,basevalues,israndom);
+
+#pragma omp critical
+{
+				mynames.insert(mynames.end(), mynamesLoc.begin(), mynamesLoc.end());
+				formulas.push_back(frm);
+				for (unsigned int i=0;i<size;i++) bbasevalues[i] += basevalues[i];
+
+}
+
+			if ((doOver%100)==99) 
 				{
 #pragma omp critical
 					Rcout << ".";	
 //					Rcout << doOver <<" : "<< frm << std::endl;	
 				}
-#pragma omp critical
-{
-				mynames.insert(mynames.end(), mynamesLoc.begin(), mynamesLoc.end());
-				formulas.push_back(frm);
-}
+
   		}
+		for (unsigned int i=0;i<size;i++) bbasevalues[i] =  bbasevalues[i]/loops;
+
   		if (mynames.size() == 0) mynames.push_back(0);
-	    List result = List::create(Named("mynames")=wrap(mynames),Named("formula.list")=wrap(formulas));
+	    List result = List::create(Named("mynames")=wrap(mynames),Named("formula.list")=wrap(formulas),Named("Base.values")=wrap(bbasevalues));
 	    return (result);
 	} 
 	catch( std::exception &ex ) 

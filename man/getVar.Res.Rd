@@ -1,6 +1,6 @@
 \name{getVar.Res}
 \alias{getVar.Res}
-\title{Analysis of the effect of each term of a linear regression model by analyzing its residuals}
+\title{Analysis of the effect of each term of a linear regression model by analysing its residuals}
 \description{
 	This function provides an analysis of the effect of each model term by comparing the residuals of the Full model and the model without each term.
 	The model is fitted using the train data set, but analysis of residual improvement is done on the train and test data sets.
@@ -66,60 +66,14 @@
 	\item{testData.NeRIs}{
 		A vector similar to \code{NeRIs}, where values were estimated in \code{testdata}
 	}
-	\item{unitestMSS}{
+	\item{unitestMSE}{
 		A vector with the univariate residual mean sum of squares of each model variable on the test data
 	}
-	\item{unitrainMSS}{
+	\item{unitrainMSE}{
 		A vector with the univariate residual mean sum of squares of each model variable on the train data
 	}
 }
 \author{Jose G. Tamez-Pena and Antonio Martinez-Torteya}
 \seealso{\code{\link{getVar.Bin}}}
-\examples{
-	\dontrun{
-	# Start the graphics device driver to save all plots in a pdf format
-	pdf(file = "Example.pdf")
-	# Get the stage C prostate cancer data from the rpart package
-	library(rpart)
-	data(stagec)
-	# Split the stages into several columns
-	dataCancer <- cbind(stagec[,c(1:3,5:6)],
-	                    gleason4 = 1*(stagec[,7] == 4),
-	                    gleason5 = 1*(stagec[,7] == 5),
-	                    gleason6 = 1*(stagec[,7] == 6),
-	                    gleason7 = 1*(stagec[,7] == 7),
-	                    gleason8 = 1*(stagec[,7] == 8),
-	                    gleason910 = 1*(stagec[,7] >= 9),
-	                    eet = 1*(stagec[,4] == 2),
-	                    diploid = 1*(stagec[,8] == "diploid"),
-	                    tetraploid = 1*(stagec[,8] == "tetraploid"),
-	                    notAneuploid = 1-1*(stagec[,8] == "aneuploid"))
-	# Remove the incomplete cases
-	dataCancer <- dataCancer[complete.cases(dataCancer),]
-	# Load a pre-stablished data frame with the names and descriptions of all variables
-	data(cancerVarNames)
-	# Split the data set into train and test samples
-	trainDataCancer <- dataCancer[1:(nrow(dataCancer)/2),]
-	testDataCancer <- dataCancer[(nrow(dataCancer)/2+1):nrow(dataCancer),]
-	# Get a Cox proportional hazards model using:
-	# - 10 bootstrap loops
-	# - Train data
-	# - Age as a covariate
-	# - The Wilcoxon rank-sum test as the feature inclusion criterion
-	cancerModel <- ForwardSelection.Model.Res(loops = 10,
-	                                    covariates = "1 + age",
-	                                    Outcome = "pgstat",
-	                                    variableList = cancerVarNames,
-	                                    data = trainDataCancer,
-	                                    type = "COX",
-	                                    testType= "Wilcox",
-	                                    timeOutcome = "pgtime")
-	# Get the NeRI of each model term in the train data set and in the independent data set
-	cancerModelNeRI <- getVar.Res(object = cancerModel$final.model,
-	                              data = testDataCancer,
-	                              Outcome = "pgstat",
-	                              type = "COX")
-	# Shut down the graphics device driver
-	dev.off()}
-}
+
 \keyword{Model_Inspection}

@@ -16,22 +16,25 @@
 	                                timeOutcome = "Time",
 	                                variableList,
 	                                data,
-	                                maxTrainModelSize = 10,
+	                                maxTrainModelSize = 20,
 	                                type = c("LM", "LOGIT", "COX"),
-	                                selectionType = c("zIDI", "zNRI","Both"),
-	                                loop.threshold = 10,
+	                                selectionType = c("zIDI", "zNRI"),
 	                                startOffset = 0,
 	                                elimination.bootstrap.steps = 25,
 	                                trainFraction = 0.67,
 	                                trainRepetition = 9,
 	                                elimination.pValue = 0.05,
-	                                CVfolds = 10,
 	                                bootstrap.steps = 25,
-	                                interaction = c(1, 1),
 	                                nk = 0,
 	                                unirank = NULL,
 	                                print=TRUE,
-	                                plots=TRUE)
+	                                plots=TRUE,
+	                                lambda="lambda.1se",
+	                                adjsize=1.0,
+	                                equivalent=FALSE,
+	                                bswimsCycles=10,
+	                                usrFitFun=NULL
+				)
 }
 \arguments{
 	\item{size}{
@@ -70,9 +73,6 @@
 	\item{selectionType}{
 		The type of index to be evaluated by the \code{improveProb} function (\code{Hmisc} package): \emph{z}-score of IDI or of NRI
 	}
-	\item{loop.threshold}{
-		After \code{loop.threshold} cycles, only variables that have already been selected in previous cycles will be candidates to be selected in posterior cycles
-	}
 	\item{startOffset}{
 		Only terms whose position in the model is larger than the \code{startOffset} are candidates to be removed
 	}
@@ -88,17 +88,11 @@
 	\item{elimination.pValue}{
 		The maximum \emph{p}-value, associated to either IDI or NRI, allowed for a term in the model by the backward elimination procedure
 	}
-	\item{CVfolds}{
-		The number of folds for the final cross-validation.
-	}
 	\item{bootstrap.steps}{
 		The number of bootstrap loops for the confidence intervals estimation
 	}
-	\item{interaction}{
-		A vector of size two. The terms are used by the search and update procedures, respectively.	Set to either 1 for first order models, or to 2 for second order models
-	}
 	\item{nk}{
-		The number of neighbors used to generate a \emph{k}-nearest neighbors (KNN) classification. If zero, \emph{k} is set to the square root of the number of cases. If less than zero, it will not perform the KNN classification
+		The number of neighbours used to generate a \emph{k}-nearest neighbours (KNN) classification. If zero, \emph{k} is set to the square root of the number of cases. If less than zero, it will not perform the KNN classification
 	}
 	\item{unirank}{
 		A list with the results yielded by the \code{uniRankVar} function, required only if the rank needs to be updated during the cross-validation procedure
@@ -108,6 +102,21 @@
 	}
 	\item{plots}{
 		Logical. If \code{TRUE}, plots are displayed
+	}
+	\item{lambda}{
+		The passed value to the s parameter of the glmnet cross validation coefficient
+	}
+	\item{adjsize}{
+		The expected size of a random model for multiple selection correction
+	}
+	\item{equivalent}{
+		Is set to TRUE CV will compute the equivalent model
+	}
+	\item{bswimsCycles}{
+		The maximum number of models to be returned by \code{BSWiMS.model}
+	}
+	\item{usrFitFun}{
+		A user fitting function to be evaluated by the cross validation procedure
 	}
 }
 \details{
@@ -246,8 +255,8 @@
 	\item{BSWiMS.ensemble.prediction}{
 		The ensemble prediction by all models on the test data
 	}
-	\item{BeforeBHFormulas.list}{
-		The list of formulas before the BH FDR
+	\item{AtOptFormulas.list}{
+		The list of formulas with "optimal" performance 
 	}
 	\item{ForwardFormulas.list}{
 		The list of formulas produced by the forward procedure
@@ -265,62 +274,4 @@
 \seealso{\code{\link{crossValidationFeatureSelection_Res},
 				 \link{ForwardSelection.Model.Bin},
 				 \link{ForwardSelection.Model.Res}}}
-\examples{
-	\dontrun{
-	# Start the graphics device driver to save all plots in a pdf format
-	pdf(file = "Example.pdf")
-	# Get the stage C prostate cancer data from the rpart package
-	library(rpart)
-	data(stagec)
-	# Split the stages into several columns
-	dataCancer <- cbind(stagec[,c(1:3,5:6)],
-	                    gleason4 = 1*(stagec[,7] == 4),
-	                    gleason5 = 1*(stagec[,7] == 5),
-	                    gleason6 = 1*(stagec[,7] == 6),
-	                    gleason7 = 1*(stagec[,7] == 7),
-	                    gleason8 = 1*(stagec[,7] == 8),
-	                    gleason910 = 1*(stagec[,7] >= 9),
-	                    eet = 1*(stagec[,4] == 2),
-	                    diploid = 1*(stagec[,8] == "diploid"),
-	                    tetraploid = 1*(stagec[,8] == "tetraploid"),
-	                    notAneuploid = 1-1*(stagec[,8] == "aneuploid"))
-	# Remove the incomplete cases
-	dataCancer <- dataCancer[complete.cases(dataCancer),]
-	# Load a pre-stablished data frame with the names and descriptions of all variables
-	data(cancerVarNames)
-	# Rank the variables:
-	# - Analyzing the raw data
-	# - According to the zIDI
-	rankedDataCancer <- univariateRankVariables(variableList = cancerVarNames,
-	                                           formula = "Surv(pgtime, pgstat) ~ 1",
-	                                           Outcome = "pgstat",
-	                                           data = dataCancer, 
-	                                           categorizationType = "Raw", 
-	                                           type = "COX", 
-	                                           rankingTest = "zIDI",
-	                                           description = "Description")
-	# Get a Cox proportional hazards model using:
-	# - The top 7 ranked variables
-	# - 10 bootstrap loops in the feature selection procedure
-	# - The zIDI as the feature inclusion criterion
-	# - 5 bootstrap loops in the backward elimination procedure
-	# - A 5-fold cross-validation in the feature selection, 
-	#           update, and backward elimination procedures
-	# - A 10-fold cross-validation in the model validation procedure
-	# - First order interactions in the update procedure
-	cancerModel <- crossValidationFeatureSelection_Bin(size = 7,
-	                                               loops = 10,
-	                                               Outcome = "pgstat",
-	                                               timeOutcome = "pgtime",
-	                                               variableList = rankedDataCancer,
-	                                               data = dataCancer,
-	                                               type = "COX",
-	                                               selectionType = "zIDI",
-	                                               elimination.bootstrap.steps = 5,
-	                                               trainRepetition = 5,
-	                                               CVfolds = 10,
-	                                               interaction = c(1,2))
-	# Shut down the graphics device driver
-	dev.off()}
-}
 \keyword{Model_Generation}

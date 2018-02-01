@@ -1,6 +1,6 @@
 \name{ForwardSelection.Model.Bin}
 \alias{ForwardSelection.Model.Bin}
-\title{IDI/NRI-based feature selection procedure for linear, logistic, and Cox proportional hazards regresion models}
+\title{IDI/NRI-based feature selection procedure for linear, logistic, and Cox proportional hazards regression models}
 \description{
 	This function performs a bootstrap sampling to rank the variables that statistically improve prediction.
 	After the frequency rank, the function uses a forward selection procedure to create a final model, whose terms all have a significant contribution to the integrated discrimination improvement (IDI) or the net reclassification improvement (NRI).
@@ -18,13 +18,12 @@
 	                            Outcome,
 	                            variableList,
 	                            data, 
-	                            maxTrainModelSize = 10,
+	                            maxTrainModelSize = 20,
 	                            type = c("LM", "LOGIT", "COX"),
 	                            timeOutcome = "Time",
-	                            selectionType=c("zIDI", "zNRI","Both"),
-	                            loop.threshold = 20,
-	                            interaction = 1,
-	                            cores = 4)
+	                            selectionType=c("zIDI", "zNRI"),
+	                            cores = 4,
+	                            randsize = 0)
 }
 \arguments{
 	\item{size}{
@@ -63,14 +62,11 @@
 	\item{selectionType}{
 		The type of index to be evaluated by the \code{improveProb} function (\code{Hmisc} package): \emph{z}-score of IDI or of NRI
 	}
-	\item{loop.threshold}{
-		After \code{loop.threshold} cycles, only variables that have already been selected in previous cycles will be candidates to be selected in posterior cycles
-	}
-	\item{interaction}{
-		Set to either 1 for first order models, or to 2 for second order models
-	}
 	\item{cores}{
 		Cores to be used for parallel processing
+	}
+	\item{randsize}{
+		the model size of a random outcome. If randsize is less than zero. It will estimate the size
 	}
 }
 \value{
@@ -99,40 +95,5 @@
 \references{Pencina, M. J., D'Agostino, R. B., & Vasan, R. S. (2008). Evaluating the added predictive ability of a new marker: from area under the ROC curve to reclassification and beyond. \emph{Statistics in medicine} \bold{27}(2), 157-172.}
 \author{Jose G. Tamez-Pena and Antonio Martinez-Torteya}
 \seealso{\code{\link{ForwardSelection.Model.Res}}}
-\examples{
-	\dontrun{
-	# Start the graphics device driver to save all plots in a pdf format
-	pdf(file = "Example.pdf")
-	# Get the stage C prostate cancer data from the rpart package
-	library(rpart)
-	data(stagec)
-	# Split the stages into several columns
-	dataCancer <- cbind(stagec[,c(1:3,5:6)],
-	                    gleason4 = 1*(stagec[,7] == 4),
-	                    gleason5 = 1*(stagec[,7] == 5),
-	                    gleason6 = 1*(stagec[,7] == 6),
-	                    gleason7 = 1*(stagec[,7] == 7),
-	                    gleason8 = 1*(stagec[,7] == 8),
-	                    gleason910 = 1*(stagec[,7] >= 9),
-	                    eet = 1*(stagec[,4] == 2),
-	                    diploid = 1*(stagec[,8] == "diploid"),
-	                    tetraploid = 1*(stagec[,8] == "tetraploid"),
-	                    notAneuploid = 1-1*(stagec[,8] == "aneuploid"))
-	# Remove the incomplete cases
-	dataCancer <- dataCancer[complete.cases(dataCancer),]
-	# Load a pre-stablished data frame with the names and descriptions of all variables
-	data(cancerVarNames)
-	# Get a Cox proportional hazards model using:
-	# - 10 bootstrap loops
-	# - zIDI as the feature inclusion criterion
-	cancerModel <- ForwardSelection.Model.Bin(loops = 10,
-	                                           Outcome = "pgstat",
-	                                           variableList = cancerVarNames,
-	                                           data = dataCancer,
-	                                           type = "COX",
-	                                           timeOutcome = "pgtime",
-	                                           selectionType = "zIDI")
-	# Shut down the graphics device driver
-	dev.off()}
-}
+
 \keyword{Model_Generation}

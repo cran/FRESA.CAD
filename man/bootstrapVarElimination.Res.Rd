@@ -20,12 +20,14 @@
 	                            setIntersect = 1,
 	                            print=TRUE,
 	                            plots=TRUE,
-								adjsize= 1)
+	                            adjsize= 1,
+	                            uniAdjPvalues=NULL
+                                )
 
 }	
 \arguments{
 	\item{object}{ 
-		An object of class \code{lm}, \code{glm}, or \code{coxph} containing the model to be analyzed
+		An object of class \code{lm}, \code{glm}, or \code{coxph} containing the model to be analysed
 	}
 	\item{pvalue}{
 		The maximum \emph{p}-value, associated to the NeRI, allowed for a term in the model
@@ -61,13 +63,16 @@
 		Logical. If \code{TRUE},  plots are displayed
 	}
 	\item{adjsize}{
-		The number of features to be used by the BH FSR correction
+		The expected size of a random model for multiple selection correction
 	}
+	\item{uniAdjPvalues}{
+		The univariate p-values
+	}	
 }
 \details{
 	For each model term \eqn{x_i}, the residuals are computed for the Full model and the reduced model( where the term \eqn{x_i} removed).
-	The term whose removal results in the smallest drop in bootstrapped residuals improvement is selected. The hypothesis: the 
-	term improves residuals is tested by checking the pvalue of average improvement. If \eqn{p(residuals better than reduced residuals)>pvalue}, then the term is removed. 
+	The term whose removal results in the smallest drop in bootstrapped test residuals improvement is selected. The hypothesis: the 
+	term improves residuals is tested by checking the p-value of average improvement. If \eqn{p(residuals better than reduced residuals)>pvalue}, then the term is removed. 
 	In other words, only model terms that significantly aid in improving residuals are kept.
 	The procedure is repeated until no term fulfils the removal criterion.
 	The p-values of improvement can be computed via a sign-test (Binomial) a paired Wilcoxon test, paired t-test or f-test. The first three tests compare the absolute values of
@@ -92,69 +97,19 @@
 	\item{lastRemoved}{
 		The name of the last term that was removed (-1 if all terms were removed)
 	}
-	\item{beforeFSC.model}{
-		the beforeFSC model will have the model with the minimum bootstrap test error
+	\item{at.opt.model}{
+		The model with close to minimum bootstrapped RMSE 
 	}
 	\item{beforeFSC.formula}{
-		the string formula of the model used to find the minimum bootstrap test error
+		The formula of the model before the FSC stage
+	}
+	\item{at.RMSE.formula}{
+		the string formula of the model that had the minimum or close to minimum RMSE
 	}
 }
 \author{Jose G. Tamez-Pena and Antonio Martinez-Torteya}
 \seealso{\code{\link{bootstrapVarElimination_Bin},
 				 \link{backVarElimination_Res},
 				 \link{bootstrapValidation_Res}}}
-\examples{
-	\dontrun{
-	# Start the graphics device driver to save all plots in a pdf format
-	pdf(file = "Example.pdf")
-	# Get the stage C prostate cancer data from the rpart package
-	library(rpart)
-	data(stagec)
-	# Split the stages into several columns
-	dataCancer <- cbind(stagec[,c(1:3,5:6)],
-	                    gleason4 = 1*(stagec[,7] == 4),
-	                    gleason5 = 1*(stagec[,7] == 5),
-	                    gleason6 = 1*(stagec[,7] == 6),
-	                    gleason7 = 1*(stagec[,7] == 7),
-	                    gleason8 = 1*(stagec[,7] == 8),
-	                    gleason910 = 1*(stagec[,7] >= 9),
-	                    eet = 1*(stagec[,4] == 2),
-	                    diploid = 1*(stagec[,8] == "diploid"),
-	                    tetraploid = 1*(stagec[,8] == "tetraploid"),
-	                    notAneuploid = 1-1*(stagec[,8] == "aneuploid"))
-	# Remove the incomplete cases
-	dataCancer <- dataCancer[complete.cases(dataCancer),]
-	# Load a pre-stablished data frame with the names and descriptions of all variables
-	data(cancerVarNames)
-	# Get a Cox proportional hazards model using:
-	# - A lax p-value
-	# - 10 bootstrap loops
-	# - Age as a covariate
-	# - The Wilcoxon rank-sum test as the feature inclusion criterion
-	cancerModel <- ForwardSelection.Model.Res(pvalue = 0.1,
-	                                    loops = 10,
-	                                    covariates = "1 + age",
-	                                    Outcome = "pgstat",
-	                                    variableList = cancerVarNames,
-	                                    data = dataCancer,
-	                                    type = "COX",
-	                                    testType= "Wilcox",
-	                                    timeOutcome = "pgtime")
-	# Remove not significant variables from the previous model:
-	# - Using a strict p-value
-	# - Excluding the covariate as a candidate for feature removal 
-	# - Using the Wilcoxon rank-sum test as the feature removal criterion
-	# - Using 50 bootstrap loops
-	reducedCancerModel <- bootstrapVarElimination_Res(object = cancerModel$final.model,
-	                                                  pvalue = 0.005,
-	                                                  Outcome = "pgstat",
-	                                                  data = dataCancer,
-	                                                  startOffset = 1,
-	                                                  type = "COX",
-	                                                  testType = "Wilcox",
-	                                                  loops = 50,
-	                                                  fraction = 1)
-	# Shut down the graphics device driver
-	dev.off()}
-}
+
 \keyword{Model_Generation}

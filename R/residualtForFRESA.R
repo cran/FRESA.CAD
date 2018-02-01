@@ -5,7 +5,8 @@ function (object,testData,Outcome,eta=0.05)
 	classlen=length(class(object))
 	
 	cobj <- substr(class(object)[classlen], 1, 2);
-	if ((cobj!="co") && !is.null(object$family[1])) cobj = "glm";
+#	cat(classlen," ",cobj,"\n");
+	if ((cobj!="co") && !is.null(object$family[1])) cobj = "fi";
 	switch(cobj,
 		co =
 		{
@@ -33,46 +34,46 @@ function (object,testData,Outcome,eta=0.05)
 		},
 		lm =
 		{
-			out <- predictForFresa(object,testData,'linear') - testData[,Outcome];
+			out <- predict.fitFRESA(object,testData,'linear') - testData[,Outcome];
 		},
 		fi =
 		{
 			if (object$type == "LM")
 			{
-				out <- predictForFresa(object,testData,'linear') - testData[,Outcome];
+				out <- predict.fitFRESA(object,testData,'linear') - testData[,Outcome];
 			}
 			else
 			{
-				out <- predictForFresa(object,testData,'prob') - testData[,Outcome];
+				out <- predict.fitFRESA(object,testData,'prob') - testData[,Outcome];
 			}
 		},
 		tr =
 		{
 			if (object$type == "LM")
 			{
-				out <- predictForFresa(object,testData,'linear') - testData[,Outcome];
+				out <- predict.fitFRESA(object,testData,'linear') - testData[,Outcome];
 			}
 			else
 			{
-				out <- predictForFresa(object,testData,'prob') - testData[,Outcome];
+				out <- predict.fitFRESA(object,testData,'prob') - testData[,Outcome];
 			}
 		},
 		{
 			if (object$family[1] == "binomial")
 			{
-				out <- predictForFresa(object,testData,'prob') - testData[,Outcome];
+				out <- predict.fitFRESA(object,testData,'prob') - testData[,Outcome];
 			}
 			else
 			{
-				out <- predictForFresa(object,testData,'linear') - testData[,Outcome];
+				out <- predict.fitFRESA(object,testData,'linear') - testData[,Outcome];
 			}
 		}
 	)	
 	s <- is.na(out);
 	if (any(s)) 
 	{
-		cat("Warning NA predictFor NeRIs \n");
-		out[s] <- 1.0e10; # Set a large residual
+		warning("Warning NA predictFor NeRIs \n");
+		out[s] <- 1.23456789e10; # Set a large residual
 	}
     return (out)
 }

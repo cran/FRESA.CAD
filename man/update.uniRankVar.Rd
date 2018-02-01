@@ -20,7 +20,7 @@
 \value{
 	A list with the same format as the one yielded by the \code{uniRankVar} function
  }
-\author{Jose G. Tamez-Pena and Antonio Martinez-Torteya}%%\note{
+\author{Jose G. Tamez-Pena}%%\note{
 \seealso{\code{\link{uniRankVar}}}
 
 \keyword{Data_Inspection}

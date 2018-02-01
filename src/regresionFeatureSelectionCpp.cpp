@@ -39,41 +39,52 @@ int redCurmodel_S_lastRemovedNeRI;
 //********************************************************************************************
 //**==========================================================================================
 //********************************************************************************************
-extern "C" SEXP bootstrapValidationResCpp(SEXP _fraction,SEXP _loops,SEXP _dataframe,SEXP _type,SEXP _response)
+extern "C" SEXP bootstrapValidationResCpp(SEXP _fraction,SEXP _loops,SEXP _dataframe,SEXP _type,SEXP _response,SEXP _bestdataframe)
 {
 	try 
 	{  //R_CStackLimit=(uintptr_t)-1;
+//		omp_set_num_threads(4);
+//		arma_rng::set_seed_random();
 		double fraction = Rcpp::as<double>(_fraction);
 		int loops = Rcpp::as<int>(_loops);
 		std::string type = Rcpp::as<std::string>(_type);
 		Rcpp::NumericMatrix dataf(_dataframe);
 		Rcpp::NumericMatrix resp(_response);
+		Rcpp::NumericMatrix bestX(_bestdataframe);
 	    mat dataframe;
+		mat bestXframe;
 	    mat Response(resp.rows(), 2);
 		mat dat(dataf.begin(), dataf.rows(), dataf.cols(), false);
+		mat bestdatX(bestX.begin(), bestX.rows(), bestX.cols(), false);
 		vec dtime=ones<vec>(Response.n_rows);
 		if (resp.cols()==1) 
-			{
-				Response.col(0)=dtime;
-				Response.col(1)=Rcpp::as<vec>(Rcpp::NumericVector(_response));
-			}
-			else 
-			{
-			 mat Res(resp.begin(), resp.rows(), resp.cols(), false);
-			 Response=Res;
-			}
+		{
+			Response.col(0)=dtime;
+			Response.col(1)=Rcpp::as<vec>(Rcpp::NumericVector(_response));
+		}
+		else 
+		{
+			mat Res(resp.begin(), resp.rows(), resp.cols(), false);
+			Response=Res;
+		}
 		vec Outcome=Response.col(1);
 		dtime=Response.col(0);
         int n_var2=dat.n_cols-1;
-        if (type=="COX")
+        if (type == "COX")
 		{
 			dataframe=dat.cols(1,dat.n_cols-1);
-		}else dataframe=dat;
-	    mat tcasesample = join_rows(Response,dataframe);
+			bestXframe=bestdatX.cols(1,bestdatX.n_cols-1);
+		}
+		else 
+		{
+			dataframe=dat;
+			bestXframe=bestdatX;
+		}
+	    mat ttcasesample = join_rows(Response,dataframe);
+	    mat tbestSample = join_rows(Response,bestXframe);
+
 		
-		int sizecases  = dataframe.n_rows;
-		std::vector<double>trainOutcome;
-		std::vector<double>trainPrediction;
+		int tsizecases  = dataframe.n_rows;
 		std::vector<double>trainResiduals;
 		vec trainSampledRMSE(loops);
 		std::vector<double>testOutcome;
@@ -92,40 +103,44 @@ extern "C" SEXP bootstrapValidationResCpp(SEXP _fraction,SEXP _loops,SEXP _dataf
 		mat	test_spvalue=ones<mat>(loops,n_var2); 
 		mat	test_Fpvalue=ones<mat>(loops,n_var2);
 		int lastInserted=0;		
-		int totSamples = (int)(fraction*sizecases);
-//		mat casesample = equSamples(tcasesample);
-//		int totequsamples = casesample.n_rows;
+		int totSamples = (int)(fraction*tsizecases);
+//		uvec eqindex = equSamples(tcasesample);
+//		tcasesample = tcasesample.rows(eqindex);
+//		bestSample = bestSample.rows(eqindex);
+//		int sizecases = ttcasesample.n_rows;
+//		double omin=min(Outcome);
+//		double range = max(Outcome)-omin;
 
-#pragma omp parallel for schedule(dynamic) ordered shared(lastInserted,trainOutcome,trainPrediction,trainResiduals,testOutcome,testPrediction,testResiduals,trainSampledRMSE,testSampledRMSE,bcoef,bmeans,NeRi,tpvalue,wpvalue,spvalue,Fpvalue,test_tpvalue,test_wpvalue,test_spvalue,test_Fpvalue)
+#pragma omp parallel for schedule(dynamic) ordered shared(lastInserted,trainResiduals,testOutcome,testPrediction,testResiduals,trainSampledRMSE,testSampledRMSE,bcoef,bmeans,NeRi,tpvalue,wpvalue,spvalue,Fpvalue,test_tpvalue,test_wpvalue,test_spvalue,test_Fpvalue)
 		for (int doOver=0;doOver<loops;doOver++)
 		{ 
-//			mat casesample = equSamples(tcasesample);
+			uvec eqindex = equSamples(ttcasesample);
+			mat tcasesample = ttcasesample.rows(eqindex);
+			mat bestSample = tbestSample.rows(eqindex);
+			int sizecases = tcasesample.n_rows;
 			mat trainingSample;
+			mat bestTrainingSample;
 			uvec ntestSample;
-			unsigned int mintestSample = 0.25*totSamples;
+			uvec samCases;
+			unsigned int mintestSample = 4;
 			do
 			{
-//				uvec samCases= randi<uvec>(totSamples, distr_param(0,totequsamples-1));
-//				vec auxcasesample=zeros<vec>(totequsamples);
-				uvec samCases= randi<uvec>(totSamples, distr_param(0,sizecases-1));
+				samCases = randi<uvec>(totSamples, distr_param(0,sizecases-1));
 				vec auxcasesample=zeros<vec>(sizecases);
-				trainingSample = tcasesample.row(samCases(0));
-				auxcasesample[samCases(0)]=1;
-				for (int i =1;i<totSamples;i++)
+				for (int i=0;i<totSamples;i++)
 				{
-					trainingSample=join_cols(trainingSample,tcasesample.row(samCases(i)));
-					auxcasesample[samCases(i)]=1;
+					auxcasesample[samCases[i]]=1;
 				}
 				ntestSample=find(auxcasesample==0);
-				
-			} while ((ntestSample.n_elem<mintestSample)&&(var(trainingSample[1])>0));	
-			mat etrainingSample	= equSamples(trainingSample);
-			
-			vec trainmodel = modelFittingFunc(etrainingSample.cols(0,1),etrainingSample.cols(2,etrainingSample.n_cols-1),type);
-			if (is_finite(trainmodel))
+			} while (ntestSample.n_elem<mintestSample);	
+
+			trainingSample = tcasesample.rows(samCases);
+			bestTrainingSample = bestSample.rows(samCases);	
+			vec trainmodel = modelFittingFunc(trainingSample.cols(0,1),trainingSample.cols(2,trainingSample.n_cols-1),type);
+			if (!trainmodel.has_nan())
 			{
-				mat testSample = equSamples(tcasesample.rows(ntestSample));
-//				mat testSample = casesample.rows(ntestSample);
+				mat testSample = tcasesample.rows(ntestSample);
+				mat bestTestSample = bestSample.rows(ntestSample);
 				vec coef = trainmodel;
 				vec coxmean;
 				if (type == "COX") 
@@ -136,7 +151,7 @@ extern "C" SEXP bootstrapValidationResCpp(SEXP _fraction,SEXP _loops,SEXP _dataf
 
 				vec residualTrain = residualForFRESAFunc(trainmodel,trainingSample.cols(2,trainingSample.n_cols-1),"",type,trainingSample.cols(0,1));
 				vec residualTest = residualForFRESAFunc(trainmodel,testSample.cols(2,testSample.n_cols-1),"",type,testSample.cols(0,1));
-				gvarNeRI modelReclas = getVarResFunc(etrainingSample,type,testSample,totSamples);
+				gvarNeRI modelReclas = getVarResFunc(trainingSample,type,testSample,totSamples,bestTrainingSample,bestTestSample);
 
 #pragma omp critical
 {
@@ -186,6 +201,7 @@ extern "C" SEXP bootstrapValidationResCpp(SEXP _fraction,SEXP _loops,SEXP _dataf
 		
 			if ((3*lastInserted)<loops) Rcout<<"Warning: only "<<lastInserted<<" samples of "<<loops<<" were inserted\n";
 		}
+//		Rcout<<" First t-pvalue: "<<tpvalue(0,0)<<"\n";
 
 	 	rowvec bootmodel = mean (bcoef);
 		if (type == "COX") 
@@ -200,13 +216,13 @@ extern "C" SEXP bootstrapValidationResCpp(SEXP _fraction,SEXP _loops,SEXP _dataf
 			bootmodel.resize(aux.n_elem);
 			bootmodel = aux;
 		}
-	 	vec basemodel = modelFittingFunc(tcasesample.cols(0,1),tcasesample.cols(2,tcasesample.n_cols-1),type);
-		double startRMSE = std::sqrt(mean(square(residualForFRESAFunc(basemodel,tcasesample.cols(2,tcasesample.n_cols-1),"",type,tcasesample.cols(0,1)))));
-		double bootRMSE = std::sqrt(mean(square(residualForFRESAFunc(bootmodel.t(),tcasesample.cols(2,tcasesample.n_cols-1),"",type,tcasesample.cols(0,1)))));
+	 	vec basemodel = modelFittingFunc(ttcasesample.cols(0,1),ttcasesample.cols(2,ttcasesample.n_cols-1),type);
+		double startRMSE = std::sqrt(mean(square(residualForFRESAFunc(basemodel,ttcasesample.cols(2,ttcasesample.n_cols-1),"",type,ttcasesample.cols(0,1)))));
+		double bootRMSE = std::sqrt(mean(square(residualForFRESAFunc(bootmodel.t(),ttcasesample.cols(2,ttcasesample.n_cols-1),"",type,ttcasesample.cols(0,1)))));
 		Rcpp::List result = Rcpp::List::create(Rcpp::Named("NeRi")=Rcpp::wrap(NeRi), \
+						Rcpp::Named("bcoef")=Rcpp::wrap(bcoef), \
 						Rcpp::Named("tpvalue")=Rcpp::wrap(tpvalue), \
 						Rcpp::Named("wpvalue")=Rcpp::wrap(wpvalue), \
-						Rcpp::Named("bcoef")=Rcpp::wrap(bcoef), \
 						Rcpp::Named("spvalue")=Rcpp::wrap(spvalue), \
 						Rcpp::Named("Fpvalue")=Rcpp::wrap(Fpvalue), \
 						Rcpp::Named("test_tpvalue")=Rcpp::wrap(test_tpvalue), \
@@ -238,18 +254,16 @@ extern "C" SEXP bootstrapValidationResCpp(SEXP _fraction,SEXP _loops,SEXP _dataf
 	}
 }
 
-std::string residualFowardSelection(const unsigned int size,const int totSamples,const double pthr2,const std::string testType,
-									const int loops,const std::string Outcome,const std::string timeOutcome,const std::string type,const unsigned int maxTrainModelSize,
+std::string residualFowardSelection(const unsigned int size,const int totSamples,const double pthr2,const std::string &testType,
+									const int loops,const std::string &Outcome,const std::string &timeOutcome,const std::string &type,const unsigned int maxTrainModelSize,
 									const mat &dataframe, const std::vector < std::string > &ovnames,
-									std::map<std::string, int> &lockup,const std::string baseForm,std::vector <int> &mynamesLoc, 
-									const std::vector<std::string> &covari)
+									std::map<std::string, int> &lockup,const std::string &baseForm,std::vector <int> &mynamesLoc, 
+									const std::vector<std::string> &covari,vec &basevalues,bool isRandom)
 {
 	std::string frm1 = baseForm;
 	unsigned int inserted = 0;
 	double iprob=0;
 	unsigned int sizecases = dataframe.n_rows;
-
-	
 
 	arma::mat mysample = dataframe;
 	arma::mat myTestsample = dataframe;
@@ -263,22 +277,13 @@ std::string residualFowardSelection(const unsigned int size,const int totSamples
 	std::vector < std::string > vnames = ovnames;
 	std::string inname = "Inserted";
 
-	int outinx = 0;
-	vec randOutput=zeros<vec>(sizecases);
-	if (Outcome=="RANDOM")
+	int outinx = lockup[Outcome];
+	vec randOutput=dataframe.col(outinx);
+	double 	istdoutcome=stddev(randOutput);
+	if (istdoutcome>0) istdoutcome=1.0/istdoutcome;
+	if (isRandom)
 	{
-		if (type=="LM")
-		{
-			randOutput = randu<vec>(sizecases);
-		}
-		else
-		{
-			randOutput = randi<vec>(sizecases, distr_param(0,1));
-		}
-	}
-	else
-	{
-		outinx=lockup[Outcome];
+		randOutput =  randOutput(sort_index(randu<vec>(dataframe.n_rows)));
 	}
 	
 	int timeinx	= 0;
@@ -292,36 +297,61 @@ std::string residualFowardSelection(const unsigned int size,const int totSamples
 			if (covari[j]==vnames[i]) vnames[i]=inname;
 	if (loops > 1)
 	{
-		int testelements=0;
-		int mitestsize=0.25*sizecases;
-		if (mitestsize<3) mitestsize=3;
+		unsigned int mitestsize=4;
 		uvec notinserted;
+		uvec samCases;
+		vec auxcasesample;
+		double omin=min(randOutput);
+		double range=max(randOutput)-omin;
 		do
 		{
-			uvec samCases= randi<uvec>(totSamples, distr_param(0,sizecases-1));
-			vec auxcasesample=zeros<vec>(sizecases);
-			mysample = dataframe.row(samCases(0));
-			auxcasesample[samCases(0)]=1;
-			if (Outcome=="RANDOM") mysample.col(outinx)(0) = randOutput(samCases(0));
-			for (int i = 1;i<totSamples;i++)
+			samCases= randi<uvec>(totSamples, distr_param(0,sizecases-1));
+			auxcasesample=zeros<vec>(sizecases);
+			for (int i = 0;i<totSamples;i++)
 			{
-				mysample=join_cols(mysample,dataframe.row(samCases(i)));
-				if (Outcome=="RANDOM") mysample.col(outinx)(i) = randOutput(samCases(i));
 				auxcasesample[samCases(i)]=1;
 			}
 			notinserted = find(auxcasesample==0);
-			testelements = notinserted.n_elem;
 		}	
-		while (testelements<mitestsize);
+		while (notinserted.n_elem<mitestsize);
+		mysample = dataframe.rows(samCases);
 		myTestsample = dataframe.rows(notinserted);
-		if (Outcome=="RANDOM") myTestsample.col(outinx) = randOutput(notinserted);
-		mysample = equSamples(mysample,outinx);
-		myTestsample = equSamples(myTestsample,outinx);
+//		Rcout <<sizecases<<":"<<loops<<":"<< myTestsample.n_rows << ":"<< mysample.n_rows <<"\n";	
 
+		if (isRandom) 
+		{		
+			outinx=0;
+			if ((size+1)<dataframe.n_cols) // if true will randomy sample columns
+			{
+				arma::mat randcols;
+				uvec rindex= randi<uvec>(1,distr_param(1,dataframe.n_cols-1));
+				if (size>1)
+				{
+					rindex= sort_index(randu<vec>(dataframe.n_cols-1))+ones<uvec>(dataframe.n_cols-1);
+					rindex.resize(size);
+				}
+				randcols = dataframe.cols(rindex);
+				randcols.insert_cols(outinx,1);
+				mysample = randcols.rows(samCases);
+				myTestsample = randcols.rows(notinserted);
+			}
+			mysample.col(outinx) = randOutput(samCases);
+		}
+		if (isRandom) 
+		{
+			myTestsample.col(outinx) = randOutput(notinserted);
+		}
+		else
+		{
+			myTestsample = myTestsample.rows(equSamples(myTestsample,outinx,5,omin,range));
+			mysample = mysample.rows(equSamples(mysample,outinx,5,omin,range));
+		}
 	}
 
 	mat train_outcome = join_rows(mysample.col(timeinx),mysample.col(outinx));
 	mat test_outcome = join_rows(myTestsample.col(timeinx),myTestsample.col(outinx));
+
+//	Rcout <<sizecases<<":"<<loops<<":"<< myTestsample.n_rows << ":"<< mysample.n_rows <<"\n";	
 
     mat myoutcome(mysample.n_rows,2);
 	myoutcome.col(1) = train_outcome.col(1);
@@ -334,118 +364,152 @@ std::string residualFowardSelection(const unsigned int size,const int totSamples
 		myoutcome.col(0)=mysample.col(lockup[timeOutcome]);
 	}
 	if (covari[0]!="1")
+	{
 		for (unsigned int i=0;i<covari.size();i++)
 	  	{
 			mysampleMatbase=join_rows(mysampleMatbase,mysample.col(lockup[covari[i]]));
 	  		myTestsampleMatbase=join_rows(myTestsampleMatbase,myTestsample.col(lockup[covari[i]]));		  
   	    }
+	}
 	if((mysampleMatbase.n_cols>1)or(type=="COX"))
-		bestmodel =modelFittingFunc(myoutcome,mysampleMatbase,type);
+		bestmodel = modelFittingFunc(myoutcome,mysampleMatbase,type);
 	else
     {
 		bestmodel=mean(myoutcome.col(1));
        	if (type=="LOGIT")
 		{
-			if ((bestmodel(0)>0)&&(bestmodel(0)<1))
+			if ((bestmodel(0) >= DOUBLEEPS)&&(bestmodel(0) < 1.0))
 			{
-				bestmodel=log(bestmodel/(1.0-bestmodel));
+				bestmodel = log(bestmodel/(1.0-bestmodel));
 			}
 			else
 			{
-				if (bestmodel(0)==1) bestmodel(0) = THRESH;
-				else bestmodel(0) = -THRESH;
+				if (bestmodel(0) == 1) bestmodel(0) = THRESH;
+				else bestmodel(0) = MTHRESH;
 			}
 		}
-    } 
+    }
   	bestTrainResiduals=residualForFRESAFunc(bestmodel,mysampleMatbase,"",type,train_outcome);
   	if (loops > 1) bestResiduals=residualForFRESAFunc(bestmodel,myTestsampleMatbase,"",type,test_outcome);
 	int changes = 1;
-	double minpiri = 1;
+	double minpiri = pthr2;
 	int jmax = -1;
   	std::string gfrm1;
 	mat myTestsampleMat;
 	mat mysampleMat;
 	vec testResiduals;
 	vec trainResiduals;
-	while (changes>0)
+	int cycle=0;
+	double error=1.0;
+	double tol=1.0e-6;
+	while ((changes>0)&&(error>tol))
 	{
 		changes = 0;
-	  	minpiri = 1;
+	  	minpiri = pthr2;
 	  	jmax = -1;
 	  	for (unsigned int j=0; j<size;j++)
 	  	{
 			if (vnames[j] != inname)
 	  		{
-				mysampleMat=join_rows(mysampleMatbase,mysample.col(lockup[vnames[j]]));
+				unsigned int vidx = lockup[vnames[j]];
+
+				mysampleMat=join_rows(mysampleMatbase,mysample.col(vidx));
 
 
-				if (loops > 1) myTestsampleMat=join_rows(myTestsampleMatbase,myTestsample.col(lockup[vnames[j]]));
+				if (loops > 1) myTestsampleMat=join_rows(myTestsampleMatbase,myTestsample.col(vidx));
 	  			gfrm1 = frm1+" + "+vnames[j];
              	if((mysampleMat.n_cols>1)or(type=="COX"))
+				{
 					newmodel =modelFittingFunc(myoutcome,mysampleMat,type);
+					if (newmodel.has_nan())
+					{
+//						Rcout << "*";
+						mysampleMat=mysampleMat+100.0*DOUBLEEPS*randn(mysampleMat.n_rows,mysampleMat.n_cols);
+						newmodel =modelFittingFunc(myoutcome,mysampleMat,type);
+					}
+				}
 			    else
 			    {
 					newmodel=mean(myoutcome.col(1));
         			if (type=="LOGIT")
 					{
-						if ((newmodel(0)>0)&&(newmodel(0)<1))
+						if ((newmodel[0] >= DOUBLEEPS)&&(newmodel[0]<1))
 						{
 							newmodel=log(newmodel/(1.0-newmodel));
 						}
 						else
 						{
-							if (newmodel(0)==1) newmodel(0) = THRESH;
-							else newmodel(0) = -THRESH;
+							if (newmodel[0] == 1) newmodel[0] = THRESH;
+							else newmodel[0] = MTHRESH;
 						}
 					}
         		}
-	  			if (is_finite(newmodel))
+	  			if (!newmodel.has_nan())
 	  			{
+
 					trainResiduals = residualForFRESAFunc(newmodel,mysampleMat,"",type,train_outcome);
-			   		double piri = improvedResidualsFunc(bestTrainResiduals,trainResiduals,testType,totSamples).pvalue;            
+					error = mean(abs(trainResiduals))*istdoutcome;
+			   		double mpiri,piri = improvedResidualsFunc(bestTrainResiduals,trainResiduals,testType,totSamples).pvalue;
+					mpiri = piri;					
 					if (loops > 1) 
 					{
 						testResiduals = residualForFRESAFunc(newmodel,myTestsampleMat,"",type,test_outcome);
 						iprob = improvedResidualsFunc(bestResiduals,testResiduals,testType,totSamples).pvalue;
-						if ((is_finite(iprob)) and (is_finite(piri)))
+						if (!std::isnan(iprob) && !std::isnan(piri))
 						{
-							piri =std::max(iprob,piri);
+							mpiri =std::max(iprob,piri);
 						}
 					}						
-					if (is_finite(piri)&&(piri  < minpiri))
+					if (!std::isnan(mpiri) && (mpiri  < minpiri))
 					{
 						jmax = j;
-						minpiri = piri;
+						minpiri = mpiri;
+//						Rcout <<cycle<<":"<< error << ":"<< iprob <<":"<< piri <<"\n";	
+					}
+					if (cycle==0) basevalues[j]=piri;
+					else
+					{
+						if (error<tol)
+						{
+							j=size; // exit
+						}
 					}
 	  			}
 	  		}
+			int jitter = (int)((j > (size/50))*(size/100));
+			if (isRandom) jitter=0;
+			if ((cycle>0)&&(jitter>1)) j += (randi<uvec>(1))[0] % jitter;
 	  	}
-		if ((jmax >= 0) and (minpiri < pthr2) and (inserted<maxTrainModelSize))   
+
+		if ((jmax >= 0) && (minpiri < pthr2) && (inserted<maxTrainModelSize) )   
 	  	{
 			if (vnames[jmax] != inname)
 			{
+				unsigned int vidx = lockup[vnames[jmax]];
 				gfrm1 = frm1+" + ";
 				gfrm1 = gfrm1+ovnames[jmax];
-				mysampleMatbase = join_rows(mysampleMatbase,mysample.col(lockup[vnames[jmax]]));
+				mysampleMatbase = join_rows(mysampleMatbase,mysample.col(vidx));
 				bestmodel = modelFittingFunc(myoutcome,mysampleMatbase,type);
+				bestTrainResiduals = residualForFRESAFunc(bestmodel,mysampleMatbase,"",type,train_outcome);
 				if (loops > 1) 
 				{
-					myTestsampleMatbase = join_rows(myTestsampleMatbase,myTestsample.col(lockup[vnames[jmax]]));
+					myTestsampleMatbase = join_rows(myTestsampleMatbase,myTestsample.col(vidx));
 					bestResiduals = residualForFRESAFunc(bestmodel,myTestsampleMatbase,"",type,test_outcome);
 				}
-				bestTrainResiduals = residualForFRESAFunc(bestmodel,mysampleMatbase,"",type,train_outcome);
+				error = max(abs(bestTrainResiduals))*istdoutcome;
 				frm1 = gfrm1;	
-				changes = changes + 1;
 				mynamesLoc.push_back(jmax);
-				vnames[jmax] = inname;
 				inserted = inserted + 1;
+				changes = changes + 1;
 			}
+			vnames[jmax] = inname;
 	  	} 
+		++cycle;
 	}
 	return frm1;
 }
 
-extern "C" SEXP ForwardResidualModelCpp(SEXP _size, SEXP _fraction,SEXP _pvalue, SEXP _loops,  SEXP _covariates, SEXP _Outcome, SEXP _variableList, SEXP _maxTrainModelSize, SEXP _type, SEXP _timeOutcome, SEXP _testType,SEXP _loop_threshold, SEXP _interaction, SEXP _dataframe,SEXP _colnames,SEXP _cores)
+extern "C" SEXP ForwardResidualModelCpp(SEXP _size, SEXP _fraction,SEXP _pvalue, SEXP _loops,  SEXP _covariates, SEXP _Outcome, SEXP _variableList, SEXP _maxTrainModelSize, SEXP _type, SEXP _timeOutcome, SEXP _testType, SEXP _dataframe,SEXP _colnames,SEXP _cores)
 {
 try {   //R_CStackLimit=(uintptr_t)-1;
 		std::string type = as<std::string>(_type);
@@ -453,7 +517,9 @@ try {   //R_CStackLimit=(uintptr_t)-1;
 #ifdef _OPENMP
 //		Rcout<<"::============ Available CPU Cores(Threads) : "<<omp_get_num_procs()<<" ===Requested Threads : " << as<unsigned int>(_cores) <<endl;
 		omp_set_num_threads(as<unsigned int>(_cores));
+//		omp_set_num_threads(1);
 #endif	
+
 		unsigned int size = as<unsigned int>(_size); 
 		double fraction = as<double>(_fraction);
 		double pvalue = as<double>(_pvalue);
@@ -469,8 +535,32 @@ try {   //R_CStackLimit=(uintptr_t)-1;
 		std::map<std::string, int> lockup;
 		std::vector<std::string> formulas;
 		std::vector<int> mynames;
+		vec basevalues=ones<vec>(size);
+		vec bbasevalues=zeros<vec>(size);
 		std::vector<std::string>ovnames=as<std::vector<std::string> >(CharacterVector(_variableList)); 
 		double pthr = pvalue;
+
+		int len_outcome=Outcome.size();
+		bool israndom=false;
+		if (len_outcome>6)
+		{
+			std::string key=Outcome;
+			key.resize(6);
+			if (key=="RANDOM")
+			{
+				israndom=true;
+				Outcome=Outcome.substr(6,len_outcome-6);
+				if (size<ovnames.size())
+				{
+					for (unsigned int i=1; i<=size; i++) 
+					{
+						ovnames[i-1]=colnames[i];
+					}
+				}
+			}
+		}
+
+
 		for(int i=0;i<CharacterVector(colnames).size();i++)
 		{
 			lockup[std::string(CharacterVector(colnames)[i])]=i;
@@ -488,20 +578,23 @@ try {   //R_CStackLimit=(uintptr_t)-1;
 		int totSamples = (int)(fraction*sizecases);
 		double pthr2 = 1.0-R::pnorm(std::sqrt(fraction)*std::abs(qnorm(pthr,0.0,1.0)),0.0,1.0,1,0);
 	    if (pthr2>0.1) pthr2 = 0.1;
-//		Rcout<<pvalue<<"pv: "<<pthr2<<" : "<<baseForm<< "\n";
+//		Rcout<<pvalue<<"pv: "<<pthr2<<" : "<<baseForm <<" : "<< size <<"\n";
 		if (size > ovnames.size()) size = ovnames.size();
 
+
 		
-#pragma omp parallel for schedule(dynamic) ordered shared(mynames,formulas)
+		
+#pragma omp parallel for schedule(dynamic) ordered shared(mynames,formulas,bbasevalues)
     	for (int doOver=0; doOver<loops;doOver++)
 	 	{   
 			std::vector <int> mynamesLoc;
 			std::string  frm;
 			mynamesLoc.clear();
+//			int doBootstrapSample = 1+loops*((doOver % 20)!=0);
 			frm = residualFowardSelection(size,totSamples,pthr2,testType,loops,
 			Outcome,timeOutcome,type,maxTrainModelSize,dataframe,
-			ovnames,lockup,baseForm,mynamesLoc,covari);
-			if ((doOver%10)==1)
+			ovnames,lockup,baseForm,mynamesLoc,covari,basevalues,israndom);
+			if ((doOver%100)==99)
 			{				
 #pragma omp critical
 				Rcout << ".";	
@@ -511,10 +604,13 @@ try {   //R_CStackLimit=(uintptr_t)-1;
 {
 				mynames.insert(mynames.end(), mynamesLoc.begin(), mynamesLoc.end());
 				formulas.push_back(frm);
+				for (unsigned int i=0;i<size;i++) bbasevalues[i] += basevalues[i];
+
 }
   		}
+		for (unsigned int i=0;i<size;i++) bbasevalues[i] = bbasevalues[i]/loops;
   		if (mynames.size() == 0) mynames.push_back(0);
-	    List result = List::create(Named("mynames")=wrap(mynames),Named("formula.list")=wrap(formulas));
+	    List result = List::create(Named("mynames")=wrap(mynames),Named("formula.list")=wrap(formulas),Named("Base.values")=wrap(bbasevalues));
 	    return (result);
 	} 
 	catch( std::exception &ex ) 

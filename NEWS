@@ -1,6 +1,35 @@
+Changes from FRESA.CAD 2.2.1 to FRESA.CAD version 3.0.0
+
+	
+	FRESA.CAD now has the ability to create gene signatures and a simple interface for BSWiMS model generation.
+	The BSWiMS modelling returns a bagged model after finding a set of candidate models.
+	
+	Enhancements:
+		New functions:
+		 -BSWiMS function added
+		 -getSignature function added
+		 -eB:SWIMS functionality
+		 -nearestneighborimpute for data imputation
+
+		Software improvements:
+  		 -c++ source code reviewed for efficiency
+		 -bootstrappValidation Variable elimination functions rewritten. Now they attempt to provide models at optimal performance. 
+		 -CrossValidation now is using a reduced data set.
+	Interface Changes:
+		medianPredict now is called ensemblePredict
+		Loop_threshold removed from FRESA.Model and cross-validation
+		fast=FALSE in modelFitting changed to fitFRESA=TRUE
+		
+	Bugs:
+		Several bugs corrected.
+		
+	CRAN:
+		Removed register from c++ code
+	
+
 Changes from FRESA.CAD 2.2.0 to FRESA.CAD version 2.2.1
 
-	Enhancemetns:
+	Enhancements:
 		meatMaps(...) 
 			Class color bar next to categories 
 		UnivariateRankVariables()
@@ -10,9 +39,9 @@ Changes from FRESA.CAD 2.2.0 to FRESA.CAD version 2.2.1
 			Now you can specify a conditional ranking by specifying the strata
 		Now we can predict results from LASSO by retuning the filtered features 
 		LASSO formulas now reported.
-	Buggs:
+	Bugs:
 		Univariate analysis of improved residuals fixed
-		several minos bug fixed.
+		several minors bug fixed.
 		
 
 Changes from FRESA.CAD 2.1.3 to FRESA.CAD version 2.2.0
@@ -129,7 +158,7 @@ Changes from FRESA.CAD 1.0 to FRESA.CAD version 2.0
 			"dataframe" argument renamed "data"
 		*listTopCorrelatedVariables(...,dataframe,...)
 			"dataframe" argument renamed "data"
-		*medianPredict(...,newdata,...,k,...)
+		*ensemblePredict(...,newdata,...,k,...)
 			"newdata" and "k" arguments renamed "testdata" and "nk" respectively
 		*modelFitting(model,dataframe,...)
 			"model" and "dataframe" arguments renamed "mode.formula" and "data" respectively

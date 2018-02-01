@@ -1,20 +1,20 @@
 \name{baggedModel}
 \alias{baggedModel}
-\title{Get the bagged model from a list of forward models}
+\title{Get the bagged model from a list of models}
 \description{
 	This function will take the frequency-ranked of variables and the list of models to create a single bagged model
 }
 \usage{
 	baggedModel(modelFormulas,
-				data,
-				type=c("LM","LOGIT","COX"),
-				Outcome=NULL,
-				timeOutcome=NULL,
-				pvalue=0.05,
-				backElimination=FALSE,
-				frequencyThreshold=0.05,
-				removeOutliers=4.0
-				)
+	            data,
+	            type=c("LM","LOGIT","COX"),
+	            Outcome=NULL,
+	            timeOutcome=NULL,
+	            frequencyThreshold=0.025,
+	            univariate=NULL,
+				useFreq=TRUE,
+				n_bootstrap=1
+	            )
 }
 \arguments{
 	\item{modelFormulas}{
@@ -32,17 +32,17 @@
 	\item{timeOutcome}{
 		The name of the column in \code{data} that stores the time to event (needed only for a Cox proportional hazards regression model fitting)
 	}
-	\item{pvalue}{
-		The elimination p-value)
-	}
-	\item{backElimination}{
-		set it to TRUE if backelimination will be performed at each formula before bagging the coefficients)
-	}
 	\item{frequencyThreshold}{
-		set the frequency the thresold of the frequence of features to be included in the model)
+		set the frequency the threshold of the frequency of features to be included in the model)
 	}
-	\item{removeOutliers}{
-		The z value for removing outliers from data set)
+	\item{univariate}{
+		The FFRESA.CAD univariate analysis matrix
+	}
+	\item{useFreq}{
+		Use the feature frequency to order the formula terms. If set to a positive value is the number of estimation loops
+	}
+	\item{n_bootstrap}{
+		if greater than 1, defines the number of bootstraps samples to be used
 	}
 }
 \value{
@@ -58,18 +58,20 @@
 	\item{faverageSize}{
 		the average size of the models
 	}
-	\item{zvalues}{
-		The average z-values of the model coefficients
+	\item{formulaNetwork}{
+        The matrix of interaction between formulas
 	}
-	\item{reducedDataSet}{
-		A data set with the outliers removed
+	\item{Jaccard.SM}{
+	   The Jaccard Stability Measure of the formulas
 	}
-	\item{MAD}{
-		The mean absolute difference(MAD) of the residuals
+	\item{coefEvolution}{
+	   The evolution of the coefficients
 	}
-	
+	\item{avgZvalues}{
+	   The average Z value of each coefficient
+	}	
 }
 \author{Jose G. Tamez-Pena}
-\seealso{\code{\link{medianPredict}}}
+\seealso{\code{\link{ensemblePredict}}}
 
 \keyword{Model_Generation}

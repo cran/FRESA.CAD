@@ -2,7 +2,7 @@
 plot.bootstrapValidation_Res <-
 function(x,xlab = "Years", ylab="Survival",...) 
 {
-
+  opg <- par(no.readonly = TRUE)
 
 	par(mfrow=c(1,1),pty='m')
 	classlen=length(class(x$boot.model))
@@ -19,10 +19,17 @@ function(x,xlab = "Years", ylab="Survival",...)
 			title("Kaplan-Meier Curve");
 		},
 		{
-#			plot(x$boot.model,...)
+#			par(mfrow=c(2,2))
+#			try(plot(x$boot.model,ask=FALSE,...));
+#			par(mfrow=c(1,1))
 		}
 	)
-	pROC::roc(x$testOutcome,x$testPrediction,col="red",auc=TRUE,print.auc=TRUE,plot=TRUE,smooth=FALSE)
-	par(new=TRUE)
-	pROC::roc( x$outcome, x$boot.model$linear.predictors,plot=TRUE,ci=TRUE,auc=TRUE,of='se',specificities=c(0.95,0.90,0.80,0.70,0.60,0.50,0.40,0.30,0.20,0.10,0.05),boot.n=200,smooth=FALSE);        
+	par(mfrow=c(3,1))
+	plot(x$testOutcome ~ x$testPrediction,main="Outcome ~ Test Presiction",xlab="Test Prediction",ylab="Outcome");
+	plot(x$testOutcome ~ x$testResiduals,main="Test Residuals",xlab="Test Residuals",ylab="Outcome");
+	plot(ecdf(x$trainSampledRMSE),main="RMSE",col="black",lwd = 2,verticals = TRUE, do.points = FALSE,xlab="RMSE",ylab="Probability");
+	abline(v=x$testRMSE,col = "red");
+	legend("topleft", legend=c("Train CDF","Test RMSE"),
+       col=c("black", "red"), lwd=2)
+	par(opg)
 }

@@ -35,13 +35,16 @@
 
 #define HAVE_UINTPTR_T
 #define CSTACK_DEFNS 7
+#define ARMA_NO_DEBUG
+#define ARMA_USE_BLAS
 
 using namespace arma;
 using namespace Rcpp;
-static const double THRESH = 36.04365;
-static const double MTHRESH = -36.04365;
-static const double INVEPS = 1/2.220446e-16;
+static const double THRESH = 36.0436534112975;
+static const double MTHRESH = -36.0436534112975;
+static const double INVEPS = 1.0/2.220446e-16;
 static const double DOUBLEEPS = 2.220446e-16;
+static const double MAXEXP = 4503599727262010.0;
 
 struct getVReclass{
   	 vec z_IDIs;
@@ -90,21 +93,21 @@ vec logit_link(const vec &mu);
 vec logit_linkinv(const vec &eta);
 vec logit_mu_eta(const vec &eta);
 vec binomial_dev_resids(const vec &y,const vec &mu,const vec &wt);
-vec modelFittingFunc(const mat &ymat,const mat &XP,std::string type);
-vec predictForFresaFunc(const vec &cf,const mat &newdata,std::string typ, std::string opc);		
-vec improveProbFunc(const vec &x1,const vec &x2,const vec &y,unsigned int samples); 
-vec improveProbFunc(const vec &x1,const vec &x2,const vec &y); 
-getVReclass getVarBinFunc(const mat &dataframe,std::string type, const mat &independentFrame);
-double rocAUC(const vec &controls,const vec &cases, std::string direction,std::string r);
+vec modelFittingFunc(const mat &ymat,const mat &XP,const std::string & type);
+vec predictForFresaFunc(const vec &cf,const mat &newdata,const std::string & typ, const std::string & opc);		
+vec improveProbFuncSamples(const vec &x1,const vec &x2,const vec &y,unsigned int samples,double se_nri=0, double se_idi=0); 
+vec improveProbFunc(const vec &x1,const vec &x2,const vec &y,double se_nri=0, double se_idi=0); 
+getVReclass getVarBinFunc(const mat &dataframe,const std::string & type, const mat &independentFrame,const mat &bestFrame,const mat &bestTestFrame);
+double rocAUC(const vec &controls,const vec &cases, const std::string & direction);
 vec Fresarank(const vec &xi);
-vec residualForFRESAFunc(const vec &cf,const mat &newdata,std::string typ, std::string type,const mat &outcome);
-improvedRes improvedResidualsFunc(const vec &oldResiduals,const vec &newResiduals, std::string testType,unsigned int samples);
-improvedRes improvedResidualsFunc(const vec &oldResiduals,const vec &newResiduals, std::string testType);
-double ttest(const vec &x, const vec &y , double mu, bool paired, bool var_equal, std::string tail);
-double wilcoxtest(const vec &xt,const vec &y , double mu, bool paired, std::string tail,bool correct);
-double binomtest(double x, double n, double p , std::string tail);
-gvarNeRI getVarResFunc(const mat &dataframe, std::string type,const mat &testdataP,int testsamples=0);
-mat equSamples(mat inputsample, unsigned int sort_indx=1,int breakWidth=5);
+vec residualForFRESAFunc(const vec &cf,const mat &newdata,const std::string & typ, const std::string & type,const mat &outcome);
+improvedRes improvedResidualsFunc(const vec &oldResiduals,const vec &newResiduals, const std::string & testType,unsigned int samples);
+improvedRes improvedResidualsFunc(const vec &oldResiduals,const vec &newResiduals, const std::string & testType);
+double ttest(const vec &x, const vec &y , double mu, bool paired, bool var_equal, const std::string & tail);
+double wilcoxtest(const vec &xt,const vec &y , double mu, bool paired, const std::string & tail,bool correct);
+double binomtest(double x, double n, double p , const std::string & tail);
+gvarNeRI getVarResFunc(const mat &dataframe, const std::string & type,const mat &testdataP,int testsamples,const mat &fullFrameP,const mat &fulltestFrameP);
+uvec equSamples(const mat &inputsample, unsigned int sort_indx=1,int histbins=5,double omin=0,double range=0);
 
 #endif
 // END

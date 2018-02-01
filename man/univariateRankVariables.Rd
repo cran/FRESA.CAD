@@ -18,7 +18,8 @@
 	                                               "RawZCategorical",
 	                                               "RawTail",
 	                                               "RawZTail",
-	                                               "Tail"), 
+	                                               "Tail",
+	                                               "RawRaw"), 
 	                        type = c("LOGIT", "LM", "COX"), 
 	                        rankingTest = c("zIDI",
 	                                        "zNRI",
@@ -33,7 +34,10 @@
 	                        raw.dataFrame = NULL,
 	                        description = ".",
 	                        uniType = c("Binary","Regression"),
-	                        FullAnalysis=TRUE)
+	                        FullAnalysis=TRUE,
+	                        acovariates = NULL,
+	                        timeOutcome = NULL
+)
 }
 \arguments{
 	\item{variableList}{
@@ -49,7 +53,7 @@
 		A data frame where all variables are stored in different columns
 	}
 	\item{categorizationType}{
-		How variables will be analyzed: As given in \code{data} ("Raw"); broken into the \emph{p}-value categories given by \code{cateGroups} ("Categorical"); broken into the \emph{p}-value categories given by \code{cateGroups}, and weighted by the \emph{z}-score ("ZCategorical"); broken into the \emph{p}-value categories given by \code{cateGroups}, weighted by the \emph{z}-score, plus the raw values ("RawZCategorical"); raw values, plus the tails ("RawTail"); or raw values, wighted by the \emph{z}-score, plus the tails ("RawZTail")
+		How variables will be analysed: As given in \code{data} ("Raw"); broken into the \emph{p}-value categories given by \code{cateGroups} ("Categorical"); broken into the \emph{p}-value categories given by \code{cateGroups}, and weighted by the \emph{z}-score ("ZCategorical"); broken into the \emph{p}-value categories given by \code{cateGroups}, weighted by the \emph{z}-score, plus the raw values ("RawZCategorical"); raw values, plus the tails ("RawTail"); or raw values, weighted by the \emph{z}-score, plus the tails ("RawZTail")
 	}
 	\item{type}{
 		Fit type: Logistic ("LOGIT"), linear ("LM"), or Cox proportional hazards ("COX")
@@ -71,6 +75,12 @@
 	}
 	\item{FullAnalysis}{
 		If FALSE it will only order the features according to its z-statistics of the linear model
+	}
+	\item{acovariates}{
+		the list of covariates
+	}
+	\item{timeOutcome}{
+		the name of the Time to event feature
 	}
 }
 \details{
@@ -264,42 +274,6 @@
 	}
 }
 \references{Pencina, M. J., D'Agostino, R. B., & Vasan, R. S. (2008). Evaluating the added predictive ability of a new marker: from area under the ROC curve to reclassification and beyond. \emph{Statistics in medicine} \bold{27}(2), 157-172.}
-\author{Jose G. Tamez-Pena and Antonio Martinez-Torteya}
-\examples{
-	\dontrun{
-	# Start the graphics device driver to save all plots in a pdf format
-	pdf(file = "Example.pdf")
-	# Get the stage C prostate cancer data from the rpart package
-	library(rpart)
-	data(stagec)
-	# Split the stages into several columns
-	dataCancer <- cbind(stagec[,c(1:3,5:6)],
-	                    gleason4 = 1*(stagec[,7] == 4),
-	                    gleason5 = 1*(stagec[,7] == 5),
-	                    gleason6 = 1*(stagec[,7] == 6),
-	                    gleason7 = 1*(stagec[,7] == 7),
-	                    gleason8 = 1*(stagec[,7] == 8),
-	                    gleason910 = 1*(stagec[,7] >= 9),
-	                    eet = 1*(stagec[,4] == 2),
-	                    diploid = 1*(stagec[,8] == "diploid"),
-	                    tetraploid = 1*(stagec[,8] == "tetraploid"),
-	                    notAneuploid = 1-1*(stagec[,8] == "aneuploid"))
-	# Remove the incomplete cases
-	dataCancer <- dataCancer[complete.cases(dataCancer),]
-	# Load a pre-stablished data frame with the names and descriptions of all variables
-	data(cancerVarNames)
-	# Rank the variables:
-	# - Analyzing the raw data
-	# - According to the zIDI
-	rankedDataCancer <- univariateRankVariables(variableList = cancerVarNames,
-	                                            formula = "Surv(pgtime, pgstat) ~ 1",
-	                                            Outcome = "pgstat",
-	                                            data = dataCancer, 
-	                                            categorizationType = "Raw", 
-	                                            type = "COX", 
-	                                            rankingTest = "zIDI",
-	                                            description = "Description")
-	# Shut down the graphics device driver
-	dev.off()}
-}
+\author{Jose G. Tamez-Pena}
+
 \keyword{Data_Inspection}

@@ -12,15 +12,13 @@
 	            OptType = c("Binary", "Residual"),
 	            pvalue = 0.05,
 	            filter.p.value = 0.10,
-	            loops = 1,
-	            maxTrainModelSize = 10,
-	            loop.threshold = 20,
+	            loops = 32,
+	            maxTrainModelSize = 20,
 	            elimination.bootstrap.steps = 100,
 	            bootstrap.steps = 100,
-	            interaction = c(1,1),
-	            print = TRUE,
-	            plots = TRUE,
-	            CVfolds = 10,
+	            print = FALSE,
+	            plots = FALSE,
+	            CVfolds = 1,
 	            repeats = 1,
 	            nk = 0,
 	            categorizationType = c("Raw",
@@ -29,7 +27,8 @@
 	                                   "RawZCategorical",
 	                                   "RawTail",
 	                                   "RawZTail",
-	                                   "Tail"),
+	                                   "Tail",
+	                                   "RawRaw"),
 	            cateGroups = c(0.1, 0.9),
 	            raw.dataFrame = NULL,
 	            var.description = NULL,
@@ -38,9 +37,12 @@
 	                         "Binomial",
 	                         "Wilcox",
 	                         "tStudent",
-	                         "Ftest",
-	                         "Both"),
-	                         zbaggRemoveOutliers=4.0)
+	                         "Ftest"),
+	            lambda="lambda.1se",
+	            equivalent=FALSE,
+	            bswimsCycles=10,
+	            usrFitFun=NULL
+	            )
 
 }
 \arguments{
@@ -65,17 +67,11 @@
 	\item{maxTrainModelSize}{
 		Maximum number of terms that can be included in the model
 	}
-	\item{loop.threshold}{
-		After \code{loop.threshold} cycles, only variables that have already been selected in previous cycles will be candidates to be selected in posterior cycles
-	}
 	\item{elimination.bootstrap.steps}{
 		The number of bootstrap loops for the backwards elimination procedure
 	}
 	\item{bootstrap.steps}{
 		The number of bootstrap loops for the bootstrap validation procedure
-	}
-	\item{interaction}{
-		A vector of size two. The terms are used by the search and update procedures, respectively. Set to either 1 for first order models, or to 2 for second order models
 	}
 	\item{print}{
 		Logical. If \code{TRUE}, information will be displayed
@@ -90,16 +86,16 @@
 		The number of times that the cross-validation procedure will be repeated
 	}
 	\item{nk}{
-		The number of neighbors used to generate a \emph{k}-nearest neighbors (KNN) classification. If zero, \emph{k} is set to the square root of the number of cases. If less than zero, it will not perform the KNN classification
+		The number of neighbours used to generate a \emph{k}-nearest neighbours (KNN) classification. If zero, \emph{k} is set to the square root of the number of cases. If less than zero, it will not perform the KNN classification
 	}
 	\item{categorizationType}{
-		How variables will be analyzed: As given in \code{data} ("Raw"); broken into the \emph{p}-value categories given by \code{cateGroups} ("Categorical"); broken into the \emph{p}-value categories given by \code{cateGroups}, and weighted by the \emph{z}-score ("ZCategorical"); broken into the \emph{p}-value categories given by \code{cateGroups}, weighted by the \emph{z}-score, plus the raw values ("RawZCategorical"); raw values, plus the tails ("RawTail"); or raw values, wighted by the \emph{z}-score, plus the tails ("RawZTail")
+		How variables will be analyzed: As given in \code{data} ("Raw"); broken into the \emph{p}-value categories given by \code{cateGroups} ("Categorical"); broken into the \emph{p}-value categories given by \code{cateGroups}, and weighted by the \emph{z}-score ("ZCategorical"); broken into the \emph{p}-value categories given by \code{cateGroups}, weighted by the \emph{z}-score, plus the raw values ("RawZCategorical"); raw values, plus the tails ("RawTail"); or raw values, weighted by the \emph{z}-score, plus the tails ("RawZTail")
 	}
 	\item{cateGroups}{
 		A vector of percentiles to be used for the categorization procedure
 	}
 	\item{raw.dataFrame}{
-		A data frame similar to \code{data}, but with unajusted data, used to get the means and variances of the unadjusted data
+		A data frame similar to \code{data}, but with unadjusted data, used to get the means and variances of the unadjusted data
 	}
 	\item{var.description}{
 		A vector of the same length as the number of columns of \emph{data}, containing a description of the variables
@@ -107,10 +103,18 @@
 	\item{testType}{
 		For an Binary-based optimization, the type of index to be evaluated by the \code{improveProb} function (\code{Hmisc} package): \emph{z}-value of Binary or of NRI. For a NeRI-based optimization, the type of non-parametric test to be evaluated by the \code{improvedResiduals} function: Binomial test ("Binomial"), Wilcoxon rank-sum test ("Wilcox"), Student's \emph{t}-test ("tStudent"), or \emph{F}-test ("Ftest")
 	}
-	\item{zbaggRemoveOutliers}{
-		For linear regresion, zbaggRemoveOutliers is used to set the z-treshold to be used in the outlier detection. 
+	\item{lambda}{
+		The passed value to the s parameter of the glmnet cross validation coefficient
 	}
-	
+	\item{equivalent}{
+		Is set to TRUE CV will compute the equivalent model
+	}
+	\item{bswimsCycles}{
+		The maximum number of models to be returned by \code{BSWiMS.model}
+	}
+	\item{usrFitFun}{
+		An optional user provided fitting function to be evaluated by the cross validation procedure: fitting: usrFitFun(formula,data), with a predict function
+	}
 }
 \details{
 This is the main function of FRESA.CAD given an outcome formula, and a data.frame this function will do an univariate analysis of the data (\code{univariateRankVariables}),
@@ -173,6 +177,7 @@ a  \code{crossValidationFeatureSelection_Bin} or a \code{crossValidationFeatureS
 	dataCancer <- dataCancer[complete.cases(dataCancer),]
 	# Load a pre-stablished data frame with the names and descriptions of all variables
 	data(cancerVarNames)
+
 	# Get a Cox proportional hazards model using:
 	# - The default parameters
 	md <- FRESA.Model(formula = Surv(pgtime, pgstat) ~ 1,
@@ -188,38 +193,6 @@ a  \code{crossValidationFeatureSelection_Bin} or a \code{crossValidationFeatureS
 	md <- FRESA.Model(formula = pgstat ~ 1,
 	                  data = dataCancer,
 	                  OptType = "Residual",
-					  var.description = cancerVarNames[,2])
-	# Get a Cox proportional hazards model using:
-	# - 250 bootstrap loops
-	md <- FRESA.Model(formula = Surv(pgtime, pgstat) ~ 1,
-	                  data = dataCancer,
-	                  loops = 250,
-					  var.description = cancerVarNames[,2])
-	# Get a Cox proportional hazards model using:
-	# - 250 bootstrap loops
-	# - First order interactions in the update procedure
-	md <- FRESA.Model(formula = Surv(pgtime, pgstat) ~ 1,
-	                  data = dataCancer,
-	                  loops = 250,
-	                  interaction = c(1,2),
-					  var.description = cancerVarNames[,2])
-	# Get a Cox proportional hazards model using:
-	# - No bootstrapping
-	# - No cross-validation
-	md <- FRESA.Model(formula = Surv(pgtime, pgstat) ~ 1,
-	                  data = dataCancer,
-	                  CVfolds = 0,
-	                  elimination.bootstrap.steps = 1,
-					  var.description = cancerVarNames[,2])
-	# Get a Cox proportional hazards model using:
-	# - NeRI-based optimization
-	# - 250 bootstrap loops
-	# - First order interactions in the update procedure
-	md <- FRESA.Model(formula = Surv(pgtime, pgstat) ~ 1,
-	                  data = dataCancer,
-	                  OptType = "Residual",
-	                  loops = 250,
-	                  interaction = c(1,2),
 					  var.description = cancerVarNames[,2])
 	# Shut down the graphics device driver
 	dev.off()}

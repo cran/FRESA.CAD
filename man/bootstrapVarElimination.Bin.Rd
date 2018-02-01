@@ -16,7 +16,9 @@
 	                        fraction = 1.0,
 	                        print=TRUE,
 	                        plots=TRUE,
-							adjsize=1)
+	                        adjsize=1,
+	                        uniAdjPvalues=NULL
+	                        )
 }
 \arguments{
 	\item{object}{ 
@@ -53,13 +55,16 @@
 		Logical. If \code{TRUE},  plots are displayed
 	}
 	\item{adjsize}{
-		the number of features to be used in the BH FDR correction
-	}
+		The expected size of a random model for mutiple selection correction
+	}	
+	\item{uniAdjPvalues}{
+		The univariate p-values
+	}	
 }
 \details{
 	For each model term \eqn{x_i}, the IDI or NRI is computed for the Full model and the reduced model( where the term \eqn{x_i} removed).
 	The term whose removal results in the smallest drop in bootstrapped improvement is selected. The hypothesis: the 
-	term adds classification improvement is tested by checking the pvalue of average improvement. If \eqn{p(IDI or NRI)>pvalue}, then the term is removed. 
+	term adds classification improvement is tested by checking the p value of average improvement. If \eqn{p(IDI or NRI)>pvalue}, then the term is removed. 
 	In other words, only model terms that significantly aid in subject classification are kept.
 	The procedure is repeated until no term fulfils the removal criterion.
 }
@@ -82,11 +87,14 @@
 	\item{lastRemoved}{
 		The name of the last term that was removed (-1 if all terms were removed)
 	}
-	\item{beforeFSC.model}{
-		the beforeFSC model will have the model with the minimum bootstrap test error
+	\item{at.opt.model}{
+		The model will have the fitted model that had close to maximum bootstrapped test accuracy 
 	}
 	\item{beforeFSC.formula}{
-		the string formula of the model used to find the minimum bootstrap test error
+		The formula of the model before False Selection Correction
+	}
+	\item{at.Accuracy.formula}{
+		the string formula of the model that had the best or close to tbe best test accuracy 
 	}
 }
 \references{Pencina, M. J., D'Agostino, R. B., & Vasan, R. S. (2008). Evaluating the added predictive ability of a new marker: from area under the ROC curve to reclassification and beyond. \emph{Statistics in medicine} \bold{27}(2), 157-172.}
@@ -94,59 +102,5 @@
 \seealso{\code{\link{bootstrapVarElimination_Res},
 				 \link{backVarElimination_Bin},
 				 \link{backVarElimination_Res}}}
-\examples{
-	\dontrun{
-	# Start the graphics device driver to save all plots in a pdf format
-	pdf(file = "Example.pdf")
-	# Get the stage C prostate cancer data from the rpart package
-	library(rpart)
-	data(stagec)
-	# Split the stages into several columns
-	dataCancer <- cbind(stagec[,c(1:3,5:6)],
-	                    gleason4 = 1*(stagec[,7] == 4),
-	                    gleason5 = 1*(stagec[,7] == 5),
-	                    gleason6 = 1*(stagec[,7] == 6),
-	                    gleason7 = 1*(stagec[,7] == 7),
-	                    gleason8 = 1*(stagec[,7] == 8),
-	                    gleason910 = 1*(stagec[,7] >= 9),
-	                    eet = 1*(stagec[,4] == 2),
-	                    diploid = 1*(stagec[,8] == "diploid"),
-	                    tetraploid = 1*(stagec[,8] == "tetraploid"),
-	                    notAneuploid = 1-1*(stagec[,8] == "aneuploid"))
-	# Remove the incomplete cases
-	dataCancer <- dataCancer[complete.cases(dataCancer),]
-	# Load a pre-stablished data frame with the names and descriptions of all variables
-	data(cancerVarNames)
-	# Get a Cox proportional hazards model using:
-	# - A lax p-value
-	# - 10 bootstrap loops
-	# - Age as a covariate
-	# - zIDI as the feature inclusion criterion
-	# - First order interactions
-	cancerModel <- ForwardSelection.Model.Bin(pvalue = 0.1,
-	                                           loops = 10,
-	                                           covariates = "1 + age",
-	                                           Outcome = "pgstat",
-	                                           variableList = cancerVarNames,
-	                                           data = dataCancer,
-	                                           type = "COX",
-	                                           timeOutcome = "pgtime",
-	                                           selectionType = "zIDI",
-	                                           interaction = 2)
-	# Remove not significant variables from the previous model:
-	# - Using a strict p-value
-	# - Excluding the covariate as a candidate for feature removal
-	# - Using zIDI as the feature removal criterion
-	# - Using 50 bootstrap loops
-	reducedCancerModel <- bootstrapVarElimination_Bin(object = cancerModel$final.model,
-	                                              pvalue = 0.005,
-	                                              Outcome = "pgstat",
-	                                              data = dataCancer,
-	                                              startOffset = 1,
-	                                              type = "COX",
-	                                              selectionType = "zIDI",
-	                                              loops = 50)
-	# Shut down the graphics device driver
-	dev.off()}
-}
+
 \keyword{Model_Generation}
