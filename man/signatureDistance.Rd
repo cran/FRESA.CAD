@@ -8,12 +8,13 @@
 	signatureDistance(
 	              template,
 	              data=NULL,
-	              method = c("pearson","spearman","kendall","RMS","MAN")
+	              method = c("pearson","spearman","kendall","RSS","MAN")
 	)
 }
 \arguments{
 	\item{template}{
-		A named template with quantile probs[0.025,0.25,0.5,0.75,0.975] of the signature
+		A list with a template matrix of the signature described with 
+		quantiles = [0.025,0.25,0.5,0.75,0.975]
 	}
 	\item{data}{
 		A data frame that will be used to compute the distance
@@ -25,8 +26,8 @@
 \details{
    The distance to the template:
    "pearson","spearman" and "kendall" distances are computed using the correlation function i.e. 1-r. 
-   "RMS" distance is the root mean square distance
-   "MAN" is the mean standardized L^1 distance  
+   "RSS" distance is the root sum square distance
+   "MAN" Manhattan. The standardized L^1 distance  
 }
 \value{
 	\item{result}{

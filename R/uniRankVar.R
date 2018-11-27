@@ -246,7 +246,7 @@ function(variableList,formula,Outcome,data,categorizationType=c("Raw","Categoric
 			}
 	#		cat (colnamesList[j],"cstat: ",cstat,"\n")
 			datalength <- length(table(datacolumn));
-			if (datalength>4)
+			if (datalength>2)
 			{
 
 				if (FullAnalysis)
@@ -844,6 +844,7 @@ function(variableList,formula,Outcome,data,categorizationType=c("Raw","Categoric
 						{
 							if (uniType=="Binary")
 							{
+#								spredict <- predict.fitFRESA(lmodel,mdata, 'prob');
 								spredict <- predict.fitFRESA(lmodel,mdata, 'prob');
 								iprob <- .Call("improveProbCpp",basepredict,spredict,dataoutcome);
 								zIDI[varinserted] <- iprob$z.idi;
@@ -937,13 +938,17 @@ function(variableList,formula,Outcome,data,categorizationType=c("Raw","Categoric
 	}
 	else
 	{
+		if (is.null(acovariates)) 
+		{
+			acovariates <- "1";
+		}
 		if (uniType=="Binary")
 		{
 			if (categorizationType == "Raw")
 			{
 #				cat(timeOutcome,"\n",rankingTest,"\n",acovariates,"\n");
 				univariateModels <- ForwardSelection.Model.Bin(nrow(variableList),1.0,0.0,1,acovariates,Outcome,variableList,data,1,type=type,timeOutcome=timeOutcome,selectionType="zIDI");
-				orderframe <- data.frame(variableList[,1],variableList[,1],abs(univariateModels$base.Zvalues));
+				orderframe <- data.frame(variableList[,1],variableList[,1],univariateModels$base.Zvalues);
 				colnames(orderframe) <- c("Name","RName","ZUni");
 				orderframe <- with(orderframe,orderframe[order(-ZUni),]);
 			}
@@ -972,7 +977,7 @@ function(variableList,formula,Outcome,data,categorizationType=c("Raw","Categoric
 #				cat(timeOutcome,"\n",rankingTest,"\n",acovariates,"\n");
 				univariateModels <- ForwardSelection.Model.Res(nrow(variableList),1.0,0.0,1,acovariates,Outcome,variableList,data,1,type=type,testType="Ftest",timeOutcome=timeOutcome);
 
-				orderframe <- data.frame(variableList[,1],variableList[,1],abs(univariateModels$base.Zvalues));
+				orderframe <- data.frame(variableList[,1],variableList[,1],univariateModels$base.Zvalues);
 				colnames(orderframe) <- c("Name","RName","ZUni");
 				orderframe <- with(orderframe,orderframe[order(-ZUni),]);
 			}
@@ -991,20 +996,20 @@ function(variableList,formula,Outcome,data,categorizationType=c("Raw","Categoric
 
 	
 	result <- list(orderframe=orderframe,
-	variableList=variableList,
-	formula=formula,
-	Outcome=Outcome,
-	data=data,
-	categorizationType=categorizationType,
-	type=type,
-	rankingTest=rankingTest,
-	cateGroups=cateGroups,
-	raw.dataFrame=raw.dataFrame,
-	description=description,
-	uniType=uniType,
-	acovariates=acovariates,
-	timeOutcome=timeOutcome
-	)
+					variableList=variableList,
+					formula=formula,
+					Outcome=Outcome,
+					data=data,
+					categorizationType=categorizationType,
+					type=type,
+					rankingTest=rankingTest,
+					cateGroups=cateGroups,
+					raw.dataFrame=raw.dataFrame,
+					description=description,
+					uniType=uniType,
+					acovariates=acovariates,
+					timeOutcome=timeOutcome
+					)
 	
 
 	return (result);

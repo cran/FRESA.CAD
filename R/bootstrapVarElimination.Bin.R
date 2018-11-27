@@ -1,44 +1,47 @@
-bootstrapVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data,startOffset=0, type = c("LOGIT", "LM","COX"),selectionType=c("zIDI","zNRI"),loops=250,fraction=1.00,print=TRUE,plots=TRUE,adjsize=1,uniAdjPvalues=NULL) 
+bootstrapVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data,startOffset=0, type = c("LOGIT", "LM","COX"),selectionType=c("zIDI","zNRI"),loops=64,print=TRUE,plots=TRUE) 
 {
   	seltype <- match.arg(selectionType)
-	opvalue <- pvalue
-#	print(length(uniAdjPvalues));
+	pvalue <- as.vector(pvalue);
 
-#	boot.var.IDISelection <- function (object,pvalue=0.05,Outcome="Class",data,startOffset=0, type = c("LOGIT", "LM","COX"),selectionType=c("zIDI","zNRI"),loops,fraction,best.formula=NULL,adjsize,uniAdjPvalues=NULL) 
-	boot.var.IDISelection <- function (object,pvalue=0.05,Outcome="Class",startOffset=0, type = c("LOGIT", "LM","COX"),selectionType=c("zIDI","zNRI"),loops,fraction,best.formula=NULL,uniAdjPvalues=NULL) 
+	boot.var.IDISelection <- function (object,pvalue=0.05,Outcome="Class",startOffset=0, type = c("LOGIT", "LM","COX"),selectionType=c("zIDI","zNRI"),loops,best.formula=NULL) 
 	{
 		seltype <- match.arg(selectionType)
 		type <- match.arg(type);
 		varsList <- unlist(as.list(attr(terms(object),"variables")))
 		termList <- str_replace_all(attr(terms(object),"term.labels"),":","\\*")
 		
-#		print(termList)
-#		print(uniAdjPvalues)
-#		print(uniAdjPvalues[termList])
+		if (pvalue[1]<0.5) 
+		{
+			cthr <- abs(qnorm(pvalue)); 
+		}
+		else 
+		{
+			cthr <- pvalue;
+		}
+		removeID <- 0;
 
-		cthr = abs(qnorm(pvalue)); 
-		removeID = 0;
-
-		outCome = paste(varsList[2]," ~ 1");
-		frm1 = outCome;
+		outCome <- paste(varsList[2]," ~ 1");
+		frm1 <- outCome;
 		testAUC <- 0.5;
-		removedTerm=NULL;
-		who = 0;
+		removedTerm <- NULL;
+		who <- 0;
 		idiCV <- NULL;
 		modsize <- length(termList);
 		if (modsize>0)
 		{
-			cthrt = abs(qnorm(pvalue/modsize)); 
 			for ( i in 1:modsize)
 			{
 				frm1 <- paste(frm1,"+",termList[i]);
 			}
+#			print(frm1)
 			ftmp <- formula(frm1);
 
-			idiCV <- bootstrapValidation_Bin(fraction,loops,ftmp,Outcome,data,type,plots=plots,best.model.formula=best.formula)
+			idiCV <- bootstrapValidation_Bin(1.0,loops,ftmp,Outcome,data,type,plots =plots,best.model.formula=best.formula)
+			testAUC <- (idiCV$sensitivity + idiCV$specificity)/2;
+			testAUC <- median(testAUC,na.rm = TRUE);
 			resuBin <- getVar.Bin(object,data,Outcome,type);
-			startSearch = 1 + startOffset;
-			frm1 = outCome;
+			startSearch <- 1 + startOffset;
+			frm1  <- outCome;
 			if (startSearch > 1)
 			{
 				for ( i in 1:(startSearch-1))
@@ -46,18 +49,14 @@ bootstrapVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data
 					frm1 <- paste(frm1,"+",termList[i]);
 				}
 			}
-			minlcl = cthr;
-			idlist=startOffset+1;
 			if (startSearch <= modsize)
 			{
-				for ( i in startSearch:modsize)
+				ploc <- 1+modsize-startSearch;
+				if (ploc>length(cthr)) ploc <- length(cthr);
+				minlcl <- cthr[ploc];
+				idlist <- startOffset+1;
+				for ( i in startSearch:modsize )
 				{
-					passt <- is.null(uniAdjPvalues);
-					if (!passt)
-					{
-						passt <- (uniAdjPvalues[termList[i]] > opvalue);
-					}
-					if(passt)
 					{
 						if (seltype=="zIDI")
 						{
@@ -74,11 +73,11 @@ bootstrapVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data
 						if (is.nan(ci) || is.na(ci) ) ci <- c0;
 						if (is.nan(ci2) || is.na(ci2) ) ci2 <- ci;
 						minz <- min(c(c0,ci,ci2));
+#						cat(c0,":",ci,":",ci2,":",minlcl,":",minz,":",termList[i],"\n");
 						if  (minz < minlcl)
 						{
 							minlcl = minz;
 							who = i;
-	#						cat(termList[i],":",unitZvalues[as.character(termList[i])],":",c0,":",ci,":",ci2,"\n")
 						}
 					}
 					idlist=idlist+1;
@@ -106,14 +105,13 @@ bootstrapVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data
 		}
 		ftmp <- formula(frm1);
 
-		if ((who>0) && (modsize>1)) idiCV <- bootstrapValidation_Bin(fraction,loops,ftmp,Outcome,data,type,plots=plots)
+		if ((who>0) && (modsize>1)) idiCV <- bootstrapValidation_Bin(1.0,loops,ftmp,Outcome,data,type,plots=plots)
 		afterTestAUC <- (idiCV$sensitivity + idiCV$specificity)/2;
 		afterTestAUC <- median(afterTestAUC,na.rm = TRUE);
 		if (is.null(afterTestAUC)) afterTestAUC=0.0;
 		if (is.null(testAUC)) testAUC=0.5;
 		if (is.na(afterTestAUC)) afterTestAUC=0.0;
 		if (is.na(testAUC)) testAUC=0.5;
-#		cat(removeID," AUC:",sprintf("Test: %6.3f After: %6.3f",testAUC,afterTestAUC),frm1,"\n");
 		
 		result <- list(Removed=removeID,BootModelAUC=idiCV$blind.ROCAUC$auc,backfrm=frm1,bootval=idiCV,afterTestAUC=afterTestAUC,beforeTestAUC=testAUC,removedTerm=removedTerm);
 
@@ -124,13 +122,6 @@ bootstrapVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data
 	
 	bestAccuracy <- c(0.5,0.5,0.5);
 	best.formula=NULL;
-	if (adjsize>1)
-	{
-		bkobj <- bootstrapVarElimination_Bin(object,pvalue,Outcome,data,startOffset,type,selectionType,loops,fraction,print,plots,adjsize=1); 
-		object <- modelFitting(bkobj$back.formula,data,type,TRUE);
-		adjsize = floor(adjsize);
-		bestAccuracy <- as.vector(quantile(bkobj$bootCV$accuracy, probs = c(0.05, 0.5, 0.95), na.rm = TRUE,names = FALSE, type = 7));
-	}
 
 	startAccuracy = bestAccuracy;
 	maxAccuracy <- startAccuracy[2];
@@ -138,7 +129,6 @@ bootstrapVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data
 	changes=1;
 	loopsAux=0;
     model <- object;
-#	mydataFrame <- data;
 	modelReclas <- NULL;
 	myOutcome <- Outcome;
 
@@ -166,38 +156,27 @@ bootstrapVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data
 	beforeFormula <- frm1;
 	bk <- NULL;
 	changes2 <- 0;
+#	print(pvalue[1:10]);
 	while ((changes>0) && (loopsAux<100))
 	{
-		p.elimin <- pvalue;
-		if (adjsize>1)
-		{
-			modsize <- length(as.list(attr(terms(model),"term.labels")));	
-			if (modsize<1) modsize=1;
-			qvalue <- 4.0*pvalue;		# We set the qvalue
-			if (qvalue < 0.05) qvalue=0.05 # lests keep the minimum q-value to 0.05
-			p.elimin <- min(pvalue,modsize*qvalue/adjsize) # # BH alpha  the elimination p-value
-		}
-
-#		bk <- boot.var.IDISelection(model,p.elimin,Outcome=myOutcome,data=data,startOffset,type,seltype,loops,fraction,best.formula,adjsize,uniAdjPvalues);
-		bk <- boot.var.IDISelection(model,p.elimin,Outcome=myOutcome,startOffset,type,seltype,loops,fraction,best.formula,uniAdjPvalues=uniAdjPvalues);
+		bk <- boot.var.IDISelection(model,pvalue,Outcome=myOutcome,startOffset,type,seltype,loops,best.formula);
 		beforeFormula <- bk$backfrm;
-#		cat("Fitting ->",bk$backfrm,"\n");
 		nmodel = modelFitting(formula(bk$backfrm),data,type,TRUE);
-#		cat("Fitted ->",bk$backfrm,"\n");
+		if (!is.null(bk$bootval))
+		{
+			testAccuracy <-as.vector(quantile(bk$bootval$accuracy, probs = c(0.05, 0.5, 0.95), na.rm = TRUE,names = FALSE, type = 7));
+			if (loopsAux == 0) startAccuracy <- bk$beforeTestAUC;
+		}
 
 		if ((bk$Removed>0) && (!inherits(nmodel, "try-error")))
 		{
-#			cat("No error Removed -> ",bk$backfrm,"\n");
 			if (!is.null(bk$bootval))
 			{	
-#				best.formula <- bk$backfrm;
-				testAccuracy <-as.vector(quantile(bk$bootval$accuracy, probs = c(0.05, 0.5, 0.95), na.rm = TRUE,names = FALSE, type = 7));
 				if (!is.na(testAccuracy) && !is.null(testAccuracy))
 				{
 					if (testAccuracy[2] >= bestAccuracy[1])
 					{
 						best.formula <- bk$backfrm;
-#						cat(bestAccuracy," Best:",best.formula,"\n");
 						if (testAccuracy[2] >= maxAccuracy)
 						{
 							min.formula <- bk$backfrm;
@@ -224,36 +203,35 @@ bootstrapVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data
 		loopsAux = loopsAux + 1
 	}
 	idiCV <- NULL;
-#	cat(model.formula," <- Elimination \n")
 	if (length(all.vars(formula(model.formula))) > 1)
 	{
 		modelReclas <- getVar.Bin(model,data=data,Outcome=myOutcome,type);
-		if (is.null(bk))
-		{
-			idiCV <- bootstrapValidation_Bin(1.0000,loops,formula(model.formula),myOutcome,data,type,plots=plots);
-		}
-		else
-		{
-			idiCV <- bk$bootval;
-			if (is.null(idiCV))
-			{
-				idiCV <- bootstrapValidation_Bin(1.0000,loops,formula(model.formula),myOutcome,data,type,plots=plots);
-			}
-		}
+		idiCV <- bootstrapValidation_Bin(1.0000,2*loops,formula(model.formula),myOutcome,data,type,plots=plots);
+		# if (is.null(bk))
+		# {
+			# idiCV <- bootstrapValidation_Bin(1.0000,loops,formula(model.formula),myOutcome,data,type,plots=plots);
+		# }
+		# else
+		# {
+			# idiCV <- bk$bootval;
+			# if (is.null(idiCV))
+			# {
+				# idiCV <- bootstrapValidation_Bin(1.0000,loops,formula(model.formula),myOutcome,data,type,plots=plots);
+			# }
+		# }
 	}
 	else
 	{
 		model.formula <- outCome;
 		idiCV <- bootstrapValidation_Bin(1.0000,loops,formula(model.formula),myOutcome,data,type,plots=plots);
 	}
-#	cat(model.formula," <- End Elimination \n")
-	if ((adjsize>1)&&(print == TRUE))
+	testAccuracy <-as.vector(quantile(idiCV$accuracy, probs = c(0.05, 0.5, 0.95), na.rm = TRUE,names = FALSE, type = 7));
+	if (print == TRUE)
 	{
 		cat("Before FSC Mod:",beforeFSCmodel.formula,"\n")
 		cat("At Acc  Model :",min.formula,"\n")
 		cat("Reduced Model :",model.formula,"\n")
-		cat("Adjust size:",adjsize,"\n");
-		cat("Start AUC:",startAccuracy,"last AUC:",idiCV$blind.ROCAUC$auc,"Max Accuracy:",bestAccuracy[2],"\n")
+		cat("Start AUC:",startAccuracy,"last AUC:",idiCV$blind.ROCAUC$auc,"Accuracy:",testAccuracy[2],"\n")
 	}
 
 	back.model<-modelFitting(formula(model.formula),data,type,TRUE);

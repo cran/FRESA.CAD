@@ -1,10 +1,8 @@
-bootstrapVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data,startOffset=0, type = c("LOGIT", "LM","COX"),testType=c("Binomial","Wilcox","tStudent","Ftest"),loops=250,fraction=1.00,setIntersect=1,print=TRUE,plots=TRUE,adjsize=1,uniAdjPvalues=NULL) 
+bootstrapVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data,startOffset=0, type = c("LOGIT", "LM","COX"),testType=c("Binomial","Wilcox","tStudent","Ftest"),loops=64,setIntersect=1,print=TRUE,plots=TRUE) 
 {
   	testType <- match.arg(testType)
-	opvalue <- pvalue
-	
-#	boot.var.NeRISelection <- function (object,pvalue=0.05,Outcome="Class",data,startOffset=0, type = c("LOGIT", "LM","COX"),testType=c("Binomial","Wilcox","tStudent","Ftest"),loops,fraction=1.0,setIntersect=1,best.formula=NULL,adjsize,uniAdjPvalues=NULL) 
-	boot.var.NeRISelection <- function (object,pvalue=0.05,Outcome="Class",startOffset=0, type = c("LOGIT", "LM","COX"),testType=c("Binomial","Wilcox","tStudent","Ftest"),loops,fraction=1.0,setIntersect=1,best.formula=NULL,uniAdjPvalues=NULL) 
+	pvalue <- as.vector(pvalue);
+	boot.var.NeRISelection <- function (object,pvalue=0.05,Outcome="Class",startOffset=0, type = c("LOGIT", "LM","COX"),testType=c("Binomial","Wilcox","tStudent","Ftest"),loops,setIntersect=1,best.formula=NULL) 
 	{
 		testType <- match.arg(testType)
 		type <- match.arg(type);
@@ -22,13 +20,15 @@ bootstrapVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data
 		}
 		ftmp <- formula(frm1);
 		backfrm <- frm1;
-		NeRICVp <- bootstrapValidation_Res(fraction,loops,ftmp,Outcome,data,type,plots=plots,bestmodel.formula=best.formula)
+		NeRICVp <- bootstrapValidation_Res(1.0,loops,ftmp,Outcome,data,type,plots=plots,bestmodel.formula=best.formula)
 		startSearch = 1 + startOffset;
 		who = -1;
-		maxPvalue <- pvalue;
-		qpvalue <- pvalue/sizemodel;
 		if (sizemodel >= startSearch)
 		{		
+			ploc <- 1+sizemodel-startSearch;
+			if (ploc>length(pvalue)) ploc <- length(pvalue);
+			maxPvalue <- pvalue[ploc];
+#			cat(maxPvalue,":");
 			modelReclas <-getVar.Res(object,data,Outcome,type);
 			idlist=startOffset+1;
 			frm1 = outCome;
@@ -41,12 +41,6 @@ bootstrapVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data
 			}
 			for ( i in startSearch:sizemodel)
 			{	
-				passt <- is.null(uniAdjPvalues);
-				if (!passt)
-				{
-					passt <- (uniAdjPvalues[termList[i]] > opvalue);
-				}
-				if(passt)
 				{
 					switch(testType, 
 						tStudent = 
@@ -74,7 +68,6 @@ bootstrapVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data
 							ci2 <- median(NeRICVp$test.F.pvalues[,idlist], na.rm = TRUE);
 						},
 					)
-	#				cat(c0," : ",ci," : ",ci2,"\n")
 					if (is.nan(ci) || is.na(ci) ) ci <- c0;
 					if (is.nan(ci2) || is.na(ci2) ) ci2 <- ci;
 					maxp <- max(c(ci2,ci,c0)); 
@@ -134,40 +127,21 @@ bootstrapVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data
 			who = 0;
 			removeID = -removeID;
 		}
-		if (who>0) NeRICVp <- bootstrapValidation_Res(fraction,loops,ftmp,Outcome,data,type,plots=plots)
+		if (who>0) NeRICVp <- bootstrapValidation_Res(1.0,loops,ftmp,Outcome,data,type,plots=plots)
 		testRMSE <- NeRICVp$testRMSE;
 		if (length(testRMSE)==0) testRMSE=1.0e10;
 		if (is.na(testRMSE)) testRMSE=1.0e10;
 		if (is.null(testRMSE)) testRMSE=1.0e10;
-		result <- list(Removed=removeID,backfrm=backfrm,testRMSE=testRMSE,max.pvalue=maxPvalue,bootVal=NeRICVp);
+		result <- list(Removed=removeID,backfrm=backfrm,testRMSE=testRMSE,bootVal=NeRICVp);
 
 		return (result)
 	}
 
 	model <- NULL;
-	NeRICV <- NULL;
 	modelReclas <- NULL;
 	best.formula <- NULL;
 	changes=1;
-	if (adjsize>1)
-	{
-		bkobjt <- bootstrapVarElimination_Res(object,pvalue,Outcome,data,startOffset,type,testType,loops,fraction,setIntersect,print,plots,adjsize=1); #just remove the features that produce similar models
-		object <- modelFitting(bkobjt$back.formula,data,type,TRUE);
-#		best.formula <- bkobjt$at.RMSE.formula;
-		if (is.null(bkobjt$bootCV)) 
-		{
-			changes = 0;
-			best.formula <- NULL;
-		}
-		else
-		{
-			NeRICV <- bkobjt$bootCV;
-		}
-	}
-	else
-	{
-		NeRICV <- bootstrapValidation_Res(fraction,loops,formula(object),Outcome,data,type,plots=plots)
-	}
+	NeRICV <- bootstrapValidation_Res(1.0,loops,formula(object),Outcome,data,type,plots=plots)
 
 	bestbootRMSE <- as.vector(quantile(NeRICV$testSampledRMSE, probs = c(0.05, 0.5, 0.95), na.rm = TRUE,names = FALSE, type = 7));		
 	startRMSE <- bestbootRMSE[2];
@@ -199,20 +173,11 @@ bootstrapVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data
 	changes = 1*(1<=length(termList));
 	changes2 <- 0
 	bk <- NULL;
+#	print(pvalue[1:10]);
 	while ((changes>0) && (loopsAux<100)) 
 	{
-		p.elimin <- pvalue;
-		if (adjsize>1)
-		{
-			modsize <- length(as.list(attr(terms(model),"term.labels")));
-			if (modsize<1) modsize=1;
-			qvalue <- 4.0*pvalue;		# the q value 
-			if (qvalue < 0.05) qvalue=0.05; # lets keep the minimum q value to 0.05
-			p.elimin <- min(pvalue,modsize*qvalue/adjsize) #  BH alpha the elimination p-value
-		}
-
-		bk = boot.var.NeRISelection(object=model,pvalue=p.elimin,Outcome=Outcome,
-		startOffset=startOffset,type=type,testType=testType,loops=loops,fraction=fraction,setIntersect=setIntersect,best.formula=best.formula,uniAdjPvalues=uniAdjPvalues);
+		bk = boot.var.NeRISelection(object=model,pvalue=pvalue,Outcome=Outcome,
+		startOffset=startOffset,type=type,testType=testType,loops=loops,setIntersect=setIntersect,best.formula=best.formula);
 
 
 		model.formula <- bk$backfrm;
@@ -244,30 +209,30 @@ bootstrapVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data
 	if (length(all.vars(formula(model.formula))) > 1)
 	{
 		modelReclas <- getVar.Res(model,data=data,Outcome=Outcome,type);
-		if (is.null(bk))
-		{
-			NeRICV <- bootstrapValidation_Res(fraction,loops,model.formula,Outcome,data,type,plots=plots);
-		}
-		else
-		{
-			NeRICV <- bk$bootVal;
-			if (is.null(NeRICV))
-			{
-				NeRICV <- bootstrapValidation_Res(fraction,loops,model.formula,Outcome,data,type,plots=plots);
-			}
-		}
+		NeRICV <- bootstrapValidation_Res(1.0,2*loops,model.formula,Outcome,data,type,plots=plots);
+		# if (is.null(bk))
+		# {
+			# NeRICV <- bootstrapValidation_Res(1.0,loops,model.formula,Outcome,data,type,plots=plots);
+		# }
+		# else
+		# {
+			# NeRICV <- bk$bootVal;
+			# if (is.null(NeRICV))
+			# {
+				# NeRICV <- bootstrapValidation_Res(1.0,loops,model.formula,Outcome,data,type,plots=plots);
+			# }
+		# }
 	}
 	else
 	{
 		model.formula <- outCome;
-		NeRICV <- bootstrapValidation_Res(fraction,loops,model.formula,Outcome,data,type,plots=plots);
+		NeRICV <- bootstrapValidation_Res(1.0,loops,model.formula,Outcome,data,type,plots=plots);
 	}
-	if ((adjsize>1)&&(print==TRUE)) 
+	if (print==TRUE)
 	{
 		cat("Before BSC   Mod:",beforeFSC.model.formula,"\n");
 		cat("Min RMSE Formula:",min.formula,"\n");
 		if (!is.null(bk)) cat("Final  Formula:",bk$backfrm,"\n")
-		cat("Adjust size:",adjsize,"\n");
 		cat("Start RMSE:",startRMSE,"Min RMSE:",bestbootRMSE[2],"final RMSE:",NeRICV$testRMSE,"\n")
 	}
 

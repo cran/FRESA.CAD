@@ -28,14 +28,13 @@
 extern "C" SEXP bootstrapValidationBinCpp(SEXP, SEXP, SEXP, SEXP, SEXP, SEXP);
 extern "C" SEXP bootstrapValidationResCpp(SEXP, SEXP, SEXP, SEXP, SEXP, SEXP);
 extern "C" SEXP equalizedSampling(SEXP, SEXP, SEXP);
-extern "C" SEXP ForwardResidualModelCpp(SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP);
+extern "C" SEXP ForwardResidualModelCpp(SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP);
 extern "C" SEXP improvedResidualsCpp(SEXP, SEXP, SEXP, SEXP);
 extern "C" SEXP improveProbCpp(SEXP, SEXP, SEXP);
 extern "C" SEXP modelFittingCpp(SEXP, SEXP, SEXP);
 extern "C" SEXP predictForFresa(SEXP, SEXP, SEXP, SEXP);
 extern "C" SEXP rankInverseNormalCpp(SEXP, SEXP, SEXP, SEXP, SEXP);
-extern "C" SEXP ReclassificationFRESAModelCpp(SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP);
-extern "C" SEXP ReclassificationFRESAModelCpp(SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP);
+extern "C" SEXP ReclassificationFRESAModelCpp(SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP);
 extern "C" SEXP logRank(SEXP, SEXP, SEXP);
 extern "C" SEXP SLRNullDistribution(SEXP ,SEXP ,SEXP ,SEXP ,SEXP);
 extern "C" SEXP SLRDistribution(SEXP ,SEXP ,SEXP ,SEXP ,SEXP);
@@ -44,13 +43,13 @@ static const R_CallMethodDef CallEntries[] = {
     {"bootstrapValidationBinCpp",     (DL_FUNC) &bootstrapValidationBinCpp,      6},
     {"bootstrapValidationResCpp",     (DL_FUNC) &bootstrapValidationResCpp,      6},
     {"equalizedSampling",             (DL_FUNC) &equalizedSampling,              3},
-    {"ForwardResidualModelCpp",       (DL_FUNC) &ForwardResidualModelCpp,       14},
+    {"ForwardResidualModelCpp",       (DL_FUNC) &ForwardResidualModelCpp,       15},
     {"improvedResidualsCpp",          (DL_FUNC) &improvedResidualsCpp,           4},
     {"improveProbCpp",                (DL_FUNC) &improveProbCpp,                 3},
     {"modelFittingCpp",               (DL_FUNC) &modelFittingCpp,                3},
     {"predictForFresa",               (DL_FUNC) &predictForFresa,                4},
     {"rankInverseNormalCpp",          (DL_FUNC) &rankInverseNormalCpp,           5},
-    {"ReclassificationFRESAModelCpp", (DL_FUNC) &ReclassificationFRESAModelCpp, 14},
+    {"ReclassificationFRESAModelCpp", (DL_FUNC) &ReclassificationFRESAModelCpp, 15},
     {"logRank",                       (DL_FUNC) &logRank,                        3},
     {"SLRNullDistribution",           (DL_FUNC) &SLRNullDistribution,            5},
     {"SLRDistribution",               (DL_FUNC) &SLRDistribution,                5},

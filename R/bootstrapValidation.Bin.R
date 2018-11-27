@@ -125,7 +125,25 @@ function(fraction=1.00,loops=200,model.formula,Outcome,data,type=c("LM","LOGIT",
 		else
 		{
 			blidRoc <- llist(auc=output$resul$blindAUC);
-			bootRoc <- pROC::roc( as.vector(data[,Outcome]), bootmodel$linear.predictors,plot=FALSE,auc=TRUE,smooth=FALSE,progress= 'none');
+			if ((sum(response) == 0) || sum(response) == nrow(data))
+			{
+			  warning ("Constant Outcome");
+			}
+			else
+			{
+				if (length(pr) == nrow(data))
+				{
+					pr[is.na(pr)] <- 0;
+					pr[pr == -Inf] <- -100000.0;
+					pr[pr == Inf] <- 100000.0;
+					bootRoc <- pROC::roc( as.vector(data[,Outcome]), pr,plot=FALSE,auc=TRUE,smooth=FALSE,progress= 'none');
+				}
+				else
+				{
+					warning ("No prediction");
+					bootRoc <- pROC::roc( as.vector(data[,Outcome]), numeric(nrow(data)),plot=FALSE,auc=TRUE,smooth=FALSE,progress= 'none');
+				}
+			}
 		}
 		colnames(output$IDI) <- attr(terms(model.formula),'term.labels');
 		colnames(output$zIDI) <- attr(terms(model.formula),'term.labels');

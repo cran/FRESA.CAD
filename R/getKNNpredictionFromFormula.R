@@ -48,7 +48,7 @@ if (!requireNamespace("class", quietly = TRUE)) {
 	knnclass <- try(class::knn(trainframe,testframe,factor(trainData[,Outcome]),nk,prob=TRUE))
 	if (!inherits(knnclass, "try-error"))
 	{
-		prop <- attributes(knnclass)
+		prop <- attributes(knnclass);
 		binProp <-abs(prop$prob-1*(knnclass=="0"))
 	}
 	else

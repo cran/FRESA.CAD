@@ -1,5 +1,5 @@
 reportEquivalentVariables <-
-function (object,pvalue=0.05,data,variableList,Outcome="Class",timeOutcome=NULL, type = c("LOGIT", "LM","COX"),eqPGain=1.0,description=".",method="BH",osize=0,fitFRESA=TRUE) 
+function (object,pvalue=0.05,data,variableList,Outcome="Class",timeOutcome=NULL, type = c("LOGIT", "LM","COX"),description=".",method="BH",osize=0,fitFRESA=TRUE) 
 {
     type <- match.arg(type);
   
@@ -8,12 +8,9 @@ function (object,pvalue=0.05,data,variableList,Outcome="Class",timeOutcome=NULL,
 	termList <- str_replace_all(attr(terms(object),"term.labels"),":","\\*")
 	vnames <- as.vector(variableList[,1]);
 	
-#	print(termList)
-#	print(vnames)
-#	print(colnames(data))
     
 	orgsize <- length(termList);
-	if (osize==0) osize=max(ncol(data),nrow(variableList));
+	if (osize==0) osize=max(c(ncol(data),nrow(variableList)));
 	if (osize<length(vnames)) osize=length(vnames);
     
 
@@ -30,9 +27,6 @@ function (object,pvalue=0.05,data,variableList,Outcome="Class",timeOutcome=NULL,
 		orgpVAL <- as.vector(getVar.Res(object,data,Outcome,type)$FP.value);
 	}
 
-#	print (orgpVAL,digits=6);
-	adj.pVAL <- eqPGain * orgpVAL;
-	adj.pVAL[adj.pVAL>pvalue] <- pvalue;
 #	print (orgpVAL,digits=6);
 
 	formulaList <- as.character();
@@ -56,9 +50,6 @@ function (object,pvalue=0.05,data,variableList,Outcome="Class",timeOutcome=NULL,
 	varoutcome <- var(as.vector(data[,Outcome]));
 	coff=1;
 	if (type=="COX") coff=0;
-#	print(osize)
-#	print(termList)
-#	print(vnames)
 	if (length( termList)>0)
 	{
 		for ( i in 1:length(termList))
@@ -124,39 +115,29 @@ function (object,pvalue=0.05,data,variableList,Outcome="Class",timeOutcome=NULL,
 	#			cat("idx=",(i)+1,"\n");
 				tImprovement[j]=testImprovement[i];
 				formuls[j]=frm1;
-	#			print(auxmodel$coefficients);
-	#			print(pvalues[j]);
-	#			print(tImprovement[j]);
 			}
 			apvalues <- p.adjust(pvalues,method,osize);
 			
 			for (j in 1:length(vnames))
 			{
-	#			cat(orgpVAL[i],":",vnames[j],". ad p:",apvalues[j],". un p:",pvalues[j],". a Locust p:",apvalues[theLocus[j]],". u Locus p:",pvalues[theLocus[j]],"\n");
+#				cat(orgpVAL[i],":",vnames[j],". ad p:",apvalues[j],". un p:",pvalues[j],". a Locust p:",apvalues[theLocus[j]],". u Locus p:",pvalues[theLocus[j]],"\n");
 				if (
 					( as.character(vnames[j]) == as.character(termList[i]) ) 
-					|| 
-					(
-						   (( apvalues[j] <= pvalue ) && 
-							( apvalues[j] <= eqPGain*apvalues[theLocus[j]]))
-						|| (( pvalues[j] <= adj.pVAL[i] ) &&
-							(apvalues[theLocus[j]] <= 2.0*pvalue )
-							)
-					)
+					|| (( apvalues[j] <= pvalue ) && (tFullMetric[j] > tReducedMetric[j]))
 				)
 				{
 					listindx <- length(pVALlist)+1;
 					namevector <- append(namevector,vnames[j]);
 					pVALlist[[listindx]] <- pvalues[j];
 					  
-					if (as.character(vnames[j])!=as.character(termList[i])) 
-					{
+#					if (as.character(vnames[j])!=as.character(termList[i])) 
+#					{
 						formulaList <- append(formulaList,formuls[j]);
-					}
-					else
-					{
-						if (length(formulaList)==0) formulaList <- append(formulaList,formuls[j]);
-					}
+#					}
+#					else
+#					{
+#						if (length(formulaList)==0) formulaList <- append(formulaList,formuls[j]);
+#					}
 					if (description != ".") 
 					{
 						thedescription <- append(thedescription,variableList[j,description]);
@@ -185,7 +166,22 @@ function (object,pvalue=0.05,data,variableList,Outcome="Class",timeOutcome=NULL,
 			pvalueList[[listindx]] <- pVALlist;
 		}
 		names(pvalueList) <- termList;
-		equmodel <- baggedModel(formulaList,data,type,Outcome,timeOutcome,frequencyThreshold=0.001)$bagged.model;
+		pzval <- as.data.frame(cbind(Name = as.character(thename),ZUni= numeric(length(thepvalue))));
+		pzval$ZUni <- abs(qnorm(thepvalue));
+#		print(pzval);
+		unames <- unique(as.character(thename));
+		pzvals2 <- as.data.frame(cbind(Name = unames,ZUni= numeric(length(unames))));
+		pzvals2$ZUni <-numeric(length(unames));
+		rownames(pzvals2) <- unames
+		for (un in unames)
+		{
+#			print(as.numeric(pzval[pzval[,1] == un,2]))
+#			cat("\n");
+#			print(mean(pzval[pzval[,1] == un,2]))
+			pzvals2[un,2] <- mean(pzval[pzval[,1] == un,2]);
+		}
+#		print(pzvals2);
+		equmodel <- baggedModel(formulaList,data,type,Outcome,timeOutcome,frequencyThreshold=0.0,univariate=pzvals2,useFreq=FALSE)$bagged.model;
 	}
 	else
 	{
@@ -200,7 +196,7 @@ function (object,pvalue=0.05,data,variableList,Outcome="Class",timeOutcome=NULL,
 	Mresult <- NULL
 	Mresult$Name <- thename;
 	Mresult$Locus <- theparent;
-	Mresult$Extendend_Name <- thedescription;
+	Mresult$Extended_Name <- thedescription;
 	Mresult$UniPerformance <- as.numeric(theUniPerformance);
 	Mresult$FullPerformance <- as.numeric(theFullPerformance);
 	Mresult$DeltaPerformance <- as.numeric(theDeltaPerformance);

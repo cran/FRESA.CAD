@@ -15,8 +15,9 @@
 	                testType=c("Binomial", "Wilcox", "tStudent"), 
 	                lastTopVariable = 0, 
 	                timeOutcome = "Time",
-	                maxTrainModelSize = -1
-					)
+	                maxTrainModelSize = -1,
+	                p.thresholds = NULL
+	                )
 }
 \arguments{
 	\item{Outcome}{
@@ -51,6 +52,9 @@
 	}
 	\item{maxTrainModelSize}{
 		Maximum number of terms that can be included in the model
+	}
+	\item{p.thresholds}{
+		The p.value thresholds estimated in forward selection
 	}
 }
 \value{

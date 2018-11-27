@@ -103,6 +103,7 @@ vec Fresarank(const vec &xi);
 vec residualForFRESAFunc(const vec &cf,const mat &newdata,const std::string & typ, const std::string & type,const mat &outcome);
 improvedRes improvedResidualsFunc(const vec &oldResiduals,const vec &newResiduals, const std::string & testType,unsigned int samples);
 improvedRes improvedResidualsFunc(const vec &oldResiduals,const vec &newResiduals, const std::string & testType);
+double pttest(const vec &xt, const vec &y,const std::string &tail);
 double ttest(const vec &x, const vec &y , double mu, bool paired, bool var_equal, const std::string & tail);
 double wilcoxtest(const vec &xt,const vec &y , double mu, bool paired, const std::string & tail,bool correct);
 double binomtest(double x, double n, double p , const std::string & tail);

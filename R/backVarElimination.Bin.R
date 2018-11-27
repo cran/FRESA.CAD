@@ -1,4 +1,4 @@
-backVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data,startOffset=0, type = c("LOGIT", "LM","COX"),selectionType=c("zIDI","zNRI"),adjsize=1) 
+backVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data,startOffset=0, type = c("LOGIT", "LM","COX"),selectionType=c("zIDI","zNRI")) 
 {
   	seltype <- match.arg(selectionType)
 
@@ -11,7 +11,14 @@ backVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data,star
 		termList <- str_replace_all(attr(terms(object),"term.labels"),":","\\*")
 		
 		
-		cthr = abs(qnorm(pvalue));
+		if (pvalue[1]<0.5) 
+		{
+			cthr <- abs(qnorm(pvalue)); 
+		}
+		else 
+		{
+			cthr <- pvalue;
+		}
 		removeID = 0;
 
 		outCome = paste(varsList[2]," ~ ");
@@ -37,6 +44,9 @@ backVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data,star
 			FullPredict <- predict.fitFRESA(FullModel,data,'prob');
 			if (length(termList)>startSearch)
 			{
+				ploc <- 1+length(termList)-startSearch;
+				if (ploc>length(cthr)) ploc <- length(cthr);
+				minlcl = cthr[ploc];
 				for ( i in startSearch:length(termList))
 				{
 				
@@ -63,9 +73,9 @@ backVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data,star
 							ztst = iprob$z.nri;
 						}
 						if (is.na(ztst)) ztst=0;
-						if (ztst<cthr)
+						if (ztst<minlcl)
 						{
-							cthr = ztst;
+							minlcl = ztst;
 							removeID = i;
 						}
 					}
@@ -92,8 +102,6 @@ backVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data,star
 			bckform <- frm1;
 			FullModel <- modelFitting(ftmp,data,type,TRUE)
 		}
-#		cat("removed : ",removeID,"Final Model: \n")
-#		print(summary(FullModel));
 		result <- list(Model=FullModel,Removed=removeID,backfrm=bckform);
 
 		return (result)
@@ -101,15 +109,6 @@ backVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data,star
 
 	bkobj <- NULL;
 	beforeFSC.formula <- NULL;
-	if (adjsize>1)
-	{
-		bkobj <- backVarElimination_Bin(object,pvalue,Outcome,data,startOffset,type,selectionType,adjsize=1); 
-		object <- bkobj$back.model;
-		adjsize = floor(adjsize);
-		adjsize <- min(adjsize,ncol(data)-1);
-		beforeFSC.formula <- bkobj$string.formula;
-#		cat("Adjusted Size:",adjsize,":",bkobj$beforeFSC.formula,"\n");
-	}
 
 	changes=1;
 	loops=0;
@@ -117,20 +116,10 @@ backVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data,star
 	beforeFSCmodel <- object;
 	mydataFrame <- data;
 	myOutcome <- Outcome;
-	changes2 <- 0
+	changes2 <- 0;
 	while ((changes>0) && (loops<100))
 	{
-		p.elimin <- pvalue;
-		if (adjsize>1)
-		{
-			modsize <- length(attr(terms(model),"term.labels"));	
-			if (modsize<1) modsize=1;
-			qvalue <- 4.0*pvalue;
-			if (qvalue < 0.05) qvalue=0.05 # lests keep the minimum q-value to 0.1
-			p.elimin <- min(pvalue,modsize*qvalue/adjsize) # BH alpha the elimination p-value
-		}
-
-		bk <- back.var.IDISelection(model,p.elimin,Outcome=myOutcome,data=mydataFrame,startOffset,type,seltype);
+		bk <- back.var.IDISelection(model,pvalue,Outcome=myOutcome,data=mydataFrame,startOffset,type,seltype);
 
 		changes = as.integer(bk$Removed);
 		if (changes>0)
@@ -149,8 +138,6 @@ backVarElimination_Bin <- function (object,pvalue=0.05,Outcome="Class",data,star
 		model = bk$Model;
 		  loops = loops + 1;
 	}
-#	print(summary(model));
-#	cat("Reduced Model:",bk$backfrm,"\n")
 	modelReclas <- getVar.Bin(model,data=mydataFrame,Outcome=myOutcome,type);
 	result <- list(back.model=model,
 	loops=loops,

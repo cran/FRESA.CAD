@@ -72,7 +72,7 @@
       permutation derived probability density function of the null distribution
 	}
 	\item{LRDist}{
-      bootrapped derived probability density function of the SLR (computeDist=TRUE)
+      bootstrapped derived probability density function of the SLR (computeDist=TRUE)
 	}
 }
 \examples{

@@ -3,7 +3,7 @@
 \title{The median prediction from a list of models}
 \description{
 	Given a list of model formulas, this function will train such models and return the a single(ensemble) prediction from the list of formulas on a test data set.
-	It may also provides a \emph{k}-nearest neighbours (KNN) prediction using the features listed in such models.
+	It may also provides a \emph{k}-nearest neighbors (KNN) prediction using the features listed in such models.
 }
 \usage{
 	ensemblePredict(formulaList,
@@ -35,7 +35,7 @@
 		The name of the column in \code{data} that stores the variable to be predicted by the model
 	}
 	\item{nk}{
-		The number of neighbours used to generate the KNN classification. If zero, \emph{k} is set to the square root of the number of cases. If less than zero, it will not perform the KNN classification
+		The number of neighbors used to generate the KNN classification. If zero, \emph{k} is set to the square root of the number of cases. If less than zero, it will not perform the KNN classification
 	}
 }
 \value{

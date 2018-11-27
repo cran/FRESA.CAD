@@ -1,6 +1,6 @@
 \name{rankInverseNormalDataFrame}
 \alias{rankInverseNormalDataFrame}
-\title{Perform a z-transformation of the data using the rank-based inverse normal transformation}
+\title{rank-based inverse normal transformation of the data}
 \description{
 	This function takes a data frame and a reference control population to return a \emph{z}-transformed data set conditioned to the reference population.
 	Each sample data for each feature column in the data frame is conditionally \emph{z}-transformed using a rank-based inverse normal transformation, based on the rank of the sample in the reference frame.
@@ -50,7 +50,7 @@
 	                    notAneuploid = 1-1*(stagec[,8] == "aneuploid"))
 	# Remove the incomplete cases
 	dataCancer <- dataCancer[complete.cases(dataCancer),]
-	# Load a pre-stablished data frame with the names and descriptions of all variables
+	# Load a pre-established data frame with the names and descriptions of all variables
 	data(cancerVarNames)
 	# Set the group of no progression
 	noProgress <- subset(dataCancer,pgstat==0)

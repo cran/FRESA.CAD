@@ -135,7 +135,8 @@ function (object,data,Outcome="Class", type=c("LM","LOGIT","COX"),testData=NULL,
 			}			
 		}
 	}
-	
+#		cat("End\n");
+
 	 result <- list(
 	 tP.value=model_tpvalue,
 	 BinP.value=model_bpvalue,

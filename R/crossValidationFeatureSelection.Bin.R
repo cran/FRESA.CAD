@@ -1,5 +1,5 @@
 crossValidationFeatureSelection_Bin <-
-function(size=10,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,timeOutcome="Time",variableList,data,maxTrainModelSize=20,type=c("LM","LOGIT","COX"),selectionType=c("zIDI","zNRI"),startOffset=0,elimination.bootstrap.steps=25,trainFraction=0.67,trainRepetition=9,elimination.pValue=0.05,bootstrap.steps=25,nk=0,unirank=NULL,print=TRUE,plots=TRUE,lambda="lambda.1se",adjsize=1.0,equivalent=FALSE,bswimsCycles=10,usrFitFun=NULL)
+function(size=10,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,timeOutcome="Time",variableList,data,maxTrainModelSize=20,type=c("LM","LOGIT","COX"),selectionType=c("zIDI","zNRI"),startOffset=0,elimination.bootstrap.steps=100,trainFraction=0.67,trainRepetition=9,bootstrap.steps=100,nk=0,unirank=NULL,print=TRUE,plots=TRUE,lambda="lambda.1se",equivalent=FALSE,bswimsCycles=10,usrFitFun=NULL,featureSize=0)
 {
 
 if (!requireNamespace("cvTools", quietly = TRUE)) {
@@ -22,6 +22,12 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 
 	controlsamplesize <- nrow(controlsample);
 	
+	filter.p.value = 2.0*pvalue;
+	if (length(pvalue)>1)
+	{
+		filter.p.value = pvalue[2];
+		pvalue=pvalue[1];
+	}
 
 	K <- as.integer(1.0/(1.0-trainFraction) + 0.5);
 
@@ -71,15 +77,8 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 	FoldBlindSensitivity <- vector();
 	TopUniCoherenceTest <- vector();
 	selection.pValue <- pvalue;
-	update.pValue <- c(pvalue,pvalue);
-
-#	CVselection.pValue <- 1.0-pnorm(abs(qnorm(pvalue))*sqrt(trainFraction));
-#	CVelimination.pValue <- 1.0-pnorm(abs(qnorm(elimination.pValue))*sqrt(trainFraction));
-#	CVupdate.pValue <- 1.0-pnorm(abs(qnorm(update.pValue))*sqrt(trainFraction));
 
 	CVselection.pValue <- pvalue;
-	CVelimination.pValue <- elimination.pValue;
-	CVupdate.pValue <- update.pValue;
 
 	par(mfrow=c(1,1))
 	
@@ -89,29 +88,18 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 		variableList <- uprank$orderframe;
 #		print(variableList[1:20,])
 	}
-	if (size<1) size <- 1;
 	if (size>nrow(variableList)) size <- nrow(variableList);
-#	print(variableList[,1]);
+	if (size<5) size=min(c(5,nrow(variableList)));
 	shortVarList <- as.vector(variableList[1:size,1]);
-#	varlist <- vector();
-#	for (i in 1:length(shortVarList))
-#	{
-#		varlist <- append(varlist,as.character(strsplit(str_replace_all(shortVarList[i],"[I\\)\\(\\(><\\*]"," ")," ")));
-#				# ,"\\*"))[1]," ",""))
-#	}
 
 	varlist <- paste(Outcome,"~1");
 	for (i in 1:length(shortVarList))
 	{
 		varlist <- paste(varlist,shortVarList[i],sep="+");
 	}
-#	print(colnames(data));
 	varlist <-  all.vars(formula(varlist))[-1];
-#	print(varlist)
-#	shortVarList <- unique(varlist);
 	shortVarList <- varlist[varlist %in% colnames(data)];
 	enetshortVarList <- shortVarList;
-#	print(enetshortVarList);
 	Fullenet <- try(glmnet::cv.glmnet(as.matrix(data[,shortVarList]),as.vector(data[,Outcome]),family="binomial"));
 	LASSOVariables <- NULL;
 	if (inherits(Fullenet, "try-error"))
@@ -133,9 +121,6 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 	selType = selectionType;
 
 	ex_covariates=covariates;
-	unitPvalues <- (1.0-pnorm(variableList$ZUni));
-	unitPvalues[unitPvalues>0.5] <- 0.5;
-	names(unitPvalues) <- variableList$Name;
 	
 	if (type!="COX")
 	{
@@ -150,7 +135,8 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 		extvar <- c(timeOutcome,Outcome);
 	}
 		
-	FULLBSWiMS.models <- BSWiMS.model(formula=baseformula,data=data,type=type,testType=selectionType,pvalue=pvalue,elimination.pValue=elimination.pValue,update.pvalue=update.pValue,variableList=variableList,size=size,loops=loops,elimination.bootstrap.steps=elimination.bootstrap.steps,unitPvalues=unitPvalues,adjsize=adjsize,fraction=fraction,maxTrainModelSize=maxTrainModelSize,maxCycles=bswimsCycles,print=print,plots=plots);
+#	cat ("Data:",ncol(data),"Features:",nrow(variableList),"Size:",size,"\n")
+	FULLBSWiMS.models <- BSWiMS.model(formula=baseformula,data=data,type=type,testType=selectionType,pvalue=pvalue,variableList=variableList,size=size,loops=loops,elimination.bootstrap.steps=elimination.bootstrap.steps,fraction=fraction,maxTrainModelSize=maxTrainModelSize,maxCycles=bswimsCycles,print=print,plots=plots,featureSize=featureSize);
 	CurModel_Full <- FULLBSWiMS.models$forward.model;
 	UCurModel_Full <- FULLBSWiMS.models$update.model;
 	redCurmodel_Full <- FULLBSWiMS.models$BSWiMS.model;
@@ -235,14 +221,25 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 #			cat("Unirank\n")
 			uprank <- update.uniRankVar(unirank,data=TrainSet,FullAnalysis=FALSE)
 			variableList <- uprank$orderframe;
+
+			unitPvalues <- (1.0-pnorm(variableList$ZUni));
+			names(unitPvalues) <- variableList$Name;
+			if (unirank$categorizationType == "Raw")
+			{
+				adjPvalues <- p.adjust(unitPvalues,"BH")
+				gadjPvalues <- adjPvalues[adjPvalues < 2*filter.p.value]			
+				noncornames <- correlated_Remove(data,names(gadjPvalues),thr=0.99);
+				if (length(noncornames) > 1) featureSize <- featureSize*length(noncornames)/length(gadjPvalues);
+#				cat(length(noncornames),":",length(gadjPvalues),":",length(noncornames)/length(gadjPvalues),"\n");
+			}
+			filter.z.value <- abs(qnorm(filter.p.value))
+			varMax <- sum(variableList$ZUni >= filter.z.value);
+			pvarMax <- sum(p.adjust(unitPvalues,"BH") < 2*filter.p.value);
+			cat(ncol(TrainSet),": Unadjusted size:",varMax," Adjusted Size:",pvarMax,"\n")
+			size= min(c(pvarMax,varMax));
+			if (size<5) size=min(c(5,nrow(variableList)));
+
 			shortVarList <- as.vector(variableList[1:size,1]);
-#			varlist <- vector();
-#			for (nn in 1:length(shortVarList))
-#			{
-#				varlist <- append(varlist,as.character(strsplit(str_replace_all(shortVarList[nn],"[I\\)\\(\\(><\\*]"," ")," ")));
-#			}
-#			shortVarList <- unique(varlist)
-#			shortVarList <- shortVarList[shortVarList %in% colnames(TrainSet)]
 
 			varlist <- paste(Outcome,"~1");
 			for (nn in 1:length(shortVarList))
@@ -251,6 +248,7 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 			}
 			varlist <-  all.vars(formula(varlist))[-1];
 			shortVarList <- varlist[varlist %in% colnames(TrainSet)];
+
 			
 #			print(variableList[,1]);
 		}
@@ -288,11 +286,8 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 
 		lastinserted = inserted;
 
-		unitPvalues <- (1.0-pnorm(variableList$ZUni));
-		unitPvalues[unitPvalues>0.5] <- 0.5;
-		names(unitPvalues) <- variableList$Name;
 
-		BSWiMS.models <- BSWiMS.model(formula=baseformula,data=TrainSet,type=type,testType=selectionType,pvalue=CVselection.pValue,elimination.pValue=CVelimination.pValue,update.pvalue=CVupdate.pValue,variableList=variableList,size=size,loops=loops,elimination.bootstrap.steps=elimination.bootstrap.steps,unitPvalues=unitPvalues,adjsize=adjsize,fraction=fraction,maxTrainModelSize=maxTrainModelSize,maxCycles=bswimsCycles,print=print,plots=plots);
+		BSWiMS.models <- BSWiMS.model(formula=baseformula,data=TrainSet,type=type,testType=selectionType,pvalue=CVselection.pValue,variableList=variableList,size=size,loops=loops,elimination.bootstrap.steps=elimination.bootstrap.steps,fraction=fraction,maxTrainModelSize=maxTrainModelSize,maxCycles=bswimsCycles,print=print,plots=plots,featureSize=featureSize);
 		CurModel_S <- BSWiMS.models$forward.model;
 		UCurModel_S <- BSWiMS.models$update.model;
 		redCurmodel_S <- BSWiMS.models$BSWiMS.model;
@@ -306,9 +301,8 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 # lets use beforeFSC model for prediction 
 			redfoldmodel.AtOpt <- redCurmodel_S$at.opt.model;
 			forwardmodel <- UCurModel_S$final.model;
-			redfoldmodel <- redBootCross_S$boot.model;
 			baggedfoldmodel <- BSWiMS.models$bagging$bagged.model;
-			if (is.null(redfoldmodel)) redfoldmodel <- redCurmodel_S$back.model;
+			redfoldmodel <- redCurmodel_S$back.model;
 
 
 
@@ -325,54 +319,65 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 					s <- summary(redBootCross_S,2)
 				}
 			
-				thebaglist <- BSWiMS.models$forward.selection.list
+				thebaglist <- CurModel_S$formula.list;
 				bagg <- baggedModel(thebaglist,TrainSet,type,Outcome,timeOutcome,univariate=variableList,useFreq=loops); 
 
 
+				
 			
-				p <- predict.fitFRESA(baggedfoldmodel,BlindSet,'linear'); 
+#					cat ("Predict 1\n")
+				
 				p.AtOpt <- predict.fitFRESA(redfoldmodel.AtOpt,BlindSet, 'linear');
 				p.forward <- predict.fitFRESA(forwardmodel,BlindSet, 'linear');
 				baggedForwardPredict <- predict.fitFRESA(bagg$bagged.model,BlindSet,'linear');
 				firstBSWIMSPredict <- predict.fitFRESA(redfoldmodel,BlindSet, 'linear');
-				medianBSWIMSPredict <- ensemblePredict(BSWiMS.models$formula.list,TrainSet,BlindSet, predictType = "linear",type = type)$ensemblePredict;
+				if (length(BSWiMS.models$formula.list)>1)
+				{
+					medianBSWIMSPredict <- ensemblePredict(BSWiMS.models$formula.list,TrainSet,BlindSet, predictType = "linear",type = type)$ensemblePredict;
+				}
+				else
+				{
+					medianBSWIMSPredict <- firstBSWIMSPredict;
+				}
+#					cat ("Predict 2\n")
 				medianPred <- ensemblePredict(BSWiMS.models$forward.selection.list,TrainSet,BlindSet, predictType = "linear",type = type)$ensemblePredict;
 				eq <- NULL;
+#					cat ("End Predict\n")
 
-				if ((length(redfoldmodel$coefficients)> 1) && equivalent)
+				if (length(redfoldmodel$coefficients)> 1)
 				{
-					eadjsize <- length(unitPvalues);
-					if (adjsize<eadjsize) unitPvalues <- unitPvalues[1:adjsize];
-					apvalues <- p.adjust(unitPvalues,"bonferroni",adjsize);
-					modelterms <- attr(terms(redfoldmodel),"term.labels");
-					univariatenames <- names(apvalues[apvalues < pvalue/length(modelterms)]);
-					shortcan <- bagg$frequencyTable[(bagg$frequencyTable > (loops*0.05))];
-					eshortlist <- unique(c(names(shortcan),str_replace_all(modelterms,":","\\*")));
-					eshortlist <- unique(c(eshortlist,univariatenames));
-					eshortlist <- eshortlist[!is.na(eshortlist)];
-					if (length(eshortlist)>0)
+					p <- predict.fitFRESA(baggedfoldmodel,BlindSet,'linear');
+					if (equivalent)
 					{
-#						print(eshortlist);
-						nameslist <- c(all.vars(baggedfoldmodel$formula),as.character(variableList[eshortlist,2]));
-						nameslist <- unique(nameslist[!is.na(nameslist)]);
-						if (!is.null(unirank) && (unirank$categorizationType != "RawRaw"))
+						collectFormulas <- BSWiMS.models$forward.selection.list;
+						bagg2 <- baggedModel(collectFormulas,data,type,Outcome,timeOutcome,univariate=variableList,useFreq=loops);
+						modelterms <- attr(terms(redfoldmodel),"term.labels");
+						shortcan <- bagg2$frequencyTable;
+						eshortlist <- unique(c(names(shortcan),str_replace_all(modelterms,":","\\*")));
+						eshortlist <- eshortlist[!is.na(eshortlist)];
+						if (length(eshortlist)>0)
 						{
-							eqdata <- TrainSet[,nameslist];
+							nameslist <- c(all.vars(baggedfoldmodel$formula),as.character(variableList[eshortlist,2]));
+							nameslist <- unique(nameslist[!is.na(nameslist)]);
+							if (!is.null(unirank) && (unirank$categorizationType != "RawRaw"))
+							{
+								eqdata <- TrainSet[,nameslist];
+							}
+							else
+							{
+								eqdata <- TrainSet;
+							}
+							eq <- reportEquivalentVariables(redfoldmodel,pvalue = pvalue,
+										  data=eqdata,
+										  variableList=cbind(eshortlist,eshortlist),
+										  Outcome = Outcome,
+										  timeOutcome=timeOutcome,								  
+										  type = type,osize=featureSize,
+										  method="BH",fitFRESA=TRUE);
+										  
+							eqpredict <- ensemblePredict(eq$formula.list,TrainSet,BlindSet, predictType = "linear",type = type)$ensemblePredict;
+							equiFormulas <- append(equiFormulas,eq$formula.list);
 						}
-						else
-						{
-							eqdata <- TrainSet;
-						}
-						eq <- reportEquivalentVariables(redfoldmodel,pvalue = pvalue,
-									  data=eqdata,
-									  variableList=cbind(eshortlist,eshortlist),
-									  Outcome = Outcome,
-									  timeOutcome=timeOutcome,								  
-									  type = type,
-									  eqPGain = 100.0,method="bonferroni",osize=adjsize,fitFRESA=TRUE);
-									  
-						eqpredict <- ensemblePredict(eq$formula.list,TrainSet,BlindSet, predictType = "linear",type = type)$ensemblePredict;
-						equiFormulas <- append(equiFormulas,as.character(eq$equivalentModel$formula)[3]);
 					}
 					else
 					{
@@ -382,17 +387,27 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 				}
 				else
 				{
-					eqpredict <- p;
+					p <- firstBSWIMSPredict;
+					eqpredict <- firstBSWIMSPredict;
 				}
 
+#				cat("B KNN\n")
 				knnclass <- getKNNpredictionFromFormula(baggedfoldmodel$formula,KnnTrainSet,BlindSet,Outcome,nk);
+#				cat("A KNN \n")
 
 				palt <- NULL;
 				if (!is.null(usrFitFun))
 				{
 					fit <- usrFitFun(formula(abaseformula),TrainSet[,c(extvar,shortVarList)]);
 					palt <- predict(fit,BlindSet);
-					vset <- all.vars(baggedfoldmodel$formula);
+					if (is.null(baggedfoldmodel))
+					{
+						vset <- all.vars(bagg$formula);
+					}
+					else
+					{
+						vset <- all.vars(baggedfoldmodel$formula);
+					}
 					if (!is.null(eq))
 					{
 						vset <- unique(append(vset,all.vars(eq$equivalentModel$formula)));
@@ -635,27 +650,27 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 	{
 		colnames(totSamples) <- c("Outcome","Prediction","Model","Ensemble.Forward","Forward.Selection.Bagged","Forward","Backwards","eB.SWiMS","first.B.SWiMS","Ensemble.B.SWiMS");
 	}
-	totSamples <- as.data.frame(totSamples);
+#	totSamples <- as.data.frame(totSamples);
 
 	colnames(Full.totSamples) <- c("Outcome","Prediction","Model");
-	Full.totSamples <- as.data.frame(Full.totSamples);
+#	Full.totSamples <- as.data.frame(Full.totSamples);
 
 	colnames(totTrainSamples) <- c("Outcome","Prediction","Model");
-	totTrainSamples <- as.data.frame(totTrainSamples);
+#	totTrainSamples <- as.data.frame(totTrainSamples);
 	colnames(Full.totTrainSamples) <- c("Outcome","Prediction","Model");
-	Full.totTrainSamples <- as.data.frame(Full.totTrainSamples);
+#	Full.totTrainSamples <- as.data.frame(Full.totTrainSamples);
 
 	colnames(KNNSamples) <- c("Outcome","Prediction","Model");
-	KNNSamples <- as.data.frame(KNNSamples);
+#	KNNSamples <- as.data.frame(KNNSamples);
 	
 	colnames(Full.KNNSamples) <- c("Outcome","Prediction","Model");
-	Full.KNNSamples <- as.data.frame(Full.KNNSamples);
+#	Full.KNNSamples <- as.data.frame(Full.KNNSamples);
 
 	
 	
 	BSWiMS.ensemble.prediction <- NULL
 
-	bsta <- boxplot(totSamples$Prediction~rownames(totSamples),plot=FALSE)
+	bsta <- boxplot(totSamples[,"Prediction"]~rownames(totSamples),plot=FALSE)
 	sta <- cbind(bsta$stats[3,])
 	rownames(sta) <- bsta$names
 	BSWiMS.ensemble.prediction <- cbind(data[rownames(sta),Outcome],sta)
@@ -665,58 +680,62 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 	if (!is.null(enetSamples))
 	{
 		colnames(enetSamples) <- c("Outcome","Prediction","Model");
-		enetSamples <- as.data.frame(enetSamples);
+#		enetSamples <- as.data.frame(enetSamples);
 		colnames(enetTrainSamples) <- c("Outcome","Prediction","Model");
-		enetTrainSamples <- as.data.frame(enetTrainSamples);
+#		enetTrainSamples <- as.data.frame(enetTrainSamples);
 	}
 
+	sumSen = NA;
 	
-	plotModels.ROC(totSamples,theCVfolds=K,predictor="Prediction",main="B:SWiMS");
-	par(mfrow=c(1,1))
-	incBsen=0
-	aucBlindTest <- pROC::roc(as.vector(totSamples[,1]),totSamples[,2],col="red",auc=TRUE,plot=TRUE,smooth=FALSE,lty=3)$auc
-	par(new=TRUE)
-	aucCVBlind <- pROC::roc(as.vector(Full.totSamples[,1]),Full.totSamples[,2],col="blue",auc=TRUE,plot=TRUE,ci=FALSE,smooth=FALSE)$auc
-	aucBoot=0;
-	aucTrain=0;
-	if (!is.null(FullBootCross$testPrediction))
+	if (plots)
 	{
+		plotModels.ROC(totSamples,theCVfolds=K,predictor="Prediction",main="B:SWiMS");
+		par(mfrow=c(1,1))
+		incBsen=0
+		aucBlindTest <- pROC::roc(as.vector(totSamples[,1]),totSamples[,2],col="red",auc=TRUE,plot=TRUE,smooth=FALSE,lty=3)$auc
 		par(new=TRUE)
-		aucTrain <- pROC::roc( as.vector(FullBootCross$outcome), FullBootCross$boot.model$linear.predictors,col="green",plot=TRUE,auc=TRUE,smooth=FALSE)$auc;        
-		par(new=TRUE)
-		aucBoot <- pROC::roc( as.vector(FullBootCross$testOutcome), FullBootCross$testPrediction,col="black",auc=TRUE,plot=TRUE,smooth=FALSE)$auc;
-	}
-	ley.names <- c(paste("Bootstrapped: Train Model ROC (",sprintf("%.3f",aucTrain),")"),paste("Bootstrapped: Blind ROC (",sprintf("%.3f",aucBoot),")"),
-	paste("CV: Blind ROC (",sprintf("%.3f",aucCVBlind),")"),paste("CV: Blind Fold Models Coherence (",sprintf("%.3f",aucBlindTest),")"))
-	ley.colors <- c("green","black","blue","red")
-	ley.lty <- c(1,1,1,3)
-	if (rocadded>0)
-	{
-		boxplot(split.blindSen,add=TRUE, axes = FALSE,boxwex=0.04,at=specificities);
-		sumSen <- colMeans(split.blindSen,na.rm = TRUE);
-		sennames <- names(sumSen);
-		sumSen <- append(0,sumSen);
-		sumSen <- append(sumSen,1);
-		sennames <- append("1",sennames);
-		sennames <- append(sennames,"0");
-		names(sumSen) <- sennames;
-		spevalues <- as.numeric(names(sumSen));
-		lines(spevalues,sumSen,col="red",lwd=2.0);
-		auc = 0;
-		for (i in 2:length(spevalues))
+		aucCVBlind <- pROC::roc(as.vector(Full.totSamples[,1]),Full.totSamples[,2],col="blue",auc=TRUE,plot=TRUE,ci=FALSE,smooth=FALSE)$auc
+		aucBoot=0;
+		aucTrain=0;
+		if (!is.null(FullBootCross$testPrediction))
 		{
-			auc = auc + (spevalues[i-1]-spevalues[i])*(sumSen[i-1]+(sumSen[i]-sumSen[i-1])/2)
+			par(new=TRUE)
+			aucTrain <- pROC::roc( as.vector(FullBootCross$outcome), FullBootCross$boot.model$linear.predictors,col="green",plot=TRUE,auc=TRUE,smooth=FALSE)$auc;        
+			par(new=TRUE)
+			aucBoot <- pROC::roc( as.vector(FullBootCross$testOutcome), FullBootCross$testPrediction,col="black",auc=TRUE,plot=TRUE,smooth=FALSE)$auc;
 		}
-		ley.names <- append(ley.names,paste("CV Blind: Mean ROC of Models (",sprintf("%.3f",auc),")"));
-		ley.colors <- append(ley.colors,"red");
-		ley.lty  <- append(ley.lty,1);
+		ley.names <- c(paste("Bootstrapped: Train Model ROC (",sprintf("%.3f",aucTrain),")"),paste("Bootstrapped: Blind ROC (",sprintf("%.3f",aucBoot),")"),
+		paste("CV: Blind ROC (",sprintf("%.3f",aucCVBlind),")"),paste("CV: Blind Fold Models Coherence (",sprintf("%.3f",aucBlindTest),")"))
+		ley.colors <- c("green","black","blue","red")
+		ley.lty <- c(1,1,1,3)
+		if (rocadded>0)
+		{
+			boxplot(split.blindSen,add=TRUE, axes = FALSE,boxwex=0.04,at=specificities);
+			sumSen <- colMeans(split.blindSen,na.rm = TRUE);
+			sennames <- names(sumSen);
+			sumSen <- append(0,sumSen);
+			sumSen <- append(sumSen,1);
+			sennames <- append("1",sennames);
+			sennames <- append(sennames,"0");
+			names(sumSen) <- sennames;
+			spevalues <- as.numeric(names(sumSen));
+			lines(spevalues,sumSen,col="red",lwd=2.0);
+			auc = 0;
+			for (i in 2:length(spevalues))
+			{
+				auc = auc + (spevalues[i-1]-spevalues[i])*(sumSen[i-1]+(sumSen[i]-sumSen[i-1])/2)
+			}
+			ley.names <- append(ley.names,paste("CV Blind: Mean ROC of Models (",sprintf("%.3f",auc),")"));
+			ley.colors <- append(ley.colors,"red");
+			ley.lty  <- append(ley.lty,1);
+		}
+		else
+		{
+			sumSen = NA;
+		}
+		
+		legend(0.6,0.30, legend=ley.names,col = ley.colors, lty = ley.lty,bty="n")
 	}
-	else
-	{
-		sumSen = NA;
-	}
-	
-	legend(0.6,0.30, legend=ley.names,col = ley.colors, lty = ley.lty,bty="n")
 
 
 	if (!is.null(uniTrainAccuracy))
@@ -752,7 +771,6 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 	AtCVFoldModelBlindAccuracies=FoldBlindAccuracy,
 	AtCVFoldModelBlindSpecificities=FoldBlindSpecificity,
 	AtCVFoldModelBlindSensitivities=FoldBlindSensitivity,
-	Models.CVblindMeanSensitivites=sumSen,
 	forwardSelection = CurModel_Full,
 	updateforwardSelection = UCurModel_Full,
 	BSWiMS = redCurmodel_Full,

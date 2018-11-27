@@ -1,11 +1,11 @@
 heatMaps <- function(variableList=NULL,varRank=NULL,Outcome,data,title="Heat Map",hCluster=FALSE,prediction=NULL,Scale=FALSE,theFiveColors=c("blue","cyan","black","yellow","red"),outcomeColors = c("blue","lightgreen","yellow","orangered","red"),transpose=FALSE,...) 
 {
   
-  opg <- par(no.readonly = TRUE)
+  opg <- par(no.readonly=TRUE)
   
   color.bar <- function(lut, min, max=-min, nticks=3, ticks=seq(min, max, len=nticks),transpose=FALSE, Title='',...) 
   {
-    op <- par(no.readonly = TRUE)
+    op <- par(no.readonly=TRUE)
     par(new=TRUE,cex=0.35,mai=c(0,0,0,0),...)
     plot(c(0,5), c(min,max), type='n', bty='n', xaxt='n', xlab='', yaxt='n', ylab='',main='')
     
@@ -56,6 +56,7 @@ sprintf("%0.1f", ticks)))
     seq(-0.20,0.20,length=25),          # for black
     seq(0.201,1.10,length=50),            # for yellows
     seq(1.101,2.0,length=50))             # for red
+  
   
   if (is.null(variableList))
   {
@@ -184,11 +185,46 @@ sprintf("%0.1f", ticks)))
 	  rowcolors <- colorRampPalette(outcomeColors)(n = nr)[index];
 	  
 	  orderData <- orderData[,-1];
-	  if (Scale) orderData <- scale(orderData);
+	  if (class(Scale) == "logical")
+	  {
+		if (Scale) orderData <- scale(orderData);
+	  }
 	  nclass <- length(table(data[,Outcome]))
 	  nticks <- min(5,nclass);
 
-	  print(nclass)
+#	  print(nclass)
+	  
+	  colorange = FALSE;
+	  if (class(Scale) == "logical")
+	  {
+		colorange = !Scale;
+	  }
+	  if (class(Scale) == "numeric")
+	  {
+		colorange = TRUE;
+	  }
+	  if (colorange)
+	  {
+			if (class(Scale) == "numeric")
+			{
+				kmin <- Scale[1];
+				kmax <- Scale[2];
+			}
+			else
+			{
+				kmin <- min(orderData);
+				kmax <- max(orderData);
+			}
+			brange <- (kmax-kmin)/5;
+			  col_breaks = c(
+				seq(kmin,kmin+0.99*brange,length=45),  		# for blue
+				seq(kmin+brange,kmin+1.99*brange,length=45),          # for cyan
+				seq(kmin+2*brange,kmin+2.99*brange,length=45),          # for black
+				seq(kmin+3*brange,kmin+3.99*brange,length=45),            # for yellows
+				seq(kmin+4*brange,kmax,length=45))             # for red
+			
+		}
+
 	  
 	  if (transpose)
 	  {

@@ -2,7 +2,14 @@ rankInverseNormalDataFrame <-
 function(variableList,data,referenceframe,strata=NA) 
 {
   
-	colnamesList <- as.vector(variableList[,1]);
+	if (class(variableList)=="character")
+	{
+		colnamesList <- variableList;
+	}
+	else
+	{
+		colnamesList <- as.vector(variableList[,1]);
+	}
 	size = length(colnamesList);
 
 	if (!is.na(strata)) 
@@ -15,7 +22,7 @@ function(variableList,data,referenceframe,strata=NA)
 		maxStrata=1;
 		minStrata=1;
 	}
-	cat ("Min Strata:",minStrata,"Max Strata:",maxStrata,"\n");
+#	cat ("Min Strata:",minStrata,"Max Strata:",maxStrata,"\n");
 	created=0;
 	for (sta in minStrata:maxStrata)
 	{
@@ -23,11 +30,11 @@ function(variableList,data,referenceframe,strata=NA)
 		{
 			stracondition = paste (strata,paste('==',sta));
 			strastatement = paste ("subset(referenceframe,",paste(stracondition,")"));
-			cat ("Strata:",stracondition,"\n");
+#			cat ("Strata:",stracondition,"\n");
 			cstrataref <- eval(parse(text=strastatement));
 			strastatement = paste ("subset(data,",paste(stracondition,")"));
 			cstrata <- eval(parse(text=strastatement));
-			cat ("Rows:",nrow(cstrataref),"Rows 2",nrow(cstrata)," \n");
+#			cat ("Rows:",nrow(cstrataref),"Rows 2",nrow(cstrata)," \n");
 		}
 		else
 		{
@@ -49,16 +56,16 @@ function(variableList,data,referenceframe,strata=NA)
 					SortedCtr[,colnamesList[i]]<-SortedCtr[order(cstrataref[,colnamesList[i]]),colnamesList[i]];
 					minvalue <- SortedCtr[1,colnamesList[i]];
 					maxvalue <- SortedCtr[nrowsCtr,colnamesList[i]];
-					cat(" Variable: ",colnamesList[i],"Min: ",minvalue," Max: ",maxvalue)      
+#					cat(" Variable: ",colnamesList[i],"Min: ",minvalue," Max: ",maxvalue)      
 					if (idxs>0)
 					{
 						for (n in idxs:1) SortedCtr[n,colnamesList[i]] <- 0.5*(SortedCtr[n,colnamesList[i]]+SortedCtr[n+1,colnamesList[i]]);
 						for (n in (nrowsCtr-idxs):nrowsCtr) SortedCtr[n,colnamesList[i]] <- 0.5*(SortedCtr[n,colnamesList[i]]+SortedCtr[n-1,colnamesList[i]]);
 						minvalue <- SortedCtr[1,colnamesList[i]];
 						maxvalue <- SortedCtr[nrowsCtr,colnamesList[i]];
-						cat("-> NMin: ",minvalue," NMax: ",maxvalue)      
+#						cat("-> NMin: ",minvalue," NMax: ",maxvalue)      
 					}
-					cat("\n")      
+#					cat("\n")      
 					InverseFrame[,colnamesList[i]]<-.Call("rankInverseNormalCpp",nrows,cstrata[,colnamesList[i]],minvalue,maxvalue,SortedCtr[,colnamesList[i]]);
 				}
 			}

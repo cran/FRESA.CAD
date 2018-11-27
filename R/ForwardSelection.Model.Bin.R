@@ -1,11 +1,15 @@
 ForwardSelection.Model.Bin <-
-function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,variableList,data,maxTrainModelSize=20,type=c("LM","LOGIT","COX"),timeOutcome="Time",selectionType=c("zIDI","zNRI"),cores=4,randsize = 0)
+function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,variableList,data,maxTrainModelSize=20,type=c("LM","LOGIT","COX"),timeOutcome="Time",selectionType=c("zIDI","zNRI"),cores=4,randsize = 0,featureSize=0)
 {
 #	    R_CStackLimit = -1;
 	type <- match.arg(type)
 	seltype <- match.arg(selectionType)
+	if (featureSize==0) featureSize = max(c(ncol(data)-1,featureSize,nrow(variableList)));
 	
-#		cat(covariates," <- Covariates\n");
+#	print(tracemem(data))
+
+
+#	cat(featureSize," <- F Size\n");
 
 
 	Outcome<-as.character(Outcome);
@@ -61,22 +65,21 @@ function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,vari
 	}
 	else
 	{
-		modelFrame <- data;	
+		varz <- unique(c(Outcome,timeOutcome,covariates,vnames[1:size]));
+		varz <- varz[varz %in% colnames(data)];
+		modelFrame <- data[,varz];	
 	}
 
-#		cat(frm,"\n")
 	
 	colNames=colnames(modelFrame);
 	if (randsize >= 0)
 	{
-#			cat("Forward\n")
-		output<-.Call("ReclassificationFRESAModelCpp",size, fraction, pvalue, loops, covariates, Outcome,as.vector(variableList[,1]), maxTrainModelSize, type, timeOutcome, seltype,data.matrix(modelFrame),colNames,cores);
+		output<-.Call("ReclassificationFRESAModelCpp",size, fraction, pvalue, loops, covariates, Outcome,as.vector(variableList[,1]), maxTrainModelSize, type, timeOutcome, seltype,data.matrix(modelFrame),colNames,featureSize,cores);
 	}
 	else
 	{
-#			cat("Random Forward\n")
 		if (timeOutcome != ".") modelFrame[,timeOutcome] <- runif(nrow(modelFrame));
-		output <-.Call("ReclassificationFRESAModelCpp",size, fraction, pvalue, loops, "1", paste("RANDOM",Outcome,sep="") ,as.vector(variableList[,1]), maxTrainModelSize, type, timeOutcome, seltype,data.matrix(modelFrame),colNames,cores);
+		output <-.Call("ReclassificationFRESAModelCpp",size, fraction, pvalue, loops, "1", paste("RANDOM",Outcome,sep="") ,as.vector(variableList[,1]), maxTrainModelSize, type, timeOutcome, seltype,data.matrix(modelFrame),colNames,featureSize,cores);
 	}
 
 	random.fraction <- 1.0
@@ -106,116 +109,45 @@ function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,vari
 		if (randsize==0) randsize = pvalue*nrow(variableList);
 	}
 	
-	zthr = abs(qnorm(pvalue)); 
-	zthrO = abs(qnorm(pvalue*pvalue));
-	zthr2 = zthr;
-	if (fraction<1) 
+	base.Zvalues <- output$Base.values;
+	names(base.Zvalues) <- vnames[1:nrow(base.Zvalues)];
+	
+	mynames <- output$mynames + 1 
+	topvar <- table(mynames);
+	if (length(topvar)>1)
 	{
-		zthr2 = zthr*sqrt(fraction);
-	}
-	if (zthr2<abs(qnorm(0.1))) zthr2 = abs(qnorm(0.1));
-
-
-
-		 baseForm = Outcome;
-#For Cox  models 
-	if (type == "COX")
-	{
-		baseForm = paste("Surv(",timeOutcome,",",Outcome,")");
-	}
-
-	baseForm = paste(baseForm,"~",acovariates);
-
-
-		mynames <- output$mynames + 1 
-		topvar <- table(mynames);
-#		print(mynames)
-		if (length(topvar)>1)
+		topvar <- topvar[order(-topvar)];
+		if (loops > 1)
 		{
-			topvar <- topvar[order(-topvar)];
+#			print(topvar);
+			oF <- orderFeatures(output$formula.list,univariate=variableList);
+			linspace <- as.character(1:nrow(variableList))
+			names(linspace) <- rownames(variableList);
+			linspace <- linspace[names(oF$VarFrequencyTable)];
+			topvar <- topvar[linspace];
+#			print(topvar);
 		}
-		topvarID <- as.numeric(rownames(topvar));
-
-
-		
-		frm1 <- baseForm;
-		frm1 <- paste(frm1,"+");
-		frm1 <- paste(frm1,vnames[topvarID[1]]);
-		ftmp <- formula(frm1);
-#		cat(frm1," <- Start Formula \n")
-		bestmodel <- modelFitting(ftmp,data,type,TRUE)
-		
-		if ( !inherits(bestmodel, "try-error"))
-		{
-			bestpredict <- predict.fitFRESA(bestmodel,data,'prob');
-
-			vnames_model <- vector();
-			model_zmin <- vector();
-			varlist <- vector();
-			inserted = 1;
-			
-			vnames_model <- append(vnames_model,vnames[topvarID[1]]);
-			varlist <- append(varlist,topvarID[1]);
-			model_zmin <- append(model_zmin,NA);
-			
-			if (length(topvar)>1)
-			{
-				for ( i in 2:length(topvar))
-				{
-					if ((topvar[i] > 0) && (inserted < maxTrainModelSize))
-					{
-						kinserted = 0
-						kins = 0 
-						frma <- paste(frm1,"+");
-						frma <- paste(frma,vnames[topvarID[i]]);
-#							cat(frma,":",topvarID[i],"\n");
-						ftmp <- formula(frma);
-						newmodel <- modelFitting(ftmp,data,type,TRUE)
-						if ( !inherits(newmodel, "try-error"))
-						{
-							iprob <- .Call("improveProbCpp",bestpredict,predict.fitFRESA(newmodel,data,'prob'),data[,Outcome]);
-							if (seltype=="zIDI") 
-							{
-								zmin = iprob$z.idi;
-							}
-							else
-							{
-								zmin = iprob$z.nri;
-							}
-							if (is.numeric(zmin) && !is.na(zmin))
-							{ 
-								if (zmin>zthr)
-								{
-									bestpredict <- predict.fitFRESA(newmodel,data,'prob');
-									frm1 <- frma;
-									vnames_model <- append(vnames_model,vnames[topvarID[i]]);
-									model_zmin <- append(model_zmin,zmin);
-									varlist <- append(varlist,topvarID[i]);
-									inserted = inserted + 1;
-									kins = 1;
-								}
-							}									
-						}
-					}
-				}
-			}
-		}
-		ftmp <- formula(frm1);
-		bestmodel <- modelFitting(ftmp,data,type,TRUE)
+	}
 
 	
-	base.Zvalues <- output$Base.values;
-	rownames(base.Zvalues) <- vnames[1:nrow(base.Zvalues)];
+	update.model <- updateModel.Bin(Outcome=Outcome,covariates=covariates,pvalue=c(pvalue,pvalue),VarFrequencyTable=topvar,variableList=variableList,data=data,type=type,lastTopVariable= 0,timeOutcome=timeOutcome,selectionType=selectionType,zthrs=output$Zthr)
+		
+	
+
+	ftmp <- formula(update.model$formula);
+	bestmodel <- update.model$final.model;
+
 	result <- list(final.model=bestmodel,
-	var.names=vnames_model,
+	var.names=update.model$var.names,
 	formula=ftmp,
 	ranked.var=topvar,
-	z.selectionType=model_zmin,
 	formula.list=output$formula.list,
 	random.formula.size=randsize,
 	random.fraction = random.fraction,
 	variableList=variableList,
-	base.Zvalues=base.Zvalues
+	base.Zvalues=base.Zvalues,
+	theZthr=output$Zthr,
+	update.model = update.model
 	);
 #		cat ("Final :",frm1,"\n")
 	return (result);

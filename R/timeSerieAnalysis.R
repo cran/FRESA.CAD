@@ -81,6 +81,10 @@ if (!requireNamespace("nlme", quietly = TRUE)) {
 
 	mval <- tapply(data[,vnames[j]], data[,timevar], mean,na.rm=TRUE)
 	sdval <- tapply(data[,vnames[j]], data[,timevar], sd,na.rm=TRUE)
+
+    mval[is.na(mval)] <- 0.0;
+    sdval[is.na(sdval)] <- 0.01;
+
 	size <- tapply(data[,vnames[j]], data[,timevar], length)
 	delta <- sdval / sqrt( size)
 	miny = min(mval-1.5*sdval);
@@ -97,220 +101,228 @@ if (!requireNamespace("nlme", quietly = TRUE)) {
 		mvalo <- tapply(timeorderControl[,vnames[j]], timeorderControl[,timevar], mean,na.rm=TRUE)
 		sdvalo <- tapply(timeorderControl[,vnames[j]], timeorderControl[,timevar], sd,na.rm=TRUE)
 
-
+        mvalc[is.na(mvalc)] <- 0.0;
+        sdvalc[is.na(sdvalc)] <- 0.01;
+        mvalo[is.na(mvalo)] <- 0.0;
+        sdvalo[is.na(sdvalo)] <- 0.01;
 
 		miny = min(c(mvalc-1.5*sdvalc,mvalo-1.5*sdvalo));
 		maxy = max(c(mvalc+1.5*sdvalc,mvalo+1.5*sdvalo));
+
+
 	}
+	
+	if (miny<maxy)
+	{
 
-		maxtime = max(t);
-		mintime = min(t);
-		deltatime = maxtime-mintime;
-			
-		
-		if (Outcome != ".")
-		{
-
-		  
-      
-			if (timesign=="-")
+			maxtime = max(t);
+			mintime = min(t);
+			deltatime = maxtime-mintime;
+				
+			if (Outcome != ".")
 			{
-				mval <- tapply(timeorderCases[,vnames[j]], timeorderCases[,timevar], mean,na.rm=TRUE)
-				sdval <- tapply(timeorderCases[,vnames[j]], timeorderCases[,timevar], sd,na.rm=TRUE)
-				size <- tapply(timeorderCases[,vnames[j]], timeorderCases[,timevar], length)
-				delta <- sdval / sqrt( size)
-				errbar(-tCase,mval,mval-delta,mval+delta,col="red",ylab=vnames[j],xlab="time",type="b",ylim=c(miny,maxy))
-				lines(lowess(-timeorderCases[,contime],predCases,f = farctionlowess),col="red",lty=3)
-       
-				mval <- tapply(timeorderControl[,vnames[j]], timeorderControl[,timevar], mean,na.rm=TRUE)
-				sdval <- tapply(timeorderControl[,vnames[j]], timeorderControl[,timevar], sd,na.rm=TRUE)
-				size <- tapply(timeorderControl[,vnames[j]], timeorderControl[,timevar], length)
-				delta <- sdval / sqrt( size)
-				errbar(-tControl,mval,mval-delta,mval+delta,add=TRUE,col="blue",type="b")
-      
-				lines(lowess(-timeorderControl[,contime],predControl,f = farctionlowess),col="blue",lty=2)
-				legend(-maxtime+0.1*deltatime,miny + 0.2*(maxy-miny), catgo.names, col=c("blue","red"), lty = 2:3,bty="n")
-			
-				if (!is.null(reg))
+
+			  
+		  
+				if (timesign=="-")
 				{
-					for (lg in 1:length(Ptoshow))
+					mval <- tapply(timeorderCases[,vnames[j]], timeorderCases[,timevar], mean,na.rm=TRUE)
+					sdval <- tapply(timeorderCases[,vnames[j]], timeorderCases[,timevar], sd,na.rm=TRUE)
+					size <- tapply(timeorderCases[,vnames[j]], timeorderCases[,timevar], length)
+					delta <- sdval / sqrt( size)
+					errbar(-tCase,mval,mval-delta,mval+delta,col="red",ylab=vnames[j],xlab="time",type="b",ylim=c(miny,maxy))
+					lines(lowess(-timeorderCases[,contime],predCases,f = farctionlowess),col="red",lty=3)
+		   
+					mval <- tapply(timeorderControl[,vnames[j]], timeorderControl[,timevar], mean,na.rm=TRUE)
+					sdval <- tapply(timeorderControl[,vnames[j]], timeorderControl[,timevar], sd,na.rm=TRUE)
+					size <- tapply(timeorderControl[,vnames[j]], timeorderControl[,timevar], length)
+					delta <- sdval / sqrt( size)
+					errbar(-tControl,mval,mval-delta,mval+delta,add=TRUE,col="blue",type="b")
+		  
+					lines(lowess(-timeorderControl[,contime],predControl,f = farctionlowess),col="blue",lty=2)
+					legend(-maxtime+0.1*deltatime,miny + 0.2*(maxy-miny), catgo.names, col=c("blue","red"), lty = 2:3,bty="n")
+				
+					if (!is.null(reg))
 					{
-						legend(-maxtime+0.65*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),sprintf("t(%s) = %5.3f",plegend[lg],reg$tTable[Ptoshow[lg],3]),bty="n");
-						if (reg$tTable[Ptoshow[lg],4]<0.0001)
+						for (lg in 1:length(Ptoshow))
 						{
-							legend(-maxtime+0.9*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"****",bty="n");
-						}
-						else
-						{
-							if (reg$tTable[Ptoshow[lg],4]<0.001)
+							legend(-maxtime+0.65*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),sprintf("t(%s) = %5.3f",plegend[lg],reg$tTable[Ptoshow[lg],3]),bty="n");
+							if (reg$tTable[Ptoshow[lg],4]<0.0001)
 							{
-								legend(-maxtime+0.9*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"***",bty="n");
+								legend(-maxtime+0.9*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"****",bty="n");
 							}
 							else
 							{
-								if (reg$tTable[Ptoshow[lg],4]<0.01)
+								if (reg$tTable[Ptoshow[lg],4]<0.001)
 								{
-									legend(-maxtime+0.9*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"**",bty="n");
+									legend(-maxtime+0.9*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"***",bty="n");
 								}
 								else
 								{
-									if (reg$tTable[Ptoshow[lg],4]<0.05)
+									if (reg$tTable[Ptoshow[lg],4]<0.01)
 									{
-										legend(-maxtime+0.9*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"*",bty="n");
+										legend(-maxtime+0.9*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"**",bty="n");
+									}
+									else
+									{
+										if (reg$tTable[Ptoshow[lg],4]<0.05)
+										{
+											legend(-maxtime+0.9*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"*",bty="n");
+										}
 									}
 								}
 							}
 						}
 					}
 				}
+				else
+				{
+					mval <- tapply(timeorderCases[,vnames[j]], timeorderCases[,timevar], mean,na.rm=TRUE)
+					sdval <- tapply(timeorderCases[,vnames[j]], timeorderCases[,timevar], sd,na.rm=TRUE)
+					size <- tapply(timeorderCases[,vnames[j]], timeorderCases[,timevar], length)
+					delta <- sdval / sqrt( size)
+
+					errbar(tCase,mval,mval-delta,mval+delta,col="red",ylab=vnames[j],xlab="time",type="b",ylim=c(miny,maxy))
+					lines(lowess(timeorderCases[,contime],predCases,f = farctionlowess),col="red",lty=3)
+
+					mval <- tapply(timeorderControl[,vnames[j]], timeorderControl[,timevar], mean,na.rm=TRUE)
+					sdval <- tapply(timeorderControl[,vnames[j]], timeorderControl[,timevar], sd,na.rm=TRUE)
+					size <- tapply(timeorderControl[,vnames[j]], timeorderControl[,timevar], length)
+					delta <- sdval / sqrt( size)
+
+					errbar(tControl,mval,mval-delta,mval+delta,add=TRUE,col="blue",type="b")
+		  
+					lines(lowess(timeorderControl[,contime],predControl,f = farctionlowess),col="blue",lty=2)
+					legend(maxtime-0.9*deltatime,miny + 0.2*(maxy-miny), catgo.names, col=c("blue","red"), lty = 2:3,bty="n")
+			
+					if (!is.null(reg))
+					{
+						for (lg in 1:length(Ptoshow))
+						{
+							legend(maxtime-0.45*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),sprintf("t(%s) = %5.3f",plegend[lg],reg$tTable[Ptoshow[lg],3]),bty="n");
+							if (reg$tTable[Ptoshow[lg],4]<0.0001)
+							{
+								legend(maxtime-0.1*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"****",bty="n");
+							}
+							else
+							{
+								if (reg$tTable[Ptoshow[lg],4]<0.001)
+								{
+									legend(maxtime-0.1*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"***",bty="n");
+								}
+								else
+								{
+									if (reg$tTable[Ptoshow[lg],4]<0.01)
+									{
+										legend(maxtime-0.1*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"**",bty="n");
+									}
+									else
+									{
+										if (reg$tTable[Ptoshow[lg],4]<0.05)
+										{
+											legend(maxtime-0.1*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"*",bty="n");
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+				
+		  
 			}
 			else
 			{
-				mval <- tapply(timeorderCases[,vnames[j]], timeorderCases[,timevar], mean,na.rm=TRUE)
-				sdval <- tapply(timeorderCases[,vnames[j]], timeorderCases[,timevar], sd,na.rm=TRUE)
-				size <- tapply(timeorderCases[,vnames[j]], timeorderCases[,timevar], length)
-				delta <- sdval / sqrt( size)
-
-				errbar(tCase,mval,mval-delta,mval+delta,col="red",ylab=vnames[j],xlab="time",type="b",ylim=c(miny,maxy))
-				lines(lowess(timeorderCases[,contime],predCases,f = farctionlowess),col="red",lty=3)
-
-				mval <- tapply(timeorderControl[,vnames[j]], timeorderControl[,timevar], mean,na.rm=TRUE)
-				sdval <- tapply(timeorderControl[,vnames[j]], timeorderControl[,timevar], sd,na.rm=TRUE)
-				size <- tapply(timeorderControl[,vnames[j]], timeorderControl[,timevar], length)
-				delta <- sdval / sqrt( size)
-
-				errbar(tControl,mval,mval-delta,mval+delta,add=TRUE,col="blue",type="b")
-      
-				lines(lowess(timeorderControl[,contime],predControl,f = farctionlowess),col="blue",lty=2)
-				legend(maxtime-0.9*deltatime,miny + 0.2*(maxy-miny), catgo.names, col=c("blue","red"), lty = 2:3,bty="n")
-		
-				if (!is.null(reg))
+				if (timesign=="-")
+				{			
+				  errbar(-t,mval,mval-delta,mval+delta,ylab=vnames[j],xlab="time",type="b",ylim=c(miny,maxy))
+				  lines(lowess(-timeorder[,contime],predict(obj_s,timeorder,na.action=na.exclude),f = farctionlowess),col="blue",lty=2)      
+				  for (lg in 1:length(Ptoshow))
+					{
+						legend(-maxtime+0.65*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),sprintf("t(%s) = %5.3f",plegend[lg],reg$tTable[Ptoshow[lg],3]),bty="n");
+							if (reg$tTable[Ptoshow[lg],4]<0.0001)
+							{
+								legend(-maxtime+0.9*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"****",bty="n");
+							}
+							else
+							{
+								if (reg$tTable[Ptoshow[lg],4]<0.001)
+								{
+									legend(-maxtime+0.9*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"***",bty="n");
+								}
+								else
+								{
+									if (reg$tTable[Ptoshow[lg],4]<0.01)
+									{
+										legend(-maxtime+0.9*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"**",bty="n");
+									}
+									else
+									{
+										if (reg$tTable[Ptoshow[lg],4]<0.05)
+										{
+											legend(-maxtime+0.9*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"*",bty="n");
+										}
+									}
+								}
+							}
+					}
+				}
+				else
 				{
+					errbar(t,mval,mval-delta,mval+delta,ylab=vnames[j],xlab="time",type="b",ylim=c(miny,maxy))
+					lines(lowess(timeorder[,contime],predict(obj_s,timeorder,na.action=na.exclude),f = farctionlowess),col="blue",lty=2)      
 					for (lg in 1:length(Ptoshow))
 					{
 						legend(maxtime-0.45*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),sprintf("t(%s) = %5.3f",plegend[lg],reg$tTable[Ptoshow[lg],3]),bty="n");
-						if (reg$tTable[Ptoshow[lg],4]<0.0001)
-						{
-							legend(maxtime-0.1*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"****",bty="n");
-						}
-						else
-						{
-							if (reg$tTable[Ptoshow[lg],4]<0.001)
+							if (reg$tTable[Ptoshow[lg],4]<0.0001)
 							{
-								legend(maxtime-0.1*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"***",bty="n");
+								legend(maxtime-0.1*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"****",bty="n");
 							}
 							else
 							{
-								if (reg$tTable[Ptoshow[lg],4]<0.01)
+								if (reg$tTable[Ptoshow[lg],4]<0.001)
 								{
-									legend(maxtime-0.1*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"**",bty="n");
+									legend(maxtime-0.1*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"***",bty="n");
 								}
 								else
 								{
-									if (reg$tTable[Ptoshow[lg],4]<0.05)
+									if (reg$tTable[Ptoshow[lg],4]<0.01)
 									{
-										legend(maxtime-0.1*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"*",bty="n");
+										legend(maxtime-0.1*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"**",bty="n");
+									}
+									else
+									{
+										if (reg$tTable[Ptoshow[lg],4]<0.05)
+										{
+											legend(maxtime-0.1*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"*",bty="n");
+										}
 									}
 								}
 							}
-						}
 					}
 				}
 			}
 			
-      
-		}
-		else
-		{
-			if (timesign=="-")
-			{			
-			  errbar(-t,mval,mval-delta,mval+delta,ylab=vnames[j],xlab="time",type="b",ylim=c(miny,maxy))
-			  lines(lowess(-timeorder[,contime],predict(obj_s,timeorder,na.action=na.exclude),f = farctionlowess),col="blue",lty=2)      
-			  for (lg in 1:length(Ptoshow))
+			title(main=plottitles[j])
+			if (!is.null(reg))
+			{
+				if (j>1) 
 				{
-					legend(-maxtime+0.65*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),sprintf("t(%s) = %5.3f",plegend[lg],reg$tTable[Ptoshow[lg],3]),bty="n");
-						if (reg$tTable[Ptoshow[lg],4]<0.0001)
-						{
-							legend(-maxtime+0.9*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"****",bty="n");
-						}
-						else
-						{
-							if (reg$tTable[Ptoshow[lg],4]<0.001)
-							{
-								legend(-maxtime+0.9*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"***",bty="n");
-							}
-							else
-							{
-								if (reg$tTable[Ptoshow[lg],4]<0.01)
-								{
-									legend(-maxtime+0.9*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"**",bty="n");
-								}
-								else
-								{
-									if (reg$tTable[Ptoshow[lg],4]<0.05)
-									{
-										legend(-maxtime+0.9*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"*",bty="n");
-									}
-								}
-							}
-						}
+					coeff <- rbind (coeff,as.vector(reg$tTable[,1]));
+					std.Error <- rbind (std.Error,as.vector(reg$tTable[,2]));
+					t.value <- rbind (t.value,as.vector(reg$tTable[,3]));
+					p.value <- rbind (p.value,as.vector(reg$tTable[,4]));
 				}
-			}
-			else
-			{
-				errbar(t,mval,mval-delta,mval+delta,ylab=vnames[j],xlab="time",type="b",ylim=c(miny,maxy))
-				lines(lowess(timeorder[,contime],predict(obj_s,timeorder,na.action=na.exclude),f = farctionlowess),col="blue",lty=2)      
-				for (lg in 1:length(Ptoshow))
+				else
 				{
-					legend(maxtime-0.45*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),sprintf("t(%s) = %5.3f",plegend[lg],reg$tTable[Ptoshow[lg],3]),bty="n");
-						if (reg$tTable[Ptoshow[lg],4]<0.0001)
-						{
-							legend(maxtime-0.1*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"****",bty="n");
-						}
-						else
-						{
-							if (reg$tTable[Ptoshow[lg],4]<0.001)
-							{
-								legend(maxtime-0.1*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"***",bty="n");
-							}
-							else
-							{
-								if (reg$tTable[Ptoshow[lg],4]<0.01)
-								{
-									legend(maxtime-0.1*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"**",bty="n");
-								}
-								else
-								{
-									if (reg$tTable[Ptoshow[lg],4]<0.05)
-									{
-										legend(maxtime-0.1*deltatime,miny + (0.35-0.07*lg)*(maxy-miny),"*",bty="n");
-									}
-								}
-							}
-						}
+					coeff <- rbind (as.vector(reg$tTable[,1]));
+					std.Error <- rbind (as.vector(reg$tTable[,2]));
+					t.value <- rbind (as.vector(reg$tTable[,3]));
+					p.value <- rbind (as.vector(reg$tTable[,4]));
 				}
+				sigma <- append(sigma,reg$sigma);
+				anames <- append(anames,vnames[j]);
 			}
-		}
-		
-		title(main=plottitles[j])
-		if (!is.null(reg))
-		{
-			if (j>1) 
-			{
-				coeff <- rbind (coeff,as.vector(reg$tTable[,1]));
-				std.Error <- rbind (std.Error,as.vector(reg$tTable[,2]));
-				t.value <- rbind (t.value,as.vector(reg$tTable[,3]));
-				p.value <- rbind (p.value,as.vector(reg$tTable[,4]));
-			}
-			else
-			{
-				coeff <- rbind (as.vector(reg$tTable[,1]));
-				std.Error <- rbind (as.vector(reg$tTable[,2]));
-				t.value <- rbind (as.vector(reg$tTable[,3]));
-				p.value <- rbind (as.vector(reg$tTable[,4]));
-			}
-			sigma <- append(sigma,reg$sigma);
-			anames <- append(anames,vnames[j]);
 		}
 		
 	}
@@ -337,4 +349,19 @@ if (!requireNamespace("nlme", quietly = TRUE)) {
 	sigmas=sigma,
 	lastfit=obj_s);
 	return (result);
+}
+
+trajectoriesPolyFeatures <- function(data,feature="v1", degree=2, time="t", group="ID")
+{
+  aids <- data[,group]
+  ids <- unique(aids)
+  coefs <- as.data.frame(matrix(0,nrow = length(ids),ncol = degree + 1));
+  rownames(coefs) <- ids;
+  for (i in 1:length(ids))
+  {
+    whoid <- ids[i] == aids;
+    fd <- as.data.frame(cbind(xs = data[whoid,feature],t = data[whoid,time]));
+    coefs[i,] <- lm(paste("xs ~ poly(t, degree=",degree,", raw=TRUE)"),data = fd,na.action = na.omit)$coefficients;
+  }
+  return(coefs)
 }

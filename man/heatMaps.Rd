@@ -77,7 +77,7 @@
 		# Set the options to keep the na
 		options(na.action='na.pass')
 		# create a model matrix with all the NA values imputed
-		stagecImputed <- as.data.frame(nearestneighborimpute(model.matrix(~.,stagec)[,-1]))
+		stagecImputed <- as.data.frame(nearestNeighborImpute(model.matrix(~.,stagec)[,-1]))
 
 		# the simple heat map
 		hm <- heatMaps(Outcome="pgstat",data=stagecImputed,title="Heat Map",Scale=TRUE) 

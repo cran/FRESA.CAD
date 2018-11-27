@@ -11,8 +11,8 @@
 	                   data,
 	                   startOffset = 0,
 	                   type = c("LOGIT", "LM", "COX"),
-	                   selectionType = c("zIDI", "zNRI"),
-					   adjsize= 1)
+	                   selectionType = c("zIDI", "zNRI")
+					   )
 }
 \arguments{
 	\item{object}{ 
@@ -35,9 +35,6 @@
 	}
 	\item{selectionType}{
 		The type of index to be evaluated by the \code{improveProb} function (\code{Hmisc} package): \emph{z}-score of IDI or of NRI
-	}
-	\item{adjsize}{
-		The expected size of a random model for multiple selection correction
 	}
 }
 \details{

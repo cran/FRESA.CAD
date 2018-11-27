@@ -70,6 +70,9 @@
 	\item{avgZvalues}{
 	   The average Z value of each coefficient
 	}	
+	\item{featureLocation}{
+	   The average location of the feature in the formulas
+	}	
 }
 \author{Jose G. Tamez-Pena}
 \seealso{\code{\link{ensemblePredict}}}

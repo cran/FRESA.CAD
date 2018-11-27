@@ -1,5 +1,5 @@
 ForwardSelection.Model.Res <-
-function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,variableList,data,maxTrainModelSize=20,type=c("LM","LOGIT","COX"),testType=c("Binomial","Wilcox","tStudent","Ftest"),timeOutcome="Time",cores = 4,randsize = 0)
+function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,variableList,data,maxTrainModelSize=20,type=c("LM","LOGIT","COX"),testType=c("Binomial","Wilcox","tStudent","Ftest"),timeOutcome="Time",cores = 4,randsize = 0,featureSize = 0)
 {
 #	R_CStackLimit = -1;
 
@@ -8,6 +8,9 @@ function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,vari
 		stop("Size: Number of variables to be explored is not defined\n")
 	}
 
+#	cat(featureSize," <- Feat1 Size\n");
+	if (featureSize==0) featureSize = max(c(ncol(data)-1,featureSize,nrow(variableList)));
+#	cat(featureSize," <- Feat2 Size\n");
 
 	type <- match.arg(type)
 	testType <- match.arg(testType)
@@ -56,18 +59,21 @@ function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,vari
 	}
 	else
 	{
-		modelFrame <- data;
+#		modelFrame <- data;
+		varz <- unique(c(covariates,Outcome,timeOutcome,vnames[1:size]));
+		varz <- varz[varz %in% colnames(data)];
+		modelFrame <- data[,varz];	
 	}
 
 	colNames=colnames(modelFrame);
 	if (randsize >= 0)
 	{
-		output<-.Call("ForwardResidualModelCpp",size, fraction, pvalue, loops, covariates, Outcome,vnames, maxTrainModelSize, type, timeOutcome, testType,data.matrix(modelFrame),colNames,cores);
+		output<-.Call("ForwardResidualModelCpp",size, fraction, pvalue, loops, covariates, Outcome,vnames, maxTrainModelSize, type, timeOutcome, testType,data.matrix(modelFrame),colNames,featureSize,cores);
 	}
 	else
 	{
 		if (timeOutcome!=".") modelFrame[,timeOutcome] <- runif(nrow(modelFrame));
-		output<-.Call("ForwardResidualModelCpp",size, fraction, pvalue, loops, "1", paste("RANDOM",Outcome,sep=""),vnames, maxTrainModelSize, type, timeOutcome, testType,data.matrix(modelFrame),colNames,cores);
+		output<-.Call("ForwardResidualModelCpp",size, fraction, pvalue, loops, "1", paste("RANDOM",Outcome,sep=""),vnames, maxTrainModelSize, type, timeOutcome, testType,data.matrix(modelFrame),colNames,featureSize,cores);
 	}
 
 	random.fraction <- 1.0
@@ -99,98 +105,50 @@ function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,vari
 
 	mynames <- output$mynames + 1;
 	formula.list <- output$formula.list
+	
+#	print(formula.list);
 
-	pthr = pvalue;
-	pthrO = pvalue*pvalue;
-	baseForm = Outcome;
-#For Cox  models 
-	if (type == "COX")
+	topvar <- table(mynames);
+		
+	if (length(topvar)>1)
 	{
-	  baseForm = paste("Surv(",timeOutcome,",",Outcome,")");
+		topvar <- topvar[order(-topvar)];
+		if (loops > 1)
+		{
+			oF <- orderFeatures(output$formula.list,univariate=variableList);
+#			print(oF$VarFrequencyTable);
+			linspace <- as.character(1:nrow(variableList))
+			names(linspace) <- rownames(variableList);
+			linspace <- linspace[names(oF$VarFrequencyTable)];
+			topvar <- topvar[linspace];
+		}
 	}
-
-	baseForm = paste(baseForm,"~",acovariates);
-
 	
 
-		pthr2 = 1-pnorm(sqrt(fraction)*abs(qnorm(pthr)));
-		if (pthr2>0.1) pthr2 = 0.1;
+	update.model <- updateModel.Res(Outcome=Outcome,covariates=covariates,pvalue=c(pvalue,pvalue),VarFrequencyTable=topvar,variableList=variableList,data=data,type=type,testType=testType,timeOutcome=timeOutcome,p.thresholds=output$p.thresholds)
 
 
-		topvar <- table(mynames);
-		
-		frm1 <- baseForm;
-		vnames_model <- vector();
-		model_ziri <- vector();
-		if (length(topvar)>1)
-		{
-			topvar <- topvar[order(-topvar)];
-			topvarID <- as.numeric(rownames(topvar));
+	ftmp <- update.model$formula;
+	bestmodel <- update.model$final.model;
+#	print(output$Base.values);
 
-			frm1 <- paste(frm1,"+");
-			frm1 <- paste(frm1,vnames[topvarID[1]]);
-			
-			ftmp <- formula(frm1);
-			bestmodel <- modelFitting(ftmp,data,type,TRUE)
-#			cat(frm1,"b \n")
-
-			bestResiduals <- residualForFRESA(bestmodel,data,Outcome);
-
-			vnames_model <- append(vnames_model,vnames[topvarID[1]]);
-			model_ziri <- append(model_ziri,1);
-			varlist <- vector();
-			varlist <- append(varlist,topvarID[1]);
-			inserted = 1
-			for ( i in 2:length(topvar))
-			{
-				if(topvar[i] > 0)
-				{
-					frma <- paste(frm1,"+");
-					frma <- paste(frma,vnames[topvarID[i]]);
-	#				cat(frma," b \n");
-
-					
-					ftmp <- formula(frma);
-					newmodel <- modelFitting(ftmp,data,type,TRUE)
-					kins = 0
-					if ( !inherits(newmodel, "try-error"))
-					{
-						iprob <- .Call("improvedResidualsCpp",bestResiduals,residualForFRESA(newmodel,data,Outcome),testType,0);
-						piri <- iprob$p.value;
-						if (piri<pthr)
-						{
-							bestResiduals <- residualForFRESA(newmodel,data,Outcome);
-							frm1 <- paste(frm1,"+");
-							frm1 <- paste(frm1,vnames[topvarID[i]]);
-							varlist <- append(varlist,topvarID[i]);
-							vnames_model <- append(vnames_model,vnames[topvarID[i]]);
-							model_ziri <- append(model_ziri,abs(qnorm(piri)));
-							inserted = inserted + 1;
-							kins = 1
-						}	
-					}
-				}
-			}
-		}
-
-
-		ftmp <- formula(frm1);
-		bestmodel <- modelFitting(ftmp,data,type,TRUE);
-
-	#	cat(frm1," Final \n");
 	base.Zvalues <- -1.0*qnorm(as.vector(output$Base.values));
+	
+#	print(base.Zvalues);
+	
 	names(base.Zvalues) <- vnames[1:size];
 
 	result <- list(final.model=bestmodel,
-	var.names=vnames_model,
+	var.names=update.model$var.names,
 	formula=ftmp,
 	ranked.var=topvar,
-	z.NeRIs=model_ziri,
 	formula.list=formula.list,
 	random.formula.size=randsize,
 	random.fraction = random.fraction,
 	variableList=variableList,
-	base.Zvalues=base.Zvalues
+	base.Zvalues=base.Zvalues,
+	p.thresholds=output$p.thresholds,
+	update.model=update.model
 	);
 	
 	return (result);

@@ -33,10 +33,10 @@
 		A vector with the predicted outcome for the \code{testData} data set
 	}
 	\item{prob}{
-		The proportion of \emph{k} neighbours that predicted the class to be the one being reported in \code{prediction}
+		The proportion of \emph{k} neighbors that predicted the class to be the one being reported in \code{prediction}
 	}
 	\item{binProb}{
-		The proportion of \emph{k} neighbours that predicted the class of the outcome to be equal to 1
+		The proportion of \emph{k} neighbors that predicted the class of the outcome to be equal to 1
 	}
 	\item{featureList}{
 		A vector with the names of the features used by the KNN procedure

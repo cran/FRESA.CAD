@@ -128,6 +128,7 @@ function(fraction=1.00,loops=200,model.formula,Outcome,data,type=c("LM","LOGIT",
 			par(mfrow=c(1,1))
 			
 		}
+#		cat("End :",loops,"\n");
 
 		result <- structure(llist( data = data,
 			outcome=data[,Outcome],

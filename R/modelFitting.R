@@ -9,10 +9,50 @@ function (model.formula,data,type = c("LOGIT", "LM","COX","SVM"),fitFRESA=TRUE,.
 		   install.packages("e1071", dependencies = TRUE)
 		} 
 	}
-	
+
+	cl <- match.call();
+
+	fittedModel <- NULL;
+	fittedModel$formula <- model.formula;
+	fittedModel$coefficients <- numeric();
+	fittedModel$estimations <- numeric();
+	fittedModel$modelFrame <- NULL;
+	fittedModel$terms <- character();
+	fittedModel$call <- cl;
+
+	class(fittedModel) <- c("fitFRESA","try-error");
+
 	if (class(model.formula) == "character")
 	{
-		model.formula <- formula(model.formula);
+#		print(model.formula)
+		if (nchar(model.formula)>1)
+		{
+			if (gregexpr(pattern ='~',model.formula)[1] > 0)
+			{
+				model.formula <- formula(model.formula);
+			}
+			else
+			{
+				cat(paste(as.character(cl),":",model.formula," No Valid Formula\n"));
+				warning (paste(model.formula," No Valid Formula"));
+				return (fittedModel);
+			}
+		}
+		else
+		{
+			cat(paste(as.character(cl)," No Formula\n"));
+			warning ("No Formula");
+			return (fittedModel);
+		}
+	}
+	else
+	{
+		if (class(model.formula) != "formula")
+		{
+			cat(paste(as.character(cl)," No Formula \n"));
+			warning ("No Formula");
+			return (fittedModel);
+		}
 	}
 
 	if (!fitFRESA)
@@ -74,7 +114,14 @@ function (model.formula,data,type = c("LOGIT", "LM","COX","SVM"),fitFRESA=TRUE,.
 		fittedModel <- NULL;
 		fittedModel$type <- type;		
 		fittedModel$formula <- model.formula;
-		varsmod <- all.vars(model.formula);
+		svarsmod <- all.vars(model.formula);
+		varsmod <- svarsmod[svarsmod %in% colnames(data)];
+		if (length(varsmod) < length(svarsmod))
+		{
+			print(varsmod);
+			print(svarsmod);
+			stop(paste("Error:",as.character(cl),"\n"))
+		}
 		if (length(varsmod)>1)
 		{
 			modelFrame <- data[,varsmod];
@@ -89,7 +136,7 @@ function (model.formula,data,type = c("LOGIT", "LM","COX","SVM"),fitFRESA=TRUE,.
 				maxterms <- ncol(modelMat)-1;
 				if (type=="COX")
 				{
-					response <- as.matrix(modelFrame[1:2]);
+					response <- as.matrix(modelFrame[,1:2]);
 					maxterms <- ncol(modelMat)-2;
 				}
 				else
@@ -120,7 +167,7 @@ function (model.formula,data,type = c("LOGIT", "LM","COX","SVM"),fitFRESA=TRUE,.
 				fittedModel$family <- "FRESA.CAD";
 				fittedModel$type <- type;
 				fittedModel$formula <- model.formula;
-				fittedModel$call <- match.call();
+				fittedModel$call <- cl;
 				fittedModel$terms <- terms(model.formula);
 				fittedModel$model <- modelFrame;
 				fittedModel$response <- response;
@@ -151,10 +198,15 @@ function (model.formula,data,type = c("LOGIT", "LM","COX","SVM"),fitFRESA=TRUE,.
 		{
 			if (length(varsmod)>0)
 			{
-				modelFrame <- data[,varsmod];
-				response <- as.matrix(cbind(modelFrame,modelFrame));
-				fittedModel$coefficients <- mean(modelFrame,na.rm = TRUE);
+				modelFrame <- as.matrix(data[,varsmod]);
+				response <- as.matrix(cbind(data[,varsmod],data[,varsmod]));
+				fittedModel$coefficients <- mean(data[,varsmod],na.rm = TRUE);
+				if (type == "LOGIT")
+				{
+					fittedModel$coefficients <- log(fittedModel$coefficients/(1-fittedModel$coefficients));
+				}
 				fittedModel$estimations <- c(fittedModel$coefficients,fittedModel$coefficients);
+#				print(fittedModel$estimations);
 				class(fittedModel) <- "fitFRESA";
 				class(fittedModel) <- c(class(fittedModel),"Constant");
 				fittedModel$family <- "mean";
@@ -162,16 +214,16 @@ function (model.formula,data,type = c("LOGIT", "LM","COX","SVM"),fitFRESA=TRUE,.
 			else
 			{
 			    warning("Warning Zero Length",as.character(model.formula),"\n");
-				modelFrame <- data[,1];
-				response <- as.matrix(cbind(modelFrame,modelFrame));
-				fittedModel$coefficients <- mean(modelFrame,na.rm = TRUE);
+				modelFrame <- as.matrix(data[,1]);
+				response <- as.matrix(cbind(data[,1],data[,1]));
+				fittedModel$coefficients <- mean(data[,1],na.rm = TRUE);
 				fittedModel$estimations <- c(fittedModel$coefficients,fittedModel$coefficients);
 				class(fittedModel) <- "fitFRESA";
 				class(fittedModel) <- c(class(fittedModel),"try-error");
 				fittedModel$family <- "mean";
 			}
 			fittedModel$formula <- model.formula;
-			fittedModel$call <- match.call();
+			fittedModel$call <- cl;
 			fittedModel$terms <- terms(model.formula);
 			fittedModel$model <- modelFrame;
 			fittedModel$response <- response;

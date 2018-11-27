@@ -13,7 +13,6 @@
 	                          Outcome = "Class",
 	                          timeOutcome=NULL,
 	                          type = c("LOGIT", "LM", "COX"),
-	                          eqPGain = 1.0,
 	                          description = ".",
 	                          method="BH",
 	                          osize=0,
@@ -40,9 +39,6 @@
 	}
 	\item{type}{
 		Fit type: Logistic ("LOGIT"), linear ("LM"), or Cox proportional hazards ("COX")
-	}
-	\item{eqPGain}{
-		A fraction to which the \emph{z}-score will be relaxed, for a pair of variables to be considered equivalent
 	}
 	\item{description}{
 		The name of the column in \code{variableList} that stores the variable description

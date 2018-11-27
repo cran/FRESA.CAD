@@ -24,5 +24,5 @@
 	A vector with the predicted values
 }
 \author{Jose G. Tamez-Pena and Antonio Martinez-Torteya}
-\seealso{\code{\link{nearestneighborimpute}}}
-\keyword{Model_Inspection}
+\seealso{\code{\link{nearestNeighborImpute}}}
+\keyword{Model_Prediction}

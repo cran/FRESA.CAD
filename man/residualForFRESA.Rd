@@ -13,7 +13,7 @@
 }
 \arguments{
 	\item{object}{
-		An object of class \code{lm}, \code{glm}, or \code{coxph} containing the model to be analysed
+		An object of class \code{lm}, \code{glm}, or \code{coxph} containing the model to be analyzed
 	}
 	\item{testData}{
 		A data frame  where all variables are stored in different columns, with the data set to be predicted

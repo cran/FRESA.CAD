@@ -23,7 +23,8 @@
 	                            timeOutcome = "Time",
 	                            selectionType=c("zIDI", "zNRI"),
 	                            cores = 4,
-	                            randsize = 0)
+	                            randsize = 0,
+	                            featureSize=0)
 }
 \arguments{
 	\item{size}{
@@ -67,6 +68,9 @@
 	}
 	\item{randsize}{
 		the model size of a random outcome. If randsize is less than zero. It will estimate the size
+	}
+	\item{featureSize}{
+		The original number of features to be explored in the data frame.
 	}
 }
 \value{

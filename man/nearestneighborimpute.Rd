@@ -1,11 +1,11 @@
-\name{nearestneighborimpute}
-\alias{nearestneighborimpute}
+\name{nearestNeighborImpute}
+\alias{nearestNeighborImpute}
 \title{nearest neighbor NA imputation}
 \description{
 	The function will replace any NA present in the data-frame with the median values of the nearest neighbours.
 }
 \usage{
-	nearestneighborimpute(tobeimputed,
+	nearestNeighborImpute(tobeimputed,
 	                      referenceSet=NULL,
 	                      distol=1.05
 	                     )
@@ -27,7 +27,7 @@
  If a set of rows have similar minimum distances (toldis*(minimum distance) > row set distance) the median value will be used.
 }
 \value{
-	A data frame, where each NA has been replaced with the value of the nearest neighbours
+	A data frame, where each NA has been replaced with the value of the nearest neighbors
 }
 
 \examples{
@@ -38,7 +38,7 @@
 	# Set the options to keep the na
 	options(na.action='na.pass')
 	# create a model matrix with all the NA values imputed
-	stagecImputed <- nearestneighborimpute(model.matrix(~.,stagec)[,-1])
+	stagecImputed <- nearestNeighborImpute(model.matrix(~.,stagec)[,-1])
 	}
 }
 

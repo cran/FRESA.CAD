@@ -1,6 +1,9 @@
 FRESA.Model <-
-function(formula,data,OptType=c("Binary","Residual"),pvalue=0.05,filter.p.value=0.10,loops=32,maxTrainModelSize=20,elimination.bootstrap.steps=100,bootstrap.steps=100,print=FALSE,plots=FALSE,CVfolds=1,repeats=1,nk=0,categorizationType=c("Raw","Categorical","ZCategorical","RawZCategorical","RawTail","RawZTail","Tail","RawRaw"),cateGroups=c(0.1,0.9),raw.dataFrame=NULL,var.description=NULL,testType=c("zIDI","zNRI","Binomial","Wilcox","tStudent","Ftest"),lambda="lambda.1se",equivalent=FALSE,bswimsCycles=10,usrFitFun=NULL)
+function(formula,data,OptType=c("Binary","Residual"),pvalue=0.05,filter.p.value=0.10,loops=32,maxTrainModelSize=20,elimination.bootstrap.steps=100,bootstrap.steps=100,print=FALSE,plots=FALSE,CVfolds=1,repeats=1,nk=0,categorizationType=c("Raw","Categorical","ZCategorical","RawZCategorical","RawTail","RawZTail","Tail","RawRaw"),cateGroups=c(0.1,0.9),raw.dataFrame=NULL,var.description=NULL,testType=c("zIDI","zNRI","Binomial","Wilcox","tStudent","Ftest"),lambda="lambda.1se",equivalent=FALSE,bswimsCycles=20,usrFitFun=NULL)
 {
+
+	a = as.numeric(Sys.time());
+	set.seed(a);
 
 	categorizationType <- match.arg(categorizationType);
 	cl <- match.call();
@@ -17,6 +20,7 @@ function(formula,data,OptType=c("Binary","Residual"),pvalue=0.05,filter.p.value=
 	}
 	if (class(formula)=="formula")
 	{
+		featureSize = ncol(data)-1;
 		OptType <- match.arg(OptType)
 		
 		varlist <- attr(terms(formula),"variables")
@@ -51,7 +55,6 @@ function(formula,data,OptType=c("Binary","Residual"),pvalue=0.05,filter.p.value=
 		}
 		
 		termslist <- attr(terms(formula),"term.labels");
-#		cat (termslist,"\n")
 		acovariates <- covariates[1];
 		if (length(termslist)>0)
 		{
@@ -61,8 +64,6 @@ function(formula,data,OptType=c("Binary","Residual"),pvalue=0.05,filter.p.value=
 				acovariates <- append(acovariates,termslist[i]);
 			}
 		}
-#		cat (covariates,"\n")
-#		print(acovariates);
 
 		startOffset = length(termslist);
 		variables <- vector();
@@ -118,16 +119,17 @@ function(formula,data,OptType=c("Binary","Residual"),pvalue=0.05,filter.p.value=
 		reducedModel = NULL;
 		bootstrappedModel = NULL;
 		UpdatedModel = NULL;
-		filter.z.value <- abs(qnorm(filter.p.value/2))
-		cutpvalue <- 4.0*filter.p.value
-		if (cutpvalue>0.5) cutpvalue=0.5;
+		filter.z.value <- abs(qnorm(filter.p.value))
+		cutpvalue <- 3.0*filter.p.value
+		if (cutpvalue > 0.45) cutpvalue=0.45;
 		selectionType = match.arg(testType);
 		testType = match.arg(testType);
-		if (((length(table(data[,Outcome]))>2)||(min(data[,Outcome])<0))&&(OptType == "Binary"))
+		theScores <- names(table(data[,Outcome]))
+		if (((length(theScores)>2)||(min(data[,Outcome])<0))&&(OptType == "Binary"))
 		{
 			OptType = "Residual";
 		}
-		adjsize <- 1.0;
+
 		if (OptType == "Binary")
 		{
 
@@ -137,52 +139,40 @@ function(formula,data,OptType=c("Binary","Residual"),pvalue=0.05,filter.p.value=
 				type = "LOGIT";
 			}
 
-			elimination.pValue <- pvalue; 	# To test if the variable is part of the model 
+#			elimination.pValue <- pvalue; 	# To test if the variable is part of the model 
 			unirank <- uniRankVar(variables,baseModel,Outcome,data,categorizationType,type,rankingTest="zIDI",cateGroups,raw.dataFrame,description="Description",uniType="Binary",FullAnalysis=FALSE,acovariates=acovariates,timeOutcome=timeOutcome);
 			univariate <- unirank$orderframe;
+			featureSize <- nrow(univariate);
+			
 			unitPvalues <- (1.0-pnorm(univariate$ZUni));
 			names(unitPvalues) <- univariate$Name;
-			
-#			print(univariate[1:20,]);
-			varMax <- sum(univariate$ZUni >= filter.z.value) + 1;
-			pvarMax <- sum(p.adjust(unitPvalues,"BH") < 2*filter.p.value)+1;
-			unitPvalues[unitPvalues>0.5] <- 0.5;
-			cat("Unadjusted size:",varMax," Adjusted Size:",pvarMax,"\n")
-			varMax <- min(c(pvarMax,varMax));
-			if (is.null(varMax)) varMax <- 2;
-			if (is.na(varMax)) varMax <- 2;
-			if (is.nan(varMax)) varMax <- 2;
-			if (varMax >  nrow(variables)) varMax = nrow(variables);
+			adjPvalues <- p.adjust(unitPvalues,"BH");
+			varMax <- sum(univariate$ZUni >= filter.z.value);
+			if (categorizationType == "Raw")
+			{
+				gadjPvalues <- adjPvalues[adjPvalues < 2*filter.p.value]			
+				noncornames <- correlated_Remove(data,names(gadjPvalues),thr=0.99);
+				if (length(noncornames) > 1) featureSize <- featureSize*length(noncornames)/length(gadjPvalues);
+#				cat(length(noncornames),":",length(gadjPvalues),":",length(noncornames)/length(gadjPvalues),"\n");
+			}
+			pvarMax <- sum(adjPvalues < 2*filter.p.value);
+			sizeM <- min(c(pvarMax,varMax));
+			if (sizeM < 5) sizeM = min(c(5,nrow(univariate)));
+			if (varMax >  nrow(univariate)) varMax = nrow(univariate);
+			if (varMax < 5) varMax = min(c(5,nrow(univariate)));
 
-			redlist <- 2*(1.0-pnorm(univariate$ZUni)) < cutpvalue;
+			redlist <- adjPvalues < cutpvalue;
 			totlist <- min(sum(1*redlist),100);
-			
-			if (categorizationType == "RawRaw")  
+			cat("Unadjusted size:",sum(univariate$ZUni >= filter.z.value)," Adjusted Size:",pvarMax," Cut size:",sum(1*redlist),"\n")
+			if (totlist<10)
 			{
-				sdata <- data;
-				reddata <- data;
+				redlist <- c(1:min(10,nrow(univariate)))
+				totlist <- length(totlist);
 			}
-			else
-			{
-				if (is.na(timeOutcome))
-				{
-					reddata <- data[,c(Outcome,acovariates[-1],unique(as.character(univariate[redlist,2])))];
-					sdata <- data[sample(nrow(data),min(nrow(data),100)),c(Outcome,acovariates[-1],unique(as.character(univariate[1:totlist,2])))];
-				}
-				else
-				{
-					reddata <- data[,c(Outcome,timeOutcome,acovariates[-1],unique(as.character(univariate[redlist,2])))];
-					sdata <- data[sample(nrow(data),min(nrow(data),100)),c(Outcome,timeOutcome,acovariates[-1],unique(as.character(univariate[1:totlist,2])))];
-				}
-			}
-
-			randomModel <- ForwardSelection.Model.Res(totlist,1.0,0.05,250,"1",Outcome,univariate,sdata,maxTrainModelSize,"LM","Ftest",timeOutcome,1,randsize= -1);
-			adjsize <- as.integer(min(40*randomModel$random.formula.size,ncol(data)*ncol(data)));
-			if (adjsize<1) adjsize=1;
-		
 			
-			cat("\n Z: ",filter.z.value,", Var Max: ",varMax,", s1:",ncol(data),", s2:",ncol(reddata),", Independent Size:",adjsize,"\n");
-			shorUniv <- univariate[redlist,]
+			
+			cat("\n Z: ",filter.z.value,", Features to test: ",sizeM,",Adjust Size:",featureSize,"\n");
+			shortUniv <- univariate[redlist,]
 
 			
 			if (CVfolds>1)
@@ -190,10 +180,9 @@ function(formula,data,OptType=c("Binary","Residual"),pvalue=0.05,filter.p.value=
 				if (categorizationType!="RawRaw")  
 				{
 					rownames(variables) <- variables[,1];
-					unirank$variableList <- variables[unique(as.character(univariate[redlist,2])),]
+#					unirank$variableList <- variables[unique(as.character(univariate[redlist,2])),]
 				}
-#				BSWiMS.models <- BSWiMS.model(formula=formula,data=reddata,type=type,testType=selectionType,pvalue=pvalue,elimination.pValue=elimination.pValue,update.pvalue=c(pvalue,pvalue),variableList=shorUniv,size=varMax,loops=loops,elimination.bootstrap.steps=bootstrap.steps,unitPvalues=unitPvalues,adjsize=adjsize,fraction=1.0,maxTrainModelSize=maxTrainModelSize,maxCycles=bswimsCycles,print=print,plots=plots);
-				cvObject <- crossValidationFeatureSelection_Bin(varMax,fraction,pvalue,loops,acovariates,Outcome,timeOutcome,NULL,reddata,maxTrainModelSize,type,selectionType,startOffset,elimination.bootstrap.steps,trainFraction,trainRepetition,elimination.pValue,bootstrap.steps,nk,unirank,print=print,plots=plots,lambda=lambda,adjsize=adjsize,equivalent=equivalent,bswimsCycles=bswimsCycles,usrFitFun);
+				cvObject <- crossValidationFeatureSelection_Bin(sizeM,fraction,c(pvalue,filter.p.value),loops,acovariates,Outcome,timeOutcome,NULL,data,maxTrainModelSize,type,selectionType,startOffset,elimination.bootstrap.steps,trainFraction,trainRepetition,bootstrap.steps,nk,unirank,print=print,plots=plots,lambda=lambda,equivalent=equivalent,bswimsCycles=bswimsCycles,usrFitFun,featureSize=featureSize);
 				firstModel <- cvObject$forwardSelection;
 				UpdatedModel <- cvObject$updateforwardSelection;
 				reducedModel <- cvObject$BSWiMS;
@@ -202,7 +191,7 @@ function(formula,data,OptType=c("Binary","Residual"),pvalue=0.05,filter.p.value=
 			}
 			else
 			{
-				BSWiMS.models <- BSWiMS.model(formula=formula,data=reddata,type=type,testType=selectionType,pvalue=pvalue,elimination.pValue=elimination.pValue,update.pvalue=c(pvalue,pvalue),variableList=shorUniv,size=varMax,loops=loops,elimination.bootstrap.steps=bootstrap.steps,unitPvalues=unitPvalues,adjsize=adjsize,fraction=1.0,maxTrainModelSize=maxTrainModelSize,maxCycles=bswimsCycles,print=print,plots=plots);
+				BSWiMS.models <- BSWiMS.model(formula=formula,data=data,type=type,testType=selectionType,pvalue=pvalue,variableList=shortUniv,size=sizeM,loops=loops,elimination.bootstrap.steps=bootstrap.steps,fraction=1.0,maxTrainModelSize=maxTrainModelSize,maxCycles=bswimsCycles,print=print,plots=plots,featureSize=featureSize,NumberofRepeats=repeats);
 				firstModel <- BSWiMS.models$forward.model;
 				UpdatedModel <- BSWiMS.models$update.model;
 				reducedModel <- BSWiMS.models$BSWiMS.model;
@@ -213,17 +202,31 @@ function(formula,data,OptType=c("Binary","Residual"),pvalue=0.05,filter.p.value=
 		}
 		if (OptType == "Residual")
 		{	
-			elimination.pValue <- pvalue; 	# To test if the variable is part of the model
-			if (testType=="zIDI") 
+#			elimination.pValue <- pvalue; 	# To test if the variable is part of the model
+			if (testType=="zIDI")
 			{
-				testType="Ftest";
+				if ((testType=="zIDI")&&(length(theScores)>10))
+				{
+					warning("Switching to Regresion, More than 10 scores");
+					testType = "Ftest";
+				}
+				else
+				{
+					cat("Doing a Ordinal Fit with zIDI Selection\n");
+					cat("Ordinal Fit will be stored in BSWiMS.models$oridinalModels\n");
+					cat("Use predict(BSWiMS.models$oridinalModels,testSet) to get the ordinal prediction on a new dataset \n");
+				}
 			}
 			if (length(dependent)==1)
 			{
-				if ((length(table(data[,Outcome]))>2)||(min(data[,Outcome])<0))
+				if ((length(theScores)>2)||(min(data[,Outcome])<0))
 				{
 					type = "LM";
 					unirank <- uniRankVar(variables,baseModel,Outcome,data,categorizationType,type,rankingTest="Ztest",cateGroups,raw.dataFrame,description="Description",uniType="Regression",FullAnalysis=FALSE,acovariates=acovariates,timeOutcome=timeOutcome)
+					if ((length(theScores)<=10)&&(testType=="zIDI"))
+					{
+						type = "LOGIT";
+					}
 				}
 				else 
 				{
@@ -236,60 +239,47 @@ function(formula,data,OptType=c("Binary","Residual"),pvalue=0.05,filter.p.value=
 				    unirank <- uniRankVar(variables,baseModel,Outcome,data,categorizationType,type,rankingTest="Ztest",cateGroups,raw.dataFrame,description="Description",uniType="Binary",FullAnalysis=FALSE,acovariates=acovariates,timeOutcome=timeOutcome)
 			}
 			univariate <- unirank$orderframe;
+			featureSize <- nrow(univariate);
 			unitPvalues <- (1.0-pnorm(univariate$ZUni));
-			unitPvalues[unitPvalues>0.5] <- 0.5;
 			names(unitPvalues) <- univariate$Name;
+			adjPvalues <- p.adjust(unitPvalues,"BH");
+			varMax <- sum(univariate$ZUni >= filter.z.value);	
+			if (categorizationType == "Raw")
+			{
+				gadjPvalues <- adjPvalues[adjPvalues < 2*filter.p.value]			
+				noncornames <- correlated_Remove(data,names(gadjPvalues),thr=0.99);
+				if (length(noncornames) > 1) featureSize <- featureSize*length(noncornames)/length(gadjPvalues);
+#				cat(length(noncornames),":",length(gadjPvalues),":",length(noncornames)/length(gadjPvalues),"\n");
+			}
+			pvarMax <- sum(adjPvalues < 2*filter.p.value);
+			sizeM <- min(c(pvarMax,varMax));
+			if (sizeM < 5) sizeM = min(c(5,nrow(univariate)));
+			if (varMax >  nrow(univariate)) varMax = nrow(univariate);
+			if (varMax < 5) varMax = min(c(5,nrow(univariate)));
 
-			varMax <- sum(univariate$ZUni >= filter.z.value) + 1;	
-			pvarMax <- sum(p.adjust(unitPvalues,"BH") < 4*filter.p.value)+1;
-			cat("Unadjusted size:",varMax," Adjusted Size:",pvarMax,"\n")
-			varMax <- min(c(pvarMax,varMax));
-			if (is.null(varMax)) varMax <- 2;
-			if (is.na(varMax)) varMax <- 2;
-			if (is.nan(varMax)) varMax <- 2;
-			if (varMax >  nrow(variables)) varMax = nrow(variables);
 			bootstrappedModel = NULL;
-			redlist <- (2*(1.0-pnorm(univariate$ZUni)) < cutpvalue);
-
-
+			redlist <- adjPvalues < cutpvalue;
 			totlist <- min(sum(1*redlist),100);
+			
 
-			if (categorizationType=="RawRaw")  
+			cat("Features to test:",sizeM," Adjusted Size:",featureSize,"\n");
+			if (totlist<10)
 			{
-				sdata <- data;
-				reddata <- data;
-			}
-			else
-			{
-				if (is.na(timeOutcome))
-				{
-					reddata <- data[,c(Outcome,acovariates[-1],unique(as.character(univariate[redlist,2])))];
-					sdata <- data[sample(nrow(data),min(nrow(data),100)),c(Outcome,acovariates[-1],unique(as.character(univariate[1:totlist,2])))];
-				}
-				else
-				{
-					reddata <- data[,c(Outcome,timeOutcome,acovariates[-1],unique(as.character(univariate[redlist,2])))];
-					sdata <- data[sample(nrow(data),min(nrow(data),100)),c(Outcome,timeOutcome,acovariates[-1],unique(as.character(univariate[1:totlist,2])))];
-				}
+				redlist <- c(1:min(10,nrow(univariate)))
+				totlist <- length(totlist);
 			}
 
-			randomModel <- ForwardSelection.Model.Res(totlist,1.0,0.05,250,"1",Outcome,univariate,sdata,maxTrainModelSize,"LM","Ftest",timeOutcome,1,randsize= -1);
-			adjsize <- as.integer(min(40*randomModel$random.formula.size,ncol(data)*ncol(data)));
-
-			if (adjsize<1) adjsize=1;
-			cat("\n Z: ",filter.z.value," Var Max: ",varMax,"FitType: ",type," Test Type: ",testType,"s1:",ncol(data),"s2:",ncol(reddata),", Independent Size:",adjsize,"\n");
-			shorUniv <- univariate[redlist,]
+			cat("\n Z: ",filter.z.value," Var Max: ",featureSize,"FitType: ",type," Test Type: ",testType,"\n");
+			shortUniv <- univariate[redlist,]
 
 			if (CVfolds>1)
 			{
 				if (categorizationType != "RawRaw")  
 				{
 					rownames(variables) <- variables[,1];
-					unirank$variableList <- variables[unique(as.character(univariate[redlist,2])),]
+#					unirank$variableList <- variables[unique(as.character(univariate[redlist,2])),]
 				}
-				cvObject <- crossValidationFeatureSelection_Res(size=varMax,fraction=fraction,pvalue=pvalue,loops=loops,covariates=acovariates,Outcome=Outcome,timeOutcome=timeOutcome,variableList=unirank$variableList,
-				data=reddata,maxTrainModelSize=maxTrainModelSize,type=type,testType=testType,startOffset=startOffset,elimination.bootstrap.steps=elimination.bootstrap.steps,trainFraction=trainFraction,trainRepetition=trainRepetition,
-				elimination.pValue=elimination.pValue,setIntersect=setIntersect,update.pvalue= c(pvalue,pvalue),unirank=unirank,print=print,plots=plots,lambda=lambda,adjsize=adjsize,equivalent=equivalent,bswimsCycles=bswimsCycles,usrFitFun=usrFitFun);
+				cvObject <- crossValidationFeatureSelection_Res(size=sizeM,fraction=fraction,pvalue=c(pvalue,filter.p.value),loops=loops,covariates=acovariates,Outcome=Outcome,timeOutcome=timeOutcome,variableList=unirank$variableList,data=data,maxTrainModelSize=maxTrainModelSize,type=type,testType=testType,startOffset=startOffset,elimination.bootstrap.steps=elimination.bootstrap.steps,trainFraction=trainFraction,trainRepetition=trainRepetition,setIntersect=setIntersect,unirank=unirank,print=print,plots=plots,lambda=lambda,equivalent=equivalent,bswimsCycles=bswimsCycles,usrFitFun=usrFitFun,featureSize=featureSize);
 				firstModel <- cvObject$forwardSelection;
 				UpdatedModel <- cvObject$updatedforwardModel;
 				reducedModel <- cvObject$BSWiMS;
@@ -298,7 +288,7 @@ function(formula,data,OptType=c("Binary","Residual"),pvalue=0.05,filter.p.value=
 			}
 			else
 			{
-				BSWiMS.models <- BSWiMS.model(formula=formula,data=reddata,type=type,testType=testType,pvalue=pvalue,elimination.pValue=elimination.pValue,update.pvalue=c(pvalue,pvalue),variableList=shorUniv,size=varMax,loops=loops,elimination.bootstrap.steps=bootstrap.steps,unitPvalues=unitPvalues,adjsize=adjsize,fraction=1.0,maxTrainModelSize=maxTrainModelSize,maxCycles=bswimsCycles,print=print,plots=plots);
+				BSWiMS.models <- BSWiMS.model(formula=formula,data=data,type=type,testType=testType,pvalue=pvalue,variableList=shortUniv,size=sizeM,loops=loops,elimination.bootstrap.steps=bootstrap.steps,fraction=1.0,maxTrainModelSize=maxTrainModelSize,maxCycles=bswimsCycles,print=print,plots=plots,featureSize=featureSize,NumberofRepeats=repeats);
 				firstModel <- BSWiMS.models$forward.model;
 				UpdatedModel <- BSWiMS.models$update.model;
 				reducedModel <- BSWiMS.models$BSWiMS.model;
@@ -321,35 +311,26 @@ function(formula,data,OptType=c("Binary","Residual"),pvalue=0.05,filter.p.value=
 		bootstrappedModel=bootstrappedModel,
 		cvObject=cvObject,
 		used.variables=varMax,
-		independenSize=adjsize,
+#		independenSize=adjsize,
 		call=cl);
 	}
 	else
 	{
 	
-		collectFormulas <- BSWiMS.models$forward.selection.list
-		bagg <- baggedModel(collectFormulas,data,type,Outcome,timeOutcome,univariate=univariate,useFreq=loops);
 		eq <- NULL;		
-		if (length(reducedModel$back.model$coefficients) > 1 ) 
+		bagg <- NULL;
+		if ((length(reducedModel$back.model$coefficients) > 1 ) && equivalent) 
 		{
+			collectFormulas <- BSWiMS.models$forward.selection.list;
+			bagg <- baggedModel(collectFormulas,data,type,Outcome,timeOutcome,univariate=univariate,useFreq=loops);
 			shortcan <- bagg$frequencyTable[(bagg$frequencyTable >= (loops*0.05))];
-			eadjsize <- length(unitPvalues);
-			if (adjsize<eadjsize) unitPvalues <- unitPvalues[1:adjsize];
-#			cat(adjsize,":",length(unitPvalues),"\n")
-			apvalues <- p.adjust(unitPvalues,"bonferroni",adjsize);
 			modeltems <- attr(terms(reducedModel$back.model),"term.labels");
-			univariatenames <- names(apvalues[apvalues < pvalue/length(modeltems)]);
-#			print(univariatenames);
 			eshortlist <- unique(c(names(shortcan),str_replace_all(modeltems,":","\\*")));
-			eshortlist <- unique(c(eshortlist,univariatenames));
 			eshortlist <- eshortlist[!is.na(eshortlist)];
-#			print(eshortlist);
 			if (length(eshortlist)>0)
 			{
-#				print(eshortlist);
 				nameslist <- c(all.vars(BSWiMS.models$bagging$bagged.model$formula),as.character(univariate[eshortlist,2]));
 				nameslist <- unique(nameslist[!is.na(nameslist)]);
-#				print(nameslist);
 				if (categorizationType != "RawRaw") 
 				{
 					eqdata <- data[,nameslist];
@@ -363,8 +344,8 @@ function(formula,data,OptType=c("Binary","Residual"),pvalue=0.05,filter.p.value=
 							  variableList=cbind(eshortlist,eshortlist),
 							  Outcome = Outcome,
 							  timeOutcome=timeOutcome,								  
-							  type = type,
-							  eqPGain = 100.00,method="bonferroni",osize=adjsize);
+							  type = type,osize=featureSize,
+							  method="BH");
 			}
 		}
 
@@ -376,7 +357,6 @@ function(formula,data,OptType=c("Binary","Residual"),pvalue=0.05,filter.p.value=
 		bootstrappedModel=bootstrappedModel,
 		cvObject=cvObject,
 		used.variables=varMax,
-		independenSize=adjsize,
 		bagging=bagg,
 		eBSWiMS.model=eq,
 		BSWiMS.models=BSWiMS.models,

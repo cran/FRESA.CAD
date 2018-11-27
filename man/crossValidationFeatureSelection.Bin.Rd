@@ -20,21 +20,19 @@
 	                                type = c("LM", "LOGIT", "COX"),
 	                                selectionType = c("zIDI", "zNRI"),
 	                                startOffset = 0,
-	                                elimination.bootstrap.steps = 25,
+	                                elimination.bootstrap.steps = 100,
 	                                trainFraction = 0.67,
 	                                trainRepetition = 9,
-	                                elimination.pValue = 0.05,
-	                                bootstrap.steps = 25,
+	                                bootstrap.steps = 100,
 	                                nk = 0,
 	                                unirank = NULL,
 	                                print=TRUE,
 	                                plots=TRUE,
 	                                lambda="lambda.1se",
-	                                adjsize=1.0,
 	                                equivalent=FALSE,
 	                                bswimsCycles=10,
-	                                usrFitFun=NULL
-				)
+	                                usrFitFun=NULL,
+	                                featureSize=0)
 }
 \arguments{
 	\item{size}{
@@ -85,9 +83,6 @@
 	\item{trainRepetition}{
 		The number of cross-validation folds (it should be at least equal to \eqn{1/}\code{trainFraction} for a complete cross-validation)
 	}
-	\item{elimination.pValue}{
-		The maximum \emph{p}-value, associated to either IDI or NRI, allowed for a term in the model by the backward elimination procedure
-	}
 	\item{bootstrap.steps}{
 		The number of bootstrap loops for the confidence intervals estimation
 	}
@@ -106,9 +101,6 @@
 	\item{lambda}{
 		The passed value to the s parameter of the glmnet cross validation coefficient
 	}
-	\item{adjsize}{
-		The expected size of a random model for multiple selection correction
-	}
 	\item{equivalent}{
 		Is set to TRUE CV will compute the equivalent model
 	}
@@ -117,6 +109,9 @@
 	}
 	\item{usrFitFun}{
 		A user fitting function to be evaluated by the cross validation procedure
+	}
+	\item{featureSize}{
+		The original number of features to be explored in the data frame.
 	}
 }
 \details{
@@ -197,9 +192,6 @@
 	}
 	\item{CVTrain.AUCs}{
 		The train ROC AUC for each fold
-	}
-	\item{Models.CVblindMeanSensitivites}{
-		The mean ROC sensitivities at certain specificities for all test final cross-validation folds (i.e. 1.00, 0.95, 0.90, 0.80, 0.70, 0.60, 0.50, 0.40, 0.30, 0.20, 0.10, 0.05, and 0.00)
 	}
 	\item{forwardSelection}{
 		A list containing the values returned by \code{ForwardSelection.Model.Bin} using all data

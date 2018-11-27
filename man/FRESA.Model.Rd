@@ -40,7 +40,7 @@
 	                         "Ftest"),
 	            lambda="lambda.1se",
 	            equivalent=FALSE,
-	            bswimsCycles=10,
+	            bswimsCycles=20,
 	            usrFitFun=NULL
 	            )
 
@@ -86,7 +86,7 @@
 		The number of times that the cross-validation procedure will be repeated
 	}
 	\item{nk}{
-		The number of neighbours used to generate a \emph{k}-nearest neighbours (KNN) classification. If zero, \emph{k} is set to the square root of the number of cases. If less than zero, it will not perform the KNN classification
+		The number of neighbors used to generate a \emph{k}-nearest neighbors (KNN) classification. If zero, \emph{k} is set to the square root of the number of cases. If less than zero, it will not perform the KNN classification
 	}
 	\item{categorizationType}{
 		How variables will be analyzed: As given in \code{data} ("Raw"); broken into the \emph{p}-value categories given by \code{cateGroups} ("Categorical"); broken into the \emph{p}-value categories given by \code{cateGroups}, and weighted by the \emph{z}-score ("ZCategorical"); broken into the \emph{p}-value categories given by \code{cateGroups}, weighted by the \emph{z}-score, plus the raw values ("RawZCategorical"); raw values, plus the tails ("RawTail"); or raw values, weighted by the \emph{z}-score, plus the tails ("RawZTail")
@@ -117,7 +117,7 @@
 	}
 }
 \details{
-This is the main function of FRESA.CAD given an outcome formula, and a data.frame this function will do an univariate analysis of the data (\code{univariateRankVariables}),
+This important function of FRESA.CAD will model or cross validate the models. Given an outcome formula, and a data.frame this function will do an univariate analysis of the data (\code{univariateRankVariables}),
 then it will select the top ranked variables; after that it will select the model that best describes the outcome. At output it will return the bootstrapped performance of the model 
 (\code{bootstrapValidation_Bin} or \code{bootstrapValidation_Res}). It can be set to report the cross-validation performance of the selection process which will return either 
 a  \code{crossValidationFeatureSelection_Bin} or a \code{crossValidationFeatureSelection_Res} object.
@@ -156,45 +156,79 @@ a  \code{crossValidationFeatureSelection_Bin} or a \code{crossValidationFeatureS
 \author{Jose G. Tamez-Pena and Antonio Martinez-Torteya}
 \examples{
 	\dontrun{
-	# Start the graphics device driver to save all plots in a pdf format
-	pdf(file = "Example.pdf")
-	# Get the stage C prostate cancer data from the rpart package
-	library(rpart)
-	data(stagec)
-	# Split the stages into several columns
-	dataCancer <- cbind(stagec[,c(1:3,5:6)],
-	                    gleason4 = 1*(stagec[,7] == 4),
-	                    gleason5 = 1*(stagec[,7] == 5),
-	                    gleason6 = 1*(stagec[,7] == 6),
-	                    gleason7 = 1*(stagec[,7] == 7),
-	                    gleason8 = 1*(stagec[,7] == 8),
-	                    gleason910 = 1*(stagec[,7] >= 9),
-	                    eet = 1*(stagec[,4] == 2),
-	                    diploid = 1*(stagec[,8] == "diploid"),
-	                    tetraploid = 1*(stagec[,8] == "tetraploid"),
-	                    notAneuploid = 1-1*(stagec[,8] == "aneuploid"))
-	# Remove the incomplete cases
-	dataCancer <- dataCancer[complete.cases(dataCancer),]
-	# Load a pre-stablished data frame with the names and descriptions of all variables
-	data(cancerVarNames)
 
-	# Get a Cox proportional hazards model using:
-	# - The default parameters
-	md <- FRESA.Model(formula = Surv(pgtime, pgstat) ~ 1,
-	                  data = dataCancer,
-					  var.description = cancerVarNames[,2])
-	# Get a logistic regression model using
-	# - The default parameters
-	md <- FRESA.Model(formula = pgstat ~ 1,
-	                  data = dataCancer,
-					  var.description = cancerVarNames[,2])
-	# Get a logistic regression model using:
-	# - redidual-based optimization
-	md <- FRESA.Model(formula = pgstat ~ 1,
-	                  data = dataCancer,
-	                  OptType = "Residual",
-					  var.description = cancerVarNames[,2])
-	# Shut down the graphics device driver
-	dev.off()}
+		# Start the graphics device driver to save all plots in a pdf format
+		pdf(file = "FRESA.Model.Example.pdf",width = 8, height = 6)
+		# Get the stage C prostate cancer data from the rpart package
+		data(stagec,package = "rpart")
+		options(na.action = 'na.pass')
+		stagec_mat <- cbind(pgstat = stagec$pgstat,
+		    pgtime = stagec$pgtime,
+		    as.data.frame(model.matrix(Surv(pgtime,pgstat) ~ .,stagec))[-1])
+
+		data(cancerVarNames)
+		dataCancerImputed <- nearestNeighborImpute(stagec_mat)
+
+		# Get a Cox proportional hazards model using:
+		# - The default parameters
+		md <- FRESA.Model(formula = Surv(pgtime, pgstat) ~ 1,
+						  data = dataCancerImputed,
+						  var.description = cancerVarNames[,2])
+		pt <- plot(md$bootstrappedModel)
+		sm <- summary(md$BSWiMS.model)
+		print(sm$coefficients)
+
+
+		# Get a 10 fold CV Cox proportional hazards model using:
+		# - Repeat 10 times de CV
+		md <- FRESA.Model(formula = Surv(pgtime, pgstat) ~ 1,
+						  data = dataCancerImputed, CVfolds = 10, 
+						  repeats = 10,
+						  var.description = cancerVarNames[,2])
+		pt <- plotModels.ROC(md$cvObject$Models.testPrediction,theCVfolds = 10)
+		print(pt$predictionTable)
+
+		pt <- plotModels.ROC(md$cvObject$LASSO.testPredictions,theCVfolds = 10)
+		pt <- plotModels.ROC(md$cvObject$KNN.testPrediction,theCVfolds = 10)
+
+		# Get a  regression of the survival time
+
+		timeSubjects <- dataCancerImputed
+		timeSubjects$pgtime <- log(timeSubjects$pgtime)
+
+		md <- FRESA.Model(formula = pgtime ~ 1,
+						  data = timeSubjects,
+						  var.description = cancerVarNames[,2])
+		pt <- plot(md$bootstrappedModel)
+		sm <- summary(md$BSWiMS.model)
+		print(sm$coefficients)
+
+		# Get a logistic regression model using
+		# - The default parameters and removing time as possible predictor
+
+		dataCancerImputed$pgtime <- NULL
+
+		md <- FRESA.Model(formula = pgstat ~ 1,
+						  data = dataCancerImputed,
+						  var.description = cancerVarNames[,2])
+		pt <- plot(md$bootstrappedModel)
+		sm <- summary(md$BSWiMS.model)
+		print(sm$coefficients)
+
+		# Get a logistic regression model using:
+		# - residual-based optimization
+		md <- FRESA.Model(formula = pgstat ~ 1,
+						  data = dataCancerImputed,
+						  OptType = "Residual",
+						  var.description = cancerVarNames[,2])
+		pt <- plot(md$bootstrappedModel)
+		sm <- summary(md$BSWiMS.model)
+		print(sm$coefficients)
+
+
+		# Shut down the graphics device driver
+		dev.off()
+
+	}
 }
 \keyword{Model_Generation}

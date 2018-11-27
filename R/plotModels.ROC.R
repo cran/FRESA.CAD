@@ -2,8 +2,7 @@ plotModels.ROC <-
 function(modelPredictions,number.of.models=0,specificities=c(0.975,0.95,0.90,0.80,0.70,0.60,0.50,0.40,0.30,0.20,0.10,0.05),theCVfolds=1,predictor="Prediction",cex=1.0,...) 
 {
 
-	number.of.runs=number.of.models;
-	op <- par(no.readonly = TRUE)
+	op <- par(no.readonly=TRUE);
 
 #	par(mfrow=c(1,1),pty='s',cex=cex);
 	par(pty='s',cex=cex);
@@ -15,8 +14,13 @@ function(modelPredictions,number.of.models=0,specificities=c(0.975,0.95,0.90,0.8
 	ensemble.auc <- NULL;
 	rout <- NULL;
 	
+	if ((ncol(modelPredictions) == 3) && (number.of.models == 0))
+	{
+		number.of.models <- max(modelPredictions[,"Model"]);
+	}
+	number.of.runs=number.of.models;
 
-	if (theCVfolds>1)
+	if ((theCVfolds>1) || (number.of.models>0))
 	{
 		if (number.of.runs == 0)
 		{
@@ -25,7 +29,7 @@ function(modelPredictions,number.of.models=0,specificities=c(0.975,0.95,0.90,0.8
 		for (n in 1:number.of.runs)
 		{
 			mm = n;
-			blindmodel <- modelPredictions[which(((modelPredictions[,3]-1) %/% theCVfolds) + 1  == mm),];
+			blindmodel <- modelPredictions[which(((modelPredictions[,"Model"]-1) %/% theCVfolds) + 1  == mm),];
 			if ( (sum(blindmodel[,"Outcome"]==1) > 3) && (sum(blindmodel[,"Outcome"]==0) > 3))
 			{
 				auclist <- append(auclist,pROC::roc(as.vector(blindmodel[,"Outcome"]),blindmodel[,predictor],auc=TRUE,plot=TRUE,col="lightgray",lty=4,lwd=1)$auc)
@@ -43,7 +47,7 @@ function(modelPredictions,number.of.models=0,specificities=c(0.975,0.95,0.90,0.8
 			}
 		}
 		psta <- boxplot(modelPredictions[,predictor]~rownames(modelPredictions),plot=FALSE)
-		outcomesta <- boxplot(modelPredictions$Outcome~rownames(modelPredictions),plot=FALSE)
+		outcomesta <- boxplot(modelPredictions[,"Outcome"]~rownames(modelPredictions),plot=FALSE)
 		rout <- pROC::roc(outcomesta$stats[3,],psta$stats[3,],col="black",auc=TRUE,plot=TRUE,smooth=FALSE,lty=3,lwd=3,...)
 		ensemble.auc <- rout$auc
 		par(new=TRUE)
@@ -126,11 +130,11 @@ function(modelPredictions,number.of.models=0,specificities=c(0.975,0.95,0.90,0.8
 		}
 		else
 		{
-			rout <- roc(as.vector(modelPredictions[,1]),modelPredictions[,2]);
+			rout <- pROC::roc(as.vector(modelPredictions[,1]),modelPredictions[,2]);
 			specificities=seq(0, 1, .05);	
-			ci.sp.obj <- ci.sp(rout , sensitivities=seq(0, 1, .05), boot.n=100,progress= 'none')
-			blindSen <- ci.se(rout , specificities=seq(0, 1, .05), boot.n=100,progress= 'none')
-			plot(rout,grid=c(0.1, 0.1),grid.col=c("gray", "gray"),print.auc=FALSE,...) 
+			ci.sp.obj <- pROC::ci.sp(rout , sensitivities=seq(0, 1, .05), boot.n=100,progress= 'none')
+			blindSen <- pROC::ci.se(rout , specificities=seq(0, 1, .05), boot.n=100,progress= 'none')
+			pROC::plot.roc(rout,grid=c(0.1, 0.1),grid.col=c("gray", "gray"),print.auc=FALSE,...) 
 			plot(ci.sp.obj, type="s", col="gray")
 			plot(blindSen, type="s", col="light gray")
 			auclist <- rout$auc;
@@ -140,7 +144,7 @@ function(modelPredictions,number.of.models=0,specificities=c(0.975,0.95,0.90,0.8
 				thres = 0;
 			}				
 			dtable <- table(modelPredictions[,2]<thres,1-modelPredictions[,1]);
-			ley.names <- c(paste("AUC: ",sprintf("%.3f",rout$auc),")"));
+			ley.names <- c(paste("AUC: ",sprintf("%.3f",rout$auc)));
 			ley.colors <- c("black");
 			ley.lty <- c(1);
 		}
@@ -205,6 +209,18 @@ function(modelPredictions,number.of.models=0,specificities=c(0.975,0.95,0.90,0.8
 	}
 	par(op);
 	
+	if (nrow(dtable) == 1)
+	{
+		if ((rownames(dtable) == "0") || (rownames(dtable) == "FALSE"))
+		{
+			dtable <- rbind(dtable,c(0,0));
+		}
+		else
+		{
+			dtable <- rbind(c(0,0),dtable);
+		}
+		rownames(dtable) <- c("0","1")
+	}
 	result <- list(ROC.AUCs=auclist,
 	mean.sensitivities=sumSen,
 	model.sensitivities=blindSen,

@@ -258,12 +258,13 @@ std::string residualFowardSelection(const unsigned int size,const int totSamples
 									const int loops,const std::string &Outcome,const std::string &timeOutcome,const std::string &type,const unsigned int maxTrainModelSize,
 									const mat &dataframe, const std::vector < std::string > &ovnames,
 									std::map<std::string, int> &lockup,const std::string &baseForm,std::vector <int> &mynamesLoc, 
-									const std::vector<std::string> &covari,vec &basevalues,bool isRandom)
+									const std::vector<std::string> &covari,vec &basevalues,bool isRandom,unsigned int featuresize, vec &pthrs)
 {
 	std::string frm1 = baseForm;
 	unsigned int inserted = 0;
 	double iprob=0;
 	unsigned int sizecases = dataframe.n_rows;
+//	unsigned int featuresize=std::max((unsigned int)dataframe.n_cols-1,(unsigned int)ovnames.size());
 
 	arma::mat mysample = dataframe;
 	arma::mat myTestsample = dataframe;
@@ -375,7 +376,7 @@ std::string residualFowardSelection(const unsigned int size,const int totSamples
 		bestmodel = modelFittingFunc(myoutcome,mysampleMatbase,type);
 	else
     {
-		bestmodel=mean(myoutcome.col(1));
+		bestmodel = mean(myoutcome.col(1));
        	if (type=="LOGIT")
 		{
 			if ((bestmodel(0) >= DOUBLEEPS)&&(bestmodel(0) < 1.0))
@@ -390,6 +391,11 @@ std::string residualFowardSelection(const unsigned int size,const int totSamples
 		}
     }
   	bestTrainResiduals=residualForFRESAFunc(bestmodel,mysampleMatbase,"",type,train_outcome);
+//	Rcout << "Best:\n";
+//	Rcout << bestmodel;
+//	Rcout << "....Residuals\n";
+//	Rcout << sum(square(bestTrainResiduals)) << "\n";
+
   	if (loops > 1) bestResiduals=residualForFRESAFunc(bestmodel,myTestsampleMatbase,"",type,test_outcome);
 	int changes = 1;
 	double minpiri = pthr2;
@@ -402,31 +408,55 @@ std::string residualFowardSelection(const unsigned int size,const int totSamples
 	int cycle=0;
 	double error=1.0;
 	double tol=1.0e-6;
+	unsigned int maximumNoselectedCount=25;
+	double padjs=1.0;
+	uvec sindex=linspace<uvec>(0,size-1,size);
+	uvec nideex=sindex;
+	for (unsigned int j=0; j<size;j++) 
+	{
+		if (vnames[j] != inname)
+		{
+			nideex[j]=lockup[vnames[j]];
+		}
+	}
 	while ((changes>0)&&(error>tol))
 	{
 		changes = 0;
 	  	minpiri = pthr2;
 	  	jmax = -1;
-	  	for (unsigned int j=0; j<size;j++)
+		unsigned int lastpass=0;
+		unsigned int passtestcout=1;
+		unsigned int noselectstop = maximumNoselectedCount;
+		if ((cycle>0)&&(size > (maximumNoselectedCount/5)))
+		{
+			vec correlations=zeros<vec>(size);
+			for (unsigned int  j=0; j<size;j++)
+			{
+				if (vnames[j] != inname)
+				{
+					vec cr = abs(cor(bestTrainResiduals ,mysample.col(nideex[j])));
+					if (!cr.has_nan())
+					{
+						correlations[j]=cr[0];
+					}
+				}
+			}
+			sindex = sort_index(correlations,"descend");
+		}
+	  	for (unsigned int jn=0; jn<size;jn++)
 	  	{
+			unsigned int j=sindex[jn];
 			if (vnames[j] != inname)
 	  		{
-				unsigned int vidx = lockup[vnames[j]];
+				unsigned int vidx = nideex[j];
 
 				mysampleMat=join_rows(mysampleMatbase,mysample.col(vidx));
-
-
 				if (loops > 1) myTestsampleMat=join_rows(myTestsampleMatbase,myTestsample.col(vidx));
+
 	  			gfrm1 = frm1+" + "+vnames[j];
              	if((mysampleMat.n_cols>1)or(type=="COX"))
 				{
-					newmodel =modelFittingFunc(myoutcome,mysampleMat,type);
-					if (newmodel.has_nan())
-					{
-//						Rcout << "*";
-						mysampleMat=mysampleMat+100.0*DOUBLEEPS*randn(mysampleMat.n_rows,mysampleMat.n_cols);
-						newmodel =modelFittingFunc(myoutcome,mysampleMat,type);
-					}
+					newmodel = modelFittingFunc(myoutcome,mysampleMat,type);
 				}
 			    else
 			    {
@@ -448,8 +478,16 @@ std::string residualFowardSelection(const unsigned int size,const int totSamples
 	  			{
 
 					trainResiduals = residualForFRESAFunc(newmodel,mysampleMat,"",type,train_outcome);
+
+//					Rcout << "Model :\n";
+//					Rcout << newmodel;
+//					Rcout << "....Residuals\n";
+//					Rcout << sum(square(trainResiduals)) << "\n";
+					
+
 					error = mean(abs(trainResiduals))*istdoutcome;
 			   		double mpiri,piri = improvedResidualsFunc(bestTrainResiduals,trainResiduals,testType,totSamples).pvalue;
+//					Rcout << piri << " Pvalue \n";
 					mpiri = piri;					
 					if (loops > 1) 
 					{
@@ -459,30 +497,53 @@ std::string residualFowardSelection(const unsigned int size,const int totSamples
 						{
 							mpiri =std::max(iprob,piri);
 						}
-					}						
+					}
+//					if ((mpiri+piri) < 2*pthr2)
+					if (piri<pthr2)
+					{
+						passtestcout += 1;
+						lastpass = 0;
+					}
+					else
+					{
+						lastpass += 1;
+					}
 					if (!std::isnan(mpiri) && (mpiri  < minpiri))
 					{
 						jmax = j;
 						minpiri = mpiri;
 //						Rcout <<cycle<<":"<< error << ":"<< iprob <<":"<< piri <<"\n";	
+						if (cycle>0) noselectstop = maximumNoselectedCount/5;
 					}
-					if (cycle==0) basevalues[j]=piri;
-					else
+					if (cycle==0) 
 					{
-						if (error<tol)
+						basevalues[j]=piri;
+					}
+					if ((loops > 1)||(cycle>0))
+					{
+						if ((error<tol)||(lastpass>noselectstop))
 						{
-							j=size; // exit
+							jn=size; // exit
 						}
 					}
 	  			}
+				else
+				{
+					lastpass += 1;
+				}	
 	  		}
-			int jitter = (int)((j > (size/50))*(size/100));
-			if (isRandom) jitter=0;
-			if ((cycle>0)&&(jitter>1)) j += (randi<uvec>(1))[0] % jitter;
 	  	}
-
-		if ((jmax >= 0) && (minpiri < pthr2) && (inserted<maxTrainModelSize) )   
+		padjs=1.0;
+		padjs = 4.0*((double)(passtestcout)/(featuresize-cycle));
+//		if (cycle == 0) padjs = 2.0*((double)(passtestcout)/(featuresize-cycle)); // to avoid selecting a false feature from the beginning 
+		if (padjs > 1.0) padjs = 1.0;
+		pthrs[cycle] = pthr2*padjs;
+		if (pthrs[cycle]>pthr2) pthrs[cycle]=pthr2;
+		if (isRandom) pthrs[cycle]=pthr2;
+		
+		if ((jmax >= 0) && (minpiri < pthrs[cycle]) && (inserted<maxTrainModelSize) )   
 	  	{
+//			if (!isRandom) Rcout <<cycle<<" : "<< featuresize <<" : "<<pthr2<<" : "<<minpiri<< " : "<< passtestcout << " : "<< padjs <<"\n";	
 			if (vnames[jmax] != inname)
 			{
 				unsigned int vidx = lockup[vnames[jmax]];
@@ -496,11 +557,14 @@ std::string residualFowardSelection(const unsigned int size,const int totSamples
 					myTestsampleMatbase = join_rows(myTestsampleMatbase,myTestsample.col(vidx));
 					bestResiduals = residualForFRESAFunc(bestmodel,myTestsampleMatbase,"",type,test_outcome);
 				}
-				error = max(abs(bestTrainResiduals))*istdoutcome;
+				error = mean(abs(bestTrainResiduals))*istdoutcome;
 				frm1 = gfrm1;	
 				mynamesLoc.push_back(jmax);
 				inserted = inserted + 1;
-				changes = changes + 1;
+				if (error>tol) 
+				{
+					changes = changes + 1;
+				}
 			}
 			vnames[jmax] = inname;
 	  	} 
@@ -509,7 +573,7 @@ std::string residualFowardSelection(const unsigned int size,const int totSamples
 	return frm1;
 }
 
-extern "C" SEXP ForwardResidualModelCpp(SEXP _size, SEXP _fraction,SEXP _pvalue, SEXP _loops,  SEXP _covariates, SEXP _Outcome, SEXP _variableList, SEXP _maxTrainModelSize, SEXP _type, SEXP _timeOutcome, SEXP _testType, SEXP _dataframe,SEXP _colnames,SEXP _cores)
+extern "C" SEXP ForwardResidualModelCpp(SEXP _size, SEXP _fraction,SEXP _pvalue, SEXP _loops,  SEXP _covariates, SEXP _Outcome, SEXP _variableList, SEXP _maxTrainModelSize, SEXP _type, SEXP _timeOutcome, SEXP _testType, SEXP _dataframe,SEXP _colnames,SEXP _featuresize,SEXP _cores)
 {
 try {   //R_CStackLimit=(uintptr_t)-1;
 		std::string type = as<std::string>(_type);
@@ -535,8 +599,9 @@ try {   //R_CStackLimit=(uintptr_t)-1;
 		std::map<std::string, int> lockup;
 		std::vector<std::string> formulas;
 		std::vector<int> mynames;
-		vec basevalues=ones<vec>(size);
 		vec bbasevalues=zeros<vec>(size);
+		mat pthrshold=ones<mat>(size,loops);;
+		unsigned int featuresize=Rcpp::as<unsigned int>(_featuresize);
 		std::vector<std::string>ovnames=as<std::vector<std::string> >(CharacterVector(_variableList)); 
 		double pthr = pvalue;
 
@@ -578,22 +643,24 @@ try {   //R_CStackLimit=(uintptr_t)-1;
 		int totSamples = (int)(fraction*sizecases);
 		double pthr2 = 1.0-R::pnorm(std::sqrt(fraction)*std::abs(qnorm(pthr,0.0,1.0)),0.0,1.0,1,0);
 	    if (pthr2>0.1) pthr2 = 0.1;
-//		Rcout<<pvalue<<"pv: "<<pthr2<<" : "<<baseForm <<" : "<< size <<"\n";
 		if (size > ovnames.size()) size = ovnames.size();
+//		Rcout<<pvalue<<"pv: "<<pthr2<<" : "<<baseForm <<" : "<< size <<" : " << featuresize <<"\n";
 
 
 		
 		
-#pragma omp parallel for schedule(dynamic) ordered shared(mynames,formulas,bbasevalues)
+#pragma omp parallel for schedule(dynamic) ordered shared(mynames,formulas,bbasevalues,pthrshold)
     	for (int doOver=0; doOver<loops;doOver++)
 	 	{   
 			std::vector <int> mynamesLoc;
 			std::string  frm;
+			vec basevalues=ones<vec>(size);
+			vec pthrs=zeros<vec>(size);
 			mynamesLoc.clear();
 //			int doBootstrapSample = 1+loops*((doOver % 20)!=0);
 			frm = residualFowardSelection(size,totSamples,pthr2,testType,loops,
 			Outcome,timeOutcome,type,maxTrainModelSize,dataframe,
-			ovnames,lockup,baseForm,mynamesLoc,covari,basevalues,israndom);
+			ovnames,lockup,baseForm,mynamesLoc,covari,basevalues,israndom,featuresize,pthrs);
 			if ((doOver%100)==99)
 			{				
 #pragma omp critical
@@ -604,13 +671,29 @@ try {   //R_CStackLimit=(uintptr_t)-1;
 {
 				mynames.insert(mynames.end(), mynamesLoc.begin(), mynamesLoc.end());
 				formulas.push_back(frm);
-				for (unsigned int i=0;i<size;i++) bbasevalues[i] += basevalues[i];
+				for (unsigned int i=0;i<size;i++) 
+				{
+					bbasevalues[i] += basevalues[i];
+					pthrshold(i,doOver) = pthrs[i];
+				}
 
 }
   		}
-		for (unsigned int i=0;i<size;i++) bbasevalues[i] = bbasevalues[i]/loops;
+		vec med_pthrshold=zeros<vec>(size);
+		for (unsigned int i=0;i<size;i++) 
+		{
+			bbasevalues[i] = bbasevalues[i]/loops;
+			rowvec drow = pthrshold.row(i);
+			uvec whogz = find(drow);
+			if (whogz.n_elem > 0 ) med_pthrshold[i] = median(drow(whogz));
+			else
+			{
+				if ( i >0 ) med_pthrshold[i]=med_pthrshold[i-1];
+			}
+		}
+		
   		if (mynames.size() == 0) mynames.push_back(0);
-	    List result = List::create(Named("mynames")=wrap(mynames),Named("formula.list")=wrap(formulas),Named("Base.values")=wrap(bbasevalues));
+	    List result = List::create(Named("mynames")=wrap(mynames),Named("formula.list")=wrap(formulas),Named("Base.values")=wrap(bbasevalues),Named("p.thresholds")=wrap(med_pthrshold));
 	    return (result);
 	} 
 	catch( std::exception &ex ) 

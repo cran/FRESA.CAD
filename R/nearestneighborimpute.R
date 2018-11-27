@@ -1,4 +1,4 @@
-nearestneighborimpute <- function(tobeimputed,referenceSet=NULL,distol=1.05)
+nearestNeighborImpute <- function(tobeimputed,referenceSet=NULL,distol=1.05)
 {	
 	if (is.null(referenceSet))
 	{

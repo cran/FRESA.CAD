@@ -1,5 +1,5 @@
 updateModel.Bin <-
-function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableList,data,type=c("LM","LOGIT","COX"), lastTopVariable= 0,timeOutcome="Time",selectionType=c("zIDI","zNRI"),maxTrainModelSize=0)
+function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableList,data,type=c("LM","LOGIT","COX"), lastTopVariable= 0,timeOutcome="Time",selectionType=c("zIDI","zNRI"),maxTrainModelSize=0,zthrs=NULL)
 {
 	type <- match.arg(type)
   	seltype <- match.arg(selectionType)
@@ -15,7 +15,8 @@ function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableL
 	covariates <- acovariates;
 
 	vnames <- as.vector(variableList[,1]);
-	topvarID <- as.numeric(rownames(VarFrequencyTable));
+	topvarID <- as.numeric(names(VarFrequencyTable));
+#	print(topvarID);
 	
 	if (maxTrainModelSize == 0)
 	{
@@ -42,7 +43,7 @@ function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableL
 		lastTopVariable = sum(1*(VarFrequencyTable > topfreq));
 	}
 	if (lastTopVariable > length(VarFrequencyTable)) lastTopVariable = length(VarFrequencyTable);
-#	cat("Top Freq: ",VarFrequencyTable[1],"All Selected Features: ",length(VarFrequencyTable),"To be tested: ",lastTopVariable,"\n");
+#	cat("Top Freq: ",VarFrequencyTable[1],"All Selected Features: ",nvars,"To be tested: ",lastTopVariable,"\n");
 #	print(variableList[topvarID,1]);
 
 
@@ -50,16 +51,17 @@ function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableL
 	ftmp <- NULL;
 	frm1 <- NULL;
 	error <- 1.0;
-	tol = 1.0e-12; # if error less than tol exit
+	tol = 1.0e-8; # if error less than tol exit
 	if (lastTopVariable>0)
 	{
-		termsinserted = 0;
-		frm1 = paste(baseForm,"~",covariates,"+",vnames[topvarID[1]]);
+#		frm1 = paste(baseForm,"~",covariates,"+",vnames[topvarID[1]]);
+		frm1 = paste(baseForm,"~",covariates);
 
-		vnames_model <- append(vnames_model,vnames[topvarID[1]]);
+#		vnames_model <- append(vnames_model,vnames[topvarID[1]]);
 		model_zmin <- append(model_zmin,NA);
-		topvarID[1] = 0;
-		termsinserted = 1;
+#		topvarID[1] = 0;
+		termsinserted = 0;
+		indexlastinserted = 1;
 		ftmp <- formula(frm1);
 		bestmodel <- modelFitting(ftmp,data,type,TRUE)
 		if ( !inherits(bestmodel, "try-error"))
@@ -67,10 +69,22 @@ function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableL
 			bestpredict <- predict.fitFRESA(bestmodel,data,'prob');
 			for (pidx in 1:length(pvalue))
 			{
-				cthr <- abs(qnorm(termsinserted*pvalue[pidx]/nvars));	
-				i = 2;
+				cthr_a <- abs(qnorm(pvalue[pidx]));	
+				i = 1;
 				while ((i<=lastTopVariable)&&(error>tol))
 				{
+					if (termsinserted<nvars) cthr_a <- abs(qnorm(pvalue[pidx]/(nvars-termsinserted)));
+					if (is.null(zthrs))
+					{
+						cthr <- cthr_a;
+					}
+					else
+					{
+						lobs <- termsinserted+1;
+						if (lobs>length(zthrs)) lobs <- length(zthrs);
+						cthr <- zthrs[lobs];
+						if (cthr<cthr_a) cthr <- cthr_a;
+					}
 					if ((VarFrequencyTable[i]>0) && (topvarID[i]>0) && (termsinserted < maxTrainModelSize))
 					{
 						frma <- paste(frm1,"+",vnames[topvarID[i]]);
@@ -78,7 +92,7 @@ function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableL
 						newmodel <- modelFitting(ftmp,data,type,TRUE);
 						if ( !inherits(newmodel, "try-error"))
 						{
-							curpredict <-predict.fitFRESA(newmodel,data,'prob');
+							curpredict <- predict.fitFRESA(newmodel,data,'prob');
 							iprob_t <- .Call("improveProbCpp",bestpredict,curpredict,theoutcome);
 							if (seltype=="zIDI") 
 							{
@@ -99,6 +113,10 @@ function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableL
 									vnames_model <- append(vnames_model,vnames[topvarID[i]]);
 									model_zmin <- append(model_zmin,zmin);
 									termsinserted = termsinserted + 1;
+									if (indexlastinserted <= i) 
+									{
+										indexlastinserted = i+1;
+									}
 									topvarID[i] = 0;
 								}
 							}
@@ -111,6 +129,8 @@ function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableL
 		}
 		ftmp <- formula(frm1);
 	}
+#	print(zthrs[1:termsinserted])
+
 	if (length(vnames_model)==0)
 	{
 		frm1 = paste(baseForm,"~",covariates,"+",vnames[topvarID[1]]);

@@ -14,8 +14,8 @@ Utilities include functions for: univariate/longitudinal analysis, data conditio
     \tabular{ll}{
         Package: \tab FRESA.CAD\cr
         Type: \tab Package\cr
-        Version: \tab 3.0.1\cr
-        Date: \tab 2018-02-01\cr
+        Version: \tab 3.1.0\cr
+        Date: \tab 2018-10-30\cr
         License: \tab LGPL (>= 2)\cr
     }
     Purpose: The design of diagnostic or prognostic multivariate models via the selection of significantly discriminant features.
@@ -32,38 +32,34 @@ Utilities include functions for: univariate/longitudinal analysis, data conditio
 \references{Pencina, M. J., D'Agostino, R. B., & Vasan, R. S. (2008). Evaluating the added predictive ability of a new marker: from area under the ROC curve to reclassification and beyond. \emph{Statistics in medicine} \bold{27}(2), 157-172.}
 \author{
 Jose Gerardo Tamez-Pena, Antonio Martinez-Torteya and Israel Alanis
-Maintainer: <jose.tamezpena@itesm.mx>
+Maintainer: <jose.tamezpena@tec.mx>
 }
 \examples{
     \dontrun{
+    ### Fresa Package Examples ####
     library("epiR")
     library("FRESA.CAD")
     library(network)
     library(GGally)
     library("e1071")
 
+
+    # Start the graphics device driver to save all plots in a pdf format
+    pdf(file = "Fresa.Package.Example.pdf",width = 8, height = 6)
+
+
     # Get the stage C prostate cancer data from the rpart package
 
-    library(rpart)
-    data(stagec)
-    # Split the stages into several columns
-    dataCancer <- cbind(stagec[,c(1:3,5:6)],
-                        gleason4 = 1*(stagec[,7] == 4),
-                        gleason5 = 1*(stagec[,7] == 5),
-                        gleason6 = 1*(stagec[,7] == 6),
-                        gleason7 = 1*(stagec[,7] == 7),
-                        gleason8 = 1*(stagec[,7] == 8),
-                        gleason910 = 1*(stagec[,7] >= 9),
-                        eet = 1*(stagec[,4] == 2),
-                        diploid = 1*(stagec[,8] == "diploid"),
-                        tetraploid = 1*(stagec[,8] == "tetraploid"),
-                        notAneuploid = 1-1*(stagec[,8] == "aneuploid"))
+    data(stagec,package = "rpart")
+    options(na.action = 'na.pass')
+    dataCancer <- cbind(pgstat = stagec$pgstat,
+                        pgtime = stagec$pgtime,
+                        as.data.frame(model.matrix(Surv(pgtime,pgstat) ~ .,stagec))[-1])
 
+    #Impute missing values
+    dataCancerImputed <- nearestNeighborImpute(dataCancer)
 
-	#Impute missing values
-	dataCancerImputed <- nearestneighborimpute(dataCancer)
-
-	# Remove the incomplete cases
+    # Remove the incomplete cases
     dataCancer <- dataCancer[complete.cases(dataCancer),]
 
 
@@ -75,7 +71,7 @@ Maintainer: <jose.tamezpena@itesm.mx>
                    ,prediction=NULL,Scale=TRUE,
                    theFiveColors=c("blue","cyan","black","yellow","red"),
                    outcomeColors = 
-                   c("blue","lightgreen","yellow","orangered","red"),
+                     c("blue","lightgreen","yellow","orangered","red"),
                    transpose=FALSE,cexRow=0.50,cexCol=0.80,srtCol=35)
 
     # The univariate analysis
@@ -97,24 +93,24 @@ Maintainer: <jose.tamezpena@itesm.mx>
 
     # The Log-Rank Analysis using survdiff
 
-	lrsurvdiff <- survdiff(Surv(pgtime,pgstat)~
-	                       BSWiMSModel$BSWiMS.model$back.model$linear.predictors > 0,
-						   data=dataCancerImputed)
+    lrsurvdiff <- survdiff(Surv(pgtime,pgstat)~
+                  BSWiMSModel$BSWiMS.model$back.model$linear.predictors > 0,
+                  data=dataCancerImputed)
 
     # The Log-Rank Analysis EmpiricalSurvDiff and permutations of the null Chi distribution
-     lrp <- EmpiricalSurvDiff(dataCancerImputed$pgtime,dataCancerImputed$pgstat,
-	                          BSWiMSModel$BSWiMS.model$back.model$linear.predictors > 0,
-	                          type="Chi",plots=TRUE,samples=10000)
+    lrp <- EmpiricalSurvDiff(dataCancerImputed$pgtime,dataCancerImputed$pgstat,
+                             BSWiMSModel$BSWiMS.model$back.model$linear.predictors > 0,
+                             type="Chi",plots=TRUE,samples=10000)
 
-	 # The Log-Rank Analysis EmpiricalSurvDiff and permutations of the null SLR distribution
-     lrp <- EmpiricalSurvDiff(dataCancerImputed$pgtime,dataCancerImputed$pgstat,
-	                          BSWiMSModel$BSWiMS.model$back.model$linear.predictors > 0,
-	                          type="SLR",plots=TRUE,samples=10000)
-							  
-	 # The Log-Rank Analysis EmpiricalSurvDiff and bootstrapping the SLR distribution
-	 lrp <- EmpiricalSurvDiff(dataCancerImputed$pgtime,dataCancerImputed$pgstat,
-	                           BSWiMSModel$BSWiMS.model$back.model$linear.predictors > 0,
-	                          computeDist=TRUE,plots=TRUE)
+    # The Log-Rank Analysis EmpiricalSurvDiff and permutations of the null SLR distribution
+    lrp <- EmpiricalSurvDiff(dataCancerImputed$pgtime,dataCancerImputed$pgstat,
+                             BSWiMSModel$BSWiMS.model$back.model$linear.predictors > 0,
+                             type="SLR",plots=TRUE,samples=10000)
+
+    # The Log-Rank Analysis EmpiricalSurvDiff and bootstrapping the SLR distribution
+    lrp <- EmpiricalSurvDiff(dataCancerImputed$pgtime,dataCancerImputed$pgstat,
+                             BSWiMSModel$BSWiMS.model$back.model$linear.predictors > 0,
+                             computeDist=TRUE,plots=TRUE)
 
     #The performance of the final model using the summary function
     sm <- summary(BSWiMSModel$BSWiMS.model$back.model)
@@ -134,11 +130,11 @@ Maintainer: <jose.tamezpena@itesm.mx>
 
     #With FRESA.CAD we can do a leave-one-out using the list of models
     pm <- ensemblePredict(BSWiMSModel$forward.selection.list,
-                        dataCancer,predictType = "linear",type="LOGIT",Outcome="pgstat")
+                          dataCancer,predictType = "linear",type="LOGIT",Outcome="pgstat")
 
     #Ploting the ROC with 95% CI of the models
     pm <- plotModels.ROC(cbind(dataCancer$pgstat,
-                         pm$ensemblePredict),main=("LOO Forward Selection Median Predict"))
+                               pm$ensemblePredict),main=("LOO Forward Selection Median Predict"))
 
     #The plotModels.ROC provides the diagnosis confusion matrix.
     summary(epi.tests(pm$predictionTable))
@@ -162,7 +158,7 @@ Maintainer: <jose.tamezpena@itesm.mx>
 
 
     gplots::heatmap.2(bagging$formulaNetwork,trace="none",
-                    mar=c(10,10),main="eB:SWIMS Formula Network")
+                      mar=c(10,10),main="eB:SWIMS Formula Network")
     barplot(bagging$frequencyTable,las = 2,cex.axis=1.0,
             cex.names=0.75,main="Feature Frequency")
     n <- network::network(bagging$formulaNetwork, directed = FALSE,
@@ -176,8 +172,6 @@ Maintainer: <jose.tamezpena@itesm.mx>
 
     mdCOXs <- FRESA.Model(formula = Surv(pgtime, pgstat) ~ 1,data = dataCancer)
     sm <- summary(mdCOXs$BSWiMS.model)
-    print(sm$coefficients)
-    sm <- summary(mdCOXs$eBSWiMS.model$equivalentModel)
     print(sm$coefficients)
 
     # The model with singificant improvement in the residual error
@@ -202,7 +196,7 @@ Maintainer: <jose.tamezpena@itesm.mx>
 
     # The LOO estimation
     pm <- ensemblePredict(mdCOX$BSWiMS.models$formula.list,dataCancer,
-                    predictType = "linear",type="LOGIT",Outcome="pgstat")
+                          predictType = "linear",type="LOGIT",Outcome="pgstat")
     pm <- plotModels.ROC(cbind(dataCancer$pgstat,pm$ensemblePredict),main=("LOO Median Predict"))
     #Let us check the diagnosis performance
     summary(epi.tests(pm$predictionTable))
@@ -221,70 +215,58 @@ Maintainer: <jose.tamezpena@itesm.mx>
 
 
     md <- FRESA.Model(formula = Surv(pgtime, pgstat) ~ 1,data = dataCancer,
-                  CVfolds = 20,repeats = 5,equivalent = TRUE,usrFitFun=rpart)
+                      CVfolds = 10,repeats = 5,equivalent = TRUE,usrFitFun=rpart::rpart)
 
-    pm <- plotModels.ROC(md$cvObject$LASSO.testPredictions,theCVfolds=20,main="CV LASSO",cex=0.90)
-    pm <- plotModels.ROC(md$cvObject$KNN.testPrediction,theCVfolds=20,main="KNN",cex=0.90)
-    pm <- plotModels.ROC(md$cvObject$Models.testPrediction,theCVfolds=20,
-                     predictor="Prediction",main="B:SWiMS Bagging",cex=0.90)
-    pm <- plotModels.ROC(md$cvObject$Models.testPrediction,theCVfolds=20,
-                     predictor="Median",main="Forward Selection Median Ensemble",cex=0.90)
-    pm <- plotModels.ROC(md$cvObject$Models.testPrediction,theCVfolds=20,
-                     predictor="Bagged",main="Forward Selection Bagging",cex=0.90)
-    pm <- plotModels.ROC(md$cvObject$Models.testPrediction,theCVfolds=20,
-                     predictor="Forward",main="Forward Model",cex=0.90)
-    pm <- plotModels.ROC(md$cvObject$Models.testPrediction,theCVfolds=20,
-                     predictor="first.B.SWiMS",main="The First B:SWiMS Model",cex=0.90)
-    pm <- plotModels.ROC(md$cvObject$Models.testPrediction,theCVfolds=20,
-                     predictor="eB.SWiMS",main="The Equivalent B.SWiMS",cex=0.90)
-    pm <- plotModels.ROC(md$cvObject$Models.testPrediction,theCVfolds=20,
-                     predictor="Ensemble.B.SWiMS",main="B:SWiMS Median Ensemble",cex=0.90)
+    colnames(md$cvObject$Models.testPrediction)
 
-    md$cvObject$Models.testPrediction$usrFitFunction <- 
-       md$cvObject$Models.testPrediction$usrFitFunction -0.5
-    md$cvObject$Models.testPrediction$usrFitFunction_Sel <- 
-       md$cvObject$Models.testPrediction$usrFitFunction_Sel -0.5
+    pm <- plotModels.ROC(md$cvObject$LASSO.testPredictions,theCVfolds=10,main="CV LASSO",cex=0.90)
+    pm <- plotModels.ROC(md$cvObject$KNN.testPrediction,theCVfolds=10,main="KNN",cex=0.90)
+    pm <- plotModels.ROC(md$cvObject$Models.testPrediction,theCVfolds=10,
+                         predictor="Prediction",main="B:SWiMS Bagging",cex=0.90)
+    pm <- plotModels.ROC(md$cvObject$Models.testPrediction,theCVfolds=10,
+                         predictor="Ensemble.B.SWiMS"
+                         ,main="Forward Selection Median Ensemble",cex=0.90)
+    pm <- plotModels.ROC(md$cvObject$Models.testPrediction,theCVfolds=10,
+                         predictor="Ensemble.Forward",main="Forward Selection Bagging",cex=0.90)
+    pm <- plotModels.ROC(md$cvObject$Models.testPrediction,theCVfolds=10,
+                         predictor="eB.SWiMS",main="Equivalent Model",cex=0.90)
+    pm <- plotModels.ROC(md$cvObject$Models.testPrediction,theCVfolds=10,
+                         predictor="Forward.Selection.Bagged",main="The Forward Bagging",cex=0.90)
 
     pm <- plotModels.ROC(md$cvObject$Models.testPrediction,theCVfolds=20,
-                     predictor="usrFitFunction",
-                     main="Recursive Partitioning and Regression Trees",cex=0.90)
+                         predictor="usrFitFunction",
+                         main="Recursive Partitioning and Regression Trees",cex=0.90)
     pm <- plotModels.ROC(md$cvObject$Models.testPrediction,theCVfolds=20,
-                     predictor="usrFitFunction_Sel",
-                     main="Recursive Partitioning and Regression Trees with FS",cex=0.90)
+                         predictor="usrFitFunction_Sel",
+                         main="Recursive Partitioning and Regression Trees with FS",cex=0.90)
 
 
     ## FRESA.Model with Cross Validation, LOGISTIC and Support Vector Machine
 
 
     md <- FRESA.Model(formula = pgstat ~ 1,data = dataCancer2,
-                      CVfolds = 20,repeats = 5,equivalent = TRUE,usrFitFun=svm)
+                      CVfolds = 10,repeats = 5,equivalent = TRUE,usrFitFun=svm)
 
-    pm <- plotModels.ROC(md$cvObject$LASSO.testPredictions,theCVfolds=20,main="CV LASSO",cex=0.90)
-    pm <- plotModels.ROC(md$cvObject$KNN.testPrediction,theCVfolds=20,main="KNN",cex=0.90)
-    pm <- plotModels.ROC(md$cvObject$Models.testPrediction,theCVfolds=20,
-                     predictor="Prediction",main="B:SWiMS Bagging",cex=0.90)
-    pm <- plotModels.ROC(md$cvObject$Models.testPrediction,theCVfolds=20,
-                     predictor="Median",main="Forward Selection Median Ensemble",cex=0.90)
-    pm <- plotModels.ROC(md$cvObject$Models.testPrediction,theCVfolds=20,
-                     predictor="Bagged",main="Forward Selection Bagging",cex=0.90)
-    pm <- plotModels.ROC(md$cvObject$Models.testPrediction,theCVfolds=20,
-                     predictor="Forward",main="Forward Model",cex=0.90)
-    pm <- plotModels.ROC(md$cvObject$Models.testPrediction,theCVfolds=20,
-                     predictor="first.B.SWiMS",main="The First B:SWiMS Model",cex=0.90)
-    pm <- plotModels.ROC(md$cvObject$Models.testPrediction,theCVfolds=20,
-                     predictor="eB.SWiMS",main="The Equivalent B.SWiMS",cex=0.90)
-    pm <- plotModels.ROC(md$cvObject$Models.testPrediction,theCVfolds=20,
-                     predictor="Ensemble.B.SWiMS",main="B:SWiMS Median Ensemble",cex=0.90)
-    md$cvObject$Models.testPrediction$usrFitFunction <- 
-       md$cvObject$Models.testPrediction$usrFitFunction -0.5
-    md$cvObject$Models.testPrediction$usrFitFunction_Sel <- 
-       md$cvObject$Models.testPrediction$usrFitFunction_Sel -0.5
-    pm <- plotModels.ROC(md$cvObject$Models.testPrediction,theCVfolds=20,
-                     predictor="usrFitFunction",
-                     main="Support Vector Machine",cex=0.90)
-    pm <- plotModels.ROC(md$cvObject$Models.testPrediction,theCVfolds=20,
-                     predictor="usrFitFunction_Sel",
-                     main="Support Vector Machine with FS",cex=0.90)
-    }
+    pm <- plotModels.ROC(md$cvObject$LASSO.testPredictions,theCVfolds=10,main="CV LASSO",cex=0.90)
+    pm <- plotModels.ROC(md$cvObject$KNN.testPrediction,theCVfolds=10,main="KNN",cex=0.90)
+    pm <- plotModels.ROC(md$cvObject$Models.testPrediction,theCVfolds=10,
+                         predictor="Prediction",main="B:SWiMS Bagging",cex=0.90)
+
+    md$cvObject$Models.testPrediction[,"usrFitFunction"] <- 
+                      md$cvObject$Models.testPrediction[,"usrFitFunction"] - 0.5
+    md$cvObject$Models.testPrediction[,"usrFitFunction_Sel"] <- 
+                      md$cvObject$Models.testPrediction[,"usrFitFunction_Sel"] - 0.5
+    pm <- plotModels.ROC(md$cvObject$Models.testPrediction,theCVfolds=10,
+                         predictor="usrFitFunction",
+                         main="SVM",cex = 0.90)
+    pm <- plotModels.ROC(md$cvObject$Models.testPrediction,theCVfolds=10,
+                         predictor="usrFitFunction_Sel",
+                         main="SVM with FS",cex = 0.90)
+
+
+    # Shut down the graphics device driver
+    dev.off()
+
+   }
 }
 \keyword{package}

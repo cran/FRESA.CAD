@@ -19,7 +19,8 @@
 	                     testType=c("Binomial", "Wilcox", "tStudent", "Ftest"),
 	                     timeOutcome = "Time",
 	                     cores = 4,
-	                     randsize = 0)
+	                     randsize = 0,
+	                     featureSize=0)
 }
 \arguments{
 	\item{size}{
@@ -64,6 +65,9 @@
 	\item{randsize}{
 		the model size of a random outcome. If randsize is less than zero. It will estimate the size
 	}
+	\item{featureSize}{
+		The original number of features to be explored in the data frame.
+	}
 }
 \value{
 	\item{final.model}{
@@ -77,9 +81,6 @@
 	}
 	\item{ranked.var}{
 		An array with the ranked frequencies of the features
-	}
-	\item{z.NeRIs}{
-		A vector in which each element represents the \emph{z}-score of the NeRI, associated to the \code{testType}, for each feature found in the final model
 	}
 	\item{formula.list}{
 		A list containing objects of class \code{formula} with the formulas used to fit the models found at each cycle

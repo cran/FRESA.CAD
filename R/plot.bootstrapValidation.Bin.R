@@ -3,7 +3,7 @@ plot.bootstrapValidation_Bin <-
 function(x,xlab = "Years", ylab="Survival",strata.levels=c(0),main="ROC",cex=1.0,...) 
 {
 
-	op <- par(no.readonly = TRUE)
+	op <- par(no.readonly=TRUE)
 
 
 	par(mfrow=c(1,1),pty='m')

@@ -12,8 +12,8 @@
 	                       startOffset = 0, 
 	                       type = c("LOGIT", "LM", "COX"),
 	                       testType = c("Binomial", "Wilcox", "tStudent", "Ftest"),
-	                       setIntersect = 1,
-						   adjsize= 1)
+	                       setIntersect = 1
+						   )
 }
 \arguments{
 	\item{object}{ 
@@ -39,9 +39,6 @@
 	}
 	\item{setIntersect}{
 		The intersect of the model (To force a zero intersect, set this value to 0)
-	}
-	\item{adjsize}{
-		The expected size of a random model for multiple selection correction
 	}
 }
 \details{

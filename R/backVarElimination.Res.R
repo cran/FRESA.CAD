@@ -1,4 +1,4 @@
-backVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data,startOffset=0, type = c("LOGIT", "LM","COX"),testType=c("Binomial","Wilcox","tStudent","Ftest"),setIntersect=1,adjsize=1) 
+backVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data,startOffset=0, type = c("LOGIT", "LM","COX"),testType=c("Binomial","Wilcox","tStudent","Ftest"),setIntersect=1) 
 {
 
 	back.var.NeRISelection <- function (object,pvalue=0.05,Outcome="Class",data,startOffset=0, type = c("LOGIT", "LM","COX"),testType=c("Binomial","Wilcox","tStudent","Ftest"),setIntersect=1) 
@@ -22,7 +22,6 @@ backVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data,star
 			outCome = paste(outCome," 1  ");
 		}
 		frm1 = outCome;
-		cpv = pvalue; 
 		if (length(termList)>0)
 		{
 			for ( i in 1:length(termList))
@@ -41,6 +40,9 @@ backVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data,star
 
 			if (length(termList)>startSearch)
 			{
+				ploc <- 1+length(termList)-startSearch;
+				if (ploc>length(pvalue)) ploc <- length(pvalue);
+				cpv <- pvalue[ploc];
 				for ( i in startSearch:length(termList))
 				{
 				
@@ -86,7 +88,6 @@ backVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data,star
 				}
 				ftmp <- formula(frm1);
 				bckform <- frm1;
-#				cat("formula :",frm1,"\n")
 				FullModel <- modelFitting(ftmp,data,type,TRUE)
 			}
 		}
@@ -94,8 +95,6 @@ backVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data,star
 		{
 			FullModel <- object;
 		}
-#		cat("Reduced: \n")
-#		print(summary(FullModel));
 		result <- list(Model=FullModel,Removed=removeID,backfrm=bckform);
 
 		return (result)
@@ -103,16 +102,6 @@ backVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data,star
 
 	bkobj <- NULL;
 	beforeFSC.formula <- NULL;
-	if (adjsize>1)
-	{
-		bkobj <- backVarElimination_Res(object,pvalue,Outcome,data,startOffset,type,testType,setIntersect,adjsize=1); # remove features that do not improve residuals
-		object <- bkobj$back.model;
-		adjsize = floor(adjsize);
-		adjsize <- min(adjsize,ncol(data)-1);
-		beforeFSC.formula <- bkobj$string.formula;
-#		cat("Adjusted Size:",adjsize,"\n");
-	}
-
 	changes=1;
 	loops=0;
     model <- object;
@@ -120,18 +109,8 @@ backVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data,star
 	changes2<-0
 	while ((changes>0) && (loops<100))
 	{
-		p.elimin <- pvalue;
-		if (adjsize>0)
-		{		
-			modsize <- length(attr(terms(model),"term.labels"));	
-			if (modsize<1) modsize=1;
-			qvalue <- 4.0*pvalue;
-			if (qvalue < 0.05) qvalue=0.05 # lests keep the minimum q-value to 0.1
-			p.elimin <- min(pvalue,modsize*qvalue/adjsize) # BH alpha  the elimination p-value
-		}
 
-		bk <- back.var.NeRISelection(model,p.elimin,Outcome=Outcome,data=data,startOffset,type,testType,setIntersect);
-#		cat("Used p :",p.elimin,"Formula <- ", bk$backfrm,"\n");
+		bk <- back.var.NeRISelection(model,pvalue,Outcome=Outcome,data=data,startOffset,type,testType,setIntersect);
 		changes = as.integer(bk$Removed);
 		if (changes>0)
 		{
@@ -149,8 +128,6 @@ backVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data,star
 		}
 		model = bk$Model;
 	}
-#	cat("Reduced Model:",bk$backfrm,"\n")
-#	print(summary(model));
 
 	modelReclas <- getVar.Res(model,data=data,Outcome=Outcome,type=type);
 	
@@ -160,7 +137,6 @@ backVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data,star
 	back.formula=formula(bk$backfrm),
 	bootCV=NULL,
 	lastRemoved=changes2,
-	number.of.independent=adjsize,
 	at.opt.model=beforeFSCmodel,
 	string.formula=bk$backfrm,
 	beforeFSC.formula=formula(beforeFSC.formula));

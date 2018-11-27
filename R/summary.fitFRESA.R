@@ -7,8 +7,32 @@ summary.fitFRESA <- function(object,type=c("Improvement","Residual"),ci=c(0.025,
 	outcome <- as.character(all.vars(object$formula)[1+coffset]);
 	FRESAsummary <- NULL;
 	bv <- NULL;
+	classlen=length(class(object))
+	cobj <- substr(class(object)[classlen], 1, 2);
+	if (cobj == "or")
+	{
+		FRESAsummary <- list();
+		for (s in 1:length(object$theScores[-1]))
+		{
+			FRESAsummary[[s]] <- summary.fitFRESA(object$theBaggedModels[[s]]$bagged.model);
+		}
+		return (FRESAsummary);
+	}
+	if (cobj == "BS")
+	{
+		if (is.null(object$oridinalModels))
+		{
+			return (summary.fitFRESA(object$bagging$bagged.model));
+		}
+		else
+		{
+			return (summary.fitFRESA(object$oridinalModels));
+		}
+	}
 	if (length(object$coefficients)>1)
 	{
+		zval1 <- qnorm(ci[1]);
+		zval2 <- qnorm(ci[2]);
 		if (is.null(data)) 
 		{
 			data <- object$model;
@@ -30,13 +54,29 @@ summary.fitFRESA <- function(object,type=c("Improvement","Residual"),ci=c(0.025,
 				vres$FP.value <- object$baggingAnalysis$pF_values;
 				vres$BinP.value <- object$baggingAnalysis$pBin_values;
 				vres$FullTrainMSE <- object$baggingAnalysis$mMSE_values;
-				if (object$baggingAnalysis$n_bootstrap>2)
+				vres$RelativeFrequency <- as.vector(object$baggingAnalysis$RelativeFrequency[names(coefficients)]);
+#				print(vres$RelativeFrequency)
+#				print(coefficients);
+				lowci <- object$baggingAnalysis$coefficients;
+				hici <- object$baggingAnalysis$coefficients;
+				for (n in 1:length(object$baggingAnalysis$coefficients))
 				{
-					tvalue1 <- qt(ci[1],object$baggingAnalysis$n_bootstrap-1);
-					tvalue2 <- qt(ci[2],object$baggingAnalysis$n_bootstrap-1);
-					cis = cbind(object$baggingAnalysis$coefficients+tvalue1*object$baggingAnalysis$coefstd,object$baggingAnalysis$coefficients,object$baggingAnalysis$coefficients+tvalue2*object$baggingAnalysis$coefstd);
-					cinames <- c("lower","mean","upper");
+					if (object$baggingAnalysis$coeff_n_samples[n]>10)
+					{
+						tvalue1 <- qt(ci[1],object$baggingAnalysis$coeff_n_samples[n]-1);
+						tvalue2 <- qt(ci[2],object$baggingAnalysis$coeff_n_samples[n]-1);
+						lowci[n] <- tvalue1*object$baggingAnalysis$coefstd[n];
+						hici[n] <- tvalue2*object$baggingAnalysis$coefstd[n];
+						lowci[n] <- max(lowci[n],zval1*abs(object$baggingAnalysis$coefficients[n]/object$baggingAnalysis$avgZvalues[n]));
+						hici[n] <- max(hici[n],zval2*abs(object$baggingAnalysis$coefficients[n]/object$baggingAnalysis$avgZvalues[n]));
+					}
+					else
+					{
+						lowci[n] <- zval1*abs(lowci[n]/object$baggingAnalysis$avgZvalues[n]);
+						hici[n] <- zval2*abs(hici[n]/object$baggingAnalysis$avgZvalues[n]);
+					}
 				}
+				cis = cbind(object$baggingAnalysis$coefficients+lowci,object$baggingAnalysis$coefficients,object$baggingAnalysis$coefficients+hici);
 			}
 			else
 			{
@@ -48,11 +88,14 @@ summary.fitFRESA <- function(object,type=c("Improvement","Residual"),ci=c(0.025,
 					cis[i,] = as.vector(quantile(bv$s.coef[,i+coffset], probs = c(ci[1],0.5,ci[2]), na.rm = TRUE,names = FALSE, type = 7));
 				}
 				cinames <- c("lower","median","upper");
+				vres$RelativeFrequency <- rep(1,ncoef);
 			}
-			coefficients=cbind(coefficients,cis,vres$unitrainMSE,vres$redtrainMSE,vres$FullTrainMSE,vres$NeRIs,vres$FP.value,vres$tP.value,vres$BinP.value,vres$WilcoxP.value);
-			colnames(coefficients) <- c("Estimate",cinames,"u.MSE","r.MSE","model.MSE","NeRI","F.pvalue","t.pvalue","Sign.pvalue","Wilcox.pvalue");
-			residaulsMSE <- mean((object$response[,1]-predict(object))^2);
-			Rsquare <- var(object$response[,1]);
+			coefficients=as.data.frame(cbind(coefficients,cis,vres$unitrainMSE,vres$redtrainMSE,vres$FullTrainMSE,vres$NeRIs,vres$FP.value,vres$tP.value,vres$BinP.value,vres$WilcoxP.value,vres$RelativeFrequency));
+			colnames(coefficients) <- c("Estimate",cinames,"u.MSE","r.MSE","model.MSE","NeRI","F.pvalue","t.pvalue","Sign.pvalue","Wilcox.pvalue","Frequency");
+			coefficients <- coefficients[order(vres$FP.value),];
+
+			residaulsMSE <- mean((object$response[,2]-predict(object))^2);
+			Rsquare <- var(object$response[,2]);
 			Rsquare <- (Rsquare-residaulsMSE)/Rsquare;
 			FRESAsummary <- list(coefficients=coefficients,MSE=residaulsMSE,R2=Rsquare,bootstrap=bv);
 		}
@@ -75,14 +118,32 @@ summary.fitFRESA <- function(object,type=c("Improvement","Residual"),ci=c(0.025,
 				vres$z.NRIs <- object$baggingAnalysis$znri_values;
 				vres$fullTrainAccuracy <- object$baggingAnalysis$mACC_values;
 				vres$fullTrainAUC <- object$baggingAnalysis$mAUC_values;
-				if (object$baggingAnalysis$n_bootstrap>2)
+				vres$RelativeFrequency <- as.vector(object$baggingAnalysis$RelativeFrequency[names(coefficients)]);
+#				print(vres$RelativeFrequency);
+#				print(coefficients);
+
+				lowci <- object$baggingAnalysis$coefficients;
+				hici <- object$baggingAnalysis$coefficients;
+				for (n in 1:length(object$baggingAnalysis$coefficients))
 				{
-					tvalue1 <- qt(ci[1],object$baggingAnalysis$n_bootstrap-1);
-					tvalue2 <- qt(ci[2],object$baggingAnalysis$n_bootstrap-1);
-					cis = cbind(object$baggingAnalysis$coefficients+tvalue1*object$baggingAnalysis$coefstd,object$baggingAnalysis$coefficients,object$baggingAnalysis$coefficients+tvalue2*object$baggingAnalysis$coefstd)
-					cis <- exp(cis)
-					cinames <- c("lower","OR","upper");
+					if (object$baggingAnalysis$coeff_n_samples[n]>10)
+					{
+						tvalue1 <- qt(ci[1],object$baggingAnalysis$coeff_n_samples[n]-1);
+						tvalue2 <- qt(ci[2],object$baggingAnalysis$coeff_n_samples[n]-1);
+						lowci[n] <- tvalue1*object$baggingAnalysis$coefstd[n];
+						hici[n] <- tvalue2*object$baggingAnalysis$coefstd[n];
+						lowci[n] <- max(lowci[n],zval1*abs(object$baggingAnalysis$coefficients[n]/object$baggingAnalysis$avgZvalues[n]));
+						hici[n] <- max(hici[n],zval2*abs(object$baggingAnalysis$coefficients[n]/object$baggingAnalysis$avgZvalues[n]));
+					}
+					else
+					{
+						lowci[n] <- zval1*abs(lowci[n]/object$baggingAnalysis$avgZvalues[n]);
+						hici[n] <- zval2*abs(hici[n]/object$baggingAnalysis$avgZvalues[n]);
+					}
 				}
+				cis = cbind(object$baggingAnalysis$coefficients+lowci,object$baggingAnalysis$coefficients,object$baggingAnalysis$coefficients+hici);
+				cis = exp(cis);
+				cinames <- c("lower","OR","upper");
 			}
 			else
 			{
@@ -93,15 +154,17 @@ summary.fitFRESA <- function(object,type=c("Improvement","Residual"),ci=c(0.025,
 				{
 					cis[i,] = as.vector(quantile(bv$s.coef[,i+coffset], probs = c(ci[1],0.5,ci[2]), na.rm = TRUE,names = FALSE, type = 7));
 				}
-				cinames <- c("lower","median","upper");
+				vres$RelativeFrequency <- rep(1,ncoef);
 			}
-			coefficients=cbind(coefficients,cis,vres$uniTrainAccuracy,vres$redtrainAccuracy,vres$fullTrainAccuracy,vres$uniTrainAUC,vres$redtrainAUC,vres$fullTrainAUC,vres$IDIs,vres$NRIs,vres$z.IDIs,vres$z.NRIs);
-			colnames(coefficients) <- c("Estimate",cinames,"u.Accuracy","r.Accuracy","full.Accuracy","u.AUC","r.AUC","full.AUC","IDI","NRI","z.IDI","z.NRI");
+			coefficients=as.data.frame(cbind(coefficients,cis,vres$uniTrainAccuracy,vres$redtrainAccuracy,vres$fullTrainAccuracy,vres$uniTrainAUC,vres$redtrainAUC,vres$fullTrainAUC,vres$IDIs,vres$NRIs,vres$z.IDIs,vres$z.NRIs,vres$RelativeFrequency));
+			colnames(coefficients) <- c("Estimate",cinames,"u.Accuracy","r.Accuracy","full.Accuracy","u.AUC","r.AUC","full.AUC","IDI","NRI","z.IDI","z.NRI","Frequency");
+			coefficients <- coefficients[order(-vres$z.IDIs),];
 			pred <- 1*(predict(object)>0);
-			Accuracy <- mean(1.0*(object$response[,1]==pred));
-			tAUC <- sum((object$response[,1]==pred)*object$response[,1])/sum(object$response[,1]);
-			tAUC <- 0.5*(tAUC+sum((object$response[,1]==pred)*(object$response[,1]==0))/sum(object$response[,1]==0));
-			FRESAsummary <- list(coefficients=coefficients,Accuracy=Accuracy,tAUC=tAUC,bootstrap=bv);
+			Accuracy <- mean(1.0*(object$response[,2]==pred));
+			sensitivity <- sum((object$response[,2]==pred)*object$response[,2])/sum(object$response[,2]); 
+			specificity <- sum((object$response[,2]==pred)*(object$response[,2]==0))/sum(object$response[,2]==0);
+			tAUC <- 0.5*(sensitivity+specificity);
+			FRESAsummary <- list(coefficients=coefficients,Accuracy=Accuracy,tAUC=tAUC,sensitivity=sensitivity,specificity=specificity,bootstrap=bv);
 		}
 	}
 	return (FRESAsummary);

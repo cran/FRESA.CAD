@@ -15,7 +15,8 @@
 	            lastTopVariable = 0,
 	            timeOutcome = "Time",
 	            selectionType = c("zIDI","zNRI"),
-	            maxTrainModelSize = 0
+	            maxTrainModelSize = 0,
+	            zthrs = NULL
 	            )
 }
 \arguments{
@@ -51,6 +52,9 @@
 	}
 	\item{maxTrainModelSize}{
 		Maximum number of terms that can be included in the model
+	}
+	\item{zthrs}{
+		The z-thresholds estimated in forward selection
 	}
 }
 \value{

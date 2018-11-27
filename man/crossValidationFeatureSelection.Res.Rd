@@ -23,21 +23,18 @@
 	                                                 "tStudent",
 	                                                 "Ftest"),
 	                                    startOffset = 0,
-	                                    elimination.bootstrap.steps = 25,
+	                                    elimination.bootstrap.steps = 100,
 	                                    trainFraction = 0.67,
 	                                    trainRepetition = 9,
-	                                    elimination.pValue = 0.05,
 	                                    setIntersect = 1,
-	                                    update.pvalue = c(0.05,0.05),
 	                                    unirank = NULL,
 	                                    print=TRUE,
 	                                    plots=TRUE,
 	                                    lambda="lambda.1se",
-	                                    adjsize=1.0,
 	                                    equivalent=FALSE,
 	                                    bswimsCycles=10,
-	                                    usrFitFun=NULL
-	                                    )
+	                                    usrFitFun=NULL,
+	                                    featureSize=0)
 }
 \arguments{
 	\item{size}{
@@ -91,12 +88,6 @@
 	\item{trainRepetition}{
 		The number of cross-validation folds (it should be at least equal to \eqn{1/trainFraction} for a complete cross-validation)
 	}
-	\item{elimination.pValue}{
-		The maximum \emph{p}-value, associated to the NeRI, allowed for a term in the model by the backward elimination procedure
-	}
-	\item{update.pvalue}{
-		The maximum \emph{p}-value, associated to the NeRI, allowed for a term in the model by the update procedure
-	}
 	\item{unirank}{
 		A list with the results yielded by the \code{uniRankVar} function, required only if the rank needs to be updated during the cross-validation procedure
 	}
@@ -109,9 +100,6 @@
 	\item{lambda}{
 		The passed value to the s parameter of the glmnet cross validation coefficient
 	}
-	\item{adjsize}{
-		The expected size of a random model for multiple selection correction
-	}
 	\item{equivalent}{
 		Is set to TRUE CV will compute the equivalent model
 	}
@@ -120,6 +108,9 @@
 	}
 	\item{usrFitFun}{
 		A user fitting function to be evaluated by the cross validation procedure
+	}
+	\item{featureSize}{
+		The original number of features to be explored in the data frame.
 	}
 }
 \details{

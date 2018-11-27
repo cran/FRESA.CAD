@@ -1,5 +1,5 @@
 updateModel.Res <-
-function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableList,data,type=c("LM","LOGIT","COX"),testType=c("Binomial","Wilcox","tStudent"), lastTopVariable= 0,timeOutcome="Time",maxTrainModelSize=-1)
+function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableList,data,type=c("LM","LOGIT","COX"),testType=c("Binomial","Wilcox","tStudent"), lastTopVariable= 0,timeOutcome="Time",maxTrainModelSize=-1,p.thresholds=NULL)
 {
 	type <- match.arg(type)
 
@@ -42,31 +42,45 @@ function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableL
 		lastTopVariable = sum(1*(VarFrequencyTable>topfreq));
 	}
 	if (lastTopVariable > length(VarFrequencyTable)) lastTopVariable = length(VarFrequencyTable);
-#	cat("Top Freq: ",VarFrequencyTable[1],"All Selected Features: ",length(VarFrequencyTable),"To be tested: ",lastTopVariable,"\n");
+#	cat("Top Freq: ",VarFrequencyTable[1],"All Selected Features: ",nvars,"To be tested: ",lastTopVariable,"\n");
 		
-	frm1 = paste(baseForm,"~",covariates,"+",vnames[topvarID[1]]);	
+#	frm1 = paste(baseForm,"~",covariates,"+",vnames[topvarID[1]]);	
+	frm1 = paste(baseForm,"~",covariates);
 	ftmp <- formula(frm1);
-	varlist <- append(varlist,topvarID[1])
+#	varlist <- append(varlist,topvarID[1])
 	bestmodel <- modelFitting(ftmp,data,type,TRUE)
-	topvarID[1]=0;
+#	topvarID[1]=0;
 	bestResiduals <- residualForFRESA(bestmodel,data,Outcome);
-	termsinserted = 1;
+	termsinserted = 0;
 	stdoutput <- sd(data[,Outcome]);
 	error <- 1.0;
-	tol <- 1.0e-12;
+	tol <- 1.0e-8;
+	indexlastinserted <- 1
 	for (pval in 1:length(pvalue))
 	{
-		cthr <- termsinserted*pvalue[pval]/nvars;
+		cthr_a <- pvalue[pval];
 		ftmp <- formula(frm1);
-		i <-2;
+		i <- 1;
 #		cat("Update: ",frm1,"\n");
 		while ((i<=lastTopVariable)&&(error>tol))
 		{
+			if (nvars>termsinserted) cthr_a <- pvalue[pval]/(nvars-termsinserted);
+			if (is.null(p.thresholds))
+			{
+				cthr <- cthr_a;
+			}
+			else
+			{
+				lobs <- termsinserted+1;				
+				if (lobs>length(p.thresholds)) lobs <- length(p.thresholds);
+				cthr <- p.thresholds[lobs];
+				if (cthr>cthr_a) cthr <- cthr_a;
+			}
 			if ((VarFrequencyTable[i]>0) && (topvarID[i]>0) && (termsinserted < maxTrainModelSize))
 			{
 				frma <- paste(frm1,"+",vnames[topvarID[i]]);
 				ftmp <- formula(frma);
-				newmodel <- modelFitting(ftmp,data,type,TRUE)
+				newmodel <- modelFitting(ftmp,data,type,TRUE);
 				if ( !inherits(newmodel, "try-error"))
 				{
 					cur_residuals <- residualForFRESA(newmodel,data,Outcome);
@@ -79,8 +93,12 @@ function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableL
 						bestResiduals <- cur_residuals;
 						frm1 <- frma;
 						vnames_model <- append(vnames_model,vnames[topvarID[i]]);
-						model_ziri <- append(model_ziri,abs(qnorm(piri)));
+						model_ziri <- append(model_ziri,-1*(qnorm(piri)));
 						termsinserted = termsinserted + 1;
+						if (indexlastinserted <= i) 
+						{
+							indexlastinserted <- i+1;
+						}
 						VarFrequencyTable[i]=0;
 						topvarID[i]=0;
 					}	
@@ -88,8 +106,10 @@ function(Outcome,covariates="1",pvalue=c(0.025,0.05),VarFrequencyTable,variableL
 			}
 			i = i+1;
 		}
+#		cat(cthr," Update: ",frm1,"\n");
 	}
 #	cat("Update: ",frm1,"\n");
+#    print(p.thresholds[1:termsinserted]);
 
 	environment(bestmodel$formula) <- globalenv()
 	environment(bestmodel$terms) <- globalenv()

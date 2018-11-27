@@ -4,6 +4,14 @@ function (formulaList,trainData,testData=NULL, predictType = c("prob", "linear")
 
 #	cat("Median\n")
 #		print(formulaList);
+	if (length(formulaList)==0)
+	{
+		cat("No formulas\n");
+		warning("No formulas");
+		result <- list(ensemblePredict=NULL,
+		medianKNNPredict=NULL,predictions=NULL,KNNpredictions=NULL,wPredict=NULL)
+		return (result)		
+	}
 	if (is.null(Outcome)) 
 	{
 		nk = -1;
@@ -12,9 +20,7 @@ function (formulaList,trainData,testData=NULL, predictType = c("prob", "linear")
 #			formulaList[i] <- paste(formulaList[i],"+1")
 #		}
 		varlist <- attr(terms(formula(formulaList[1])),"variables")
-		
 		dependent <- as.character(varlist[[2]])
-		
 		if (length(dependent)==3)
 		{
 			vOutcome = dependent[3];
@@ -22,23 +28,26 @@ function (formulaList,trainData,testData=NULL, predictType = c("prob", "linear")
 		else
 		{
 			vOutcome = dependent[1];
-		}
+		}		
 	}
 	else
 	{
 		vOutcome=Outcome;
 		for (i in 1:length(formulaList))
 		{
-			if (gregexpr(pattern ='~',as.character(formulaList[i]))[1]>0)
+			if (formulaList[i] != "=-=End=-=")
 			{
-				feat <- unlist(strsplit(as.character(formulaList[i]),"[~]"));
-				if (nchar(feat[2])>0)
+				if (gregexpr(pattern ='~',as.character(formulaList[i]))[1]>0)
 				{
-					formulaList[i] <- feat[2];
-				}
-				else
-				{
-					formulaList[i] <- "1";
+					feat <- unlist(strsplit(as.character(formulaList[i]),"[~]"));
+					if (nchar(feat[2])>0)
+					{
+						formulaList[i] <- feat[2];
+					}
+					else
+					{
+						formulaList[i] <- "1";
+					}
 				}
 			}
 		}
@@ -60,9 +69,10 @@ function (formulaList,trainData,testData=NULL, predictType = c("prob", "linear")
 		nrowcases <- nrow(casesample);
 		nrowcontrols <- nrow(controlsample);
 		
-		minTrainSamples <- min(nrow(casesample),nrow(controlsample));
-		maxTrainSamples <- max(nrow(casesample),nrow(controlsample));
-		noequalSets <- (minTrainSamples < 0.60*maxTrainSamples);
+		minTrainSamples <- min(c(nrow(casesample),nrow(controlsample)));
+		maxTrainSamples <- max(c(nrow(casesample),nrow(controlsample)));
+		noequalSets <- (minTrainSamples < 0.80*maxTrainSamples);
+#		if (noequalSets) warning("Case and Control sets no equal. Setting the size of the control and cases equal\n");
 	}
 	
 	if (nk==0)
@@ -127,24 +137,33 @@ function (formulaList,trainData,testData=NULL, predictType = c("prob", "linear")
 			medianKNN <- NULL;
 		}
 
-		bestmodel <- modelFitting(ftmp,EquTrainSet,type,fitFRESA=TRUE)	
-		curprediction <- predict.fitFRESA(bestmodel,testData,predictType);
-		trainOutcome <- EquTrainSet[,vOutcome];
-		varOutcome <- var(trainOutcome);
-		trainPrediction <- predict.fitFRESA(bestmodel,EquTrainSet,predictType);
-		residual <- as.vector(abs(trainPrediction-trainOutcome));
-		observations <- nrow(EquTrainSet);
-		if (predictType[1]=="linear")
+		bestmodel <- modelFitting(ftmp,EquTrainSet,type,fitFRESA=TRUE)
+		if (inherits(bestmodel, "try-error"))
 		{
-			Rwts <- (varOutcome-sum(residual^2)/observations)/varOutcome; #Correlation
+			curprediction <- numeric(nrow(testData));
+			wmedpred <- curprediction;
+			swts <- 0;
 		}
 		else
-		{
-			Rwts <- 2.0*(sum(1.0*(residual<0.5))/observations - 0.5); # 2*(ACC-0.5)
+		{		
+			curprediction <- predict.fitFRESA(bestmodel,testData,predictType);
+			trainOutcome <- EquTrainSet[,vOutcome];
+			varOutcome <- var(trainOutcome);
+			trainPrediction <- predict.fitFRESA(bestmodel,EquTrainSet,predictType);
+			residual <- as.vector(abs(trainPrediction-trainOutcome));
+			observations <- nrow(EquTrainSet);
+			if (predictType[1]=="linear")
+			{
+				Rwts <- (varOutcome-sum(residual^2)/observations)/varOutcome; #Correlation
+			}
+			else
+			{
+				Rwts <- 2.0*(sum(1.0*(residual<0.5))/observations - 0.5); # 2*(ACC-0.5)
+			}
+			if (Rwts<=0) Rwts <- 1.0e-4;
+			wmedpred <- Rwts*curprediction;
+			swts <- Rwts;
 		}
-		if (Rwts<=0) Rwts <- 1.0e-4;
-		wmedpred <- Rwts*curprediction;
-		swts <- Rwts;
 
 
 
@@ -156,59 +175,74 @@ function (formulaList,trainData,testData=NULL, predictType = c("prob", "linear")
 		{
 			for (i in 2:length(formulaList))
 			{
-				if (!is.null(Outcome))
-				{		
-					if (nchar(formulaList[[i]])>0)
-					{
-						ftmp <- formula(paste(Outcome,"~1+",formulaList[[i]]));
+				if (formulaList[i] != "=-=End=-=")
+				{
+
+					if (!is.null(Outcome))
+					{		
+						if (nchar(formulaList[[i]])>0)
+						{
+							ftmp <- formula(paste(Outcome,"~1+",formulaList[[i]]));
+						}
+						else
+						{
+							ftmp <- formula(paste(Outcome,"~1"));
+						}
 					}
 					else
 					{
-						ftmp <- formula(paste(Outcome,"~1"));
+						ftmp <- formula(formulaList[i]);
 					}
-				}
-				else
-				{
-					ftmp <- formula(formulaList[i]);
-				}
-				if (noequalSets)
-				{
-					if (maxTrainSamples > nrowcases)  trainCaseses <- casesample[sample(1:nrowcases,maxTrainSamples,replace=TRUE),]
-					if (maxTrainSamples > nrowcontrols)  trainControls <- controlsample[sample(1:nrowcontrols,maxTrainSamples,replace=TRUE),]
-					EquTrainSet <- rbind(trainCaseses,trainControls)
-				}
-				if (nk>0) 
-				{
-					outKNN <- cbind(outKNN,getKNNpredictionFromFormula(ftmp,EquTrainSet,testData,Outcome=vOutcome,nk)$binProb);
-				}
-				fm <- modelFitting(ftmp,EquTrainSet,type,fitFRESA=TRUE)
-				if (inherits(fm, "try-error"))
-				{
-					if (noequalSets)
+					if (noequalSets && (runif(1)<0.20))
 					{
 						if (maxTrainSamples > nrowcases)  trainCaseses <- casesample[sample(1:nrowcases,maxTrainSamples,replace=TRUE),]
 						if (maxTrainSamples > nrowcontrols)  trainControls <- controlsample[sample(1:nrowcontrols,maxTrainSamples,replace=TRUE),]
 						EquTrainSet <- rbind(trainCaseses,trainControls)
 					}
-					fm <- modelFitting(ftmp,EquTrainSet,type,fitFRESA=TRUE)
+					if (nk>0) 
+					{
+						outKNN <- cbind(outKNN,getKNNpredictionFromFormula(ftmp,EquTrainSet,testData,Outcome=vOutcome,nk)$binProb);
+					}
+					if (length(all.vars(ftmp))>1)
+					{
+						fm <- modelFitting(ftmp,EquTrainSet,type,fitFRESA=TRUE)
+						if (inherits(fm, "try-error"))
+						{
+							if (noequalSets)
+							{
+								if (maxTrainSamples > nrowcases)  trainCaseses <- casesample[sample(1:nrowcases,maxTrainSamples,replace=TRUE),]
+								if (maxTrainSamples > nrowcontrols)  trainControls <- controlsample[sample(1:nrowcontrols,maxTrainSamples,replace=TRUE),]
+								EquTrainSet <- rbind(trainCaseses,trainControls)
+							}
+							fm <- modelFitting(ftmp,EquTrainSet,type,fitFRESA=TRUE)
+						}
+						curprediction <- predict.fitFRESA(fm,testData,predictType);
+						trainOutcome <- EquTrainSet[,vOutcome];
+						varOutcome <- var(trainOutcome);
+						trainPrediction <- predict.fitFRESA(fm,EquTrainSet,predictType);
+						residual <- as.vector(abs(trainPrediction-trainOutcome));
+						observations <- nrow(EquTrainSet);
+						if (predictType[1]=="linear")
+						{
+							Rwts <- (varOutcome-sum(residual^2)/observations)/varOutcome; #Correlation
+						}
+						else
+						{
+							Rwts <- 2.0*(sum(1.0*(residual<0.5))/observations - 0.5); # 2*(ACC-0.5)
+						}
+						if (Rwts<=0) Rwts <- 1.0e-4;
+						wmedpred <- wmedpred + Rwts*curprediction;
+						swts <- swts + Rwts;
+						out <- cbind(out,curprediction);
+					}
+					else
+					{
+						warning("No formula");
+					}
 				}
-				curprediction <- predict.fitFRESA(fm,testData,predictType);
-				trainOutcome <- EquTrainSet[,vOutcome];
-				varOutcome <- var(trainOutcome);
-				trainPrediction <- predict.fitFRESA(fm,EquTrainSet,predictType);
-				residual <- as.vector(abs(trainPrediction-trainOutcome));
-				observations <- nrow(EquTrainSet);
-				if (predictType[1]=="linear")
-				{
-					Rwts <- (varOutcome-sum(residual^2)/observations)/varOutcome; #Correlation
-				}
-				else
-				{
-					Rwts <- 2.0*(sum(1.0*(residual<0.5))/observations - 0.5); # 2*(ACC-0.5)
-				}
-				if (Rwts<=0) Rwts <- 1.0e-4;
-				wmedpred <- wmedpred + Rwts*curprediction;
-				swts <- swts + Rwts;
+			}
+			if (ncol(out)<3)
+			{
 				out <- cbind(out,curprediction);
 			}
 			out <- as.data.frame(out);

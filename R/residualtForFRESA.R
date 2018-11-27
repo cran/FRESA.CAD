@@ -35,6 +35,7 @@ function (object,testData,Outcome,eta=0.05)
 		lm =
 		{
 			out <- predict.fitFRESA(object,testData,'linear') - testData[,Outcome];
+#			out <- predict(object,testData) - testData[,Outcome];
 		},
 		fi =
 		{

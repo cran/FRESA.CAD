@@ -76,7 +76,7 @@ extern "C" SEXP improvedResidualsCpp(SEXP _oldResiduals,SEXP _newResiduals,SEXP 
 	vec x1(rx1.begin(), rx1.size(),false);
 	vec x2(rx2.begin(), rx2.size(),false);
 	vec y(ry.begin(), ry.size(),false);
-	vec imp=improveProbFunc(x1,x2,y,0.0,0.0);
+	vec imp=improveProbFunc(x1,x2,y);
 	
 	Rcpp::List result = Rcpp::List::create(Rcpp::Named("z.idi")=Rcpp::wrap(imp[0]),
 										   Rcpp::Named("z.nri")=Rcpp::wrap(imp[1]),
@@ -905,6 +905,18 @@ vec modelFittingFunc(const mat &ymat,const mat &XP,const std::string &type)
         {
         	return start;
     	}
+		else
+		{
+			if (type != "COX")
+			{
+				start = mean(ymat.col(1));
+				if (type == "LOGIT")
+				{
+					start = logit_link(start);
+				}
+				return start;
+			}
+		}
     }
   vec offset = zeros<vec>(nobs); 
   vec weights = ones<vec>(nobs); 
@@ -1072,7 +1084,7 @@ vec improveProbFuncSamples(const vec &x1,const vec &x2,const vec &y, unsigned in
 {
 	if ((samples == 0) || (x1.n_elem >= samples))
 	{
-		return improveProbFunc(x1,x2,y,se_nri,se_idi);
+		return improveProbFunc(x1,x2,y);
 	}
 	else
 	{	
@@ -1093,7 +1105,7 @@ vec improveProbFuncSamples(const vec &x1,const vec &x2,const vec &y, unsigned in
 				vecx2[n]=x2[nj];	
 				vecy[n]=y[nj];
 			}
-			impt = improveProbFunc(vecx1,vecx2,vecy);
+			impt = improveProbFunc(vecx1,vecx2,vecy,se_nri,se_idi);
 			for (j=0;j<impt.n_elem;j++) imppart(j,i) = impt[j];
 		}
 		imp = median(imppart,1);
@@ -1115,17 +1127,14 @@ vec improveProbFunc(const vec &x1,const vec &x2,const vec &y, double se_nri, dou
 	double z_idi = 0.0;	
 	double z_nri = 0.0;
     vec d  = x2 - x1;
-    vec dd  = x2;
-	for (unsigned int i=0;i<dd.n_elem;i++) dd[i]=1.0*(x2[i]>0.5)-1.0*(x1[i]>0.5);
 	
     vec da=d.elem(find(y==1));
     vec db=d.elem(find(y==0));
-//    vec dda=dd.elem(find(y==1));
-//    vec ddb=dd.elem(find(y==0));
-	if ((db.size()>0)&&(da.size()>0))
+	double n_ev=da.size();
+	double n_ne=db.size();
+	
+	if ((n_ne>0)&&(n_ev>0))
 	{
-		double n_ev=0;
-		double n_ne=0;
 		double nup_ev = 0;
 		double nup_ne = 0; 
 		double ndown_ev = 0;
@@ -1134,17 +1143,16 @@ vec improveProbFunc(const vec &x1,const vec &x2,const vec &y, double se_nri, dou
 		{
 			if (y[i]==1)
 			{
-				n_ev++;
 				nup_ev += (d[i]>0);
 				ndown_ev += (d[i]<0);
 			}
 			else
 			{
-				n_ne++;
 				nup_ne += (d[i]>0);
 				ndown_ne += (d[i]<0);
 			}	
 		}
+		
 		double pup_ev   = nup_ev/n_ev;
 		double pup_ne   = nup_ne/n_ne;
 		double pdown_ev = ndown_ev/n_ev;
@@ -1152,30 +1160,17 @@ vec improveProbFunc(const vec &x1,const vec &x2,const vec &y, double se_nri, dou
 		double v_ev = (nup_ev - ndown_ev)/n_ev;
 		double v_ne = (ndown_ne - nup_ne)/n_ne;
 		
+		nri = pup_ev - pdown_ev - (pup_ne - pdown_ne);
+
 		double v_nri_ev = (nup_ev + ndown_ev)/(n_ev*n_ev) - v_ev*v_ev/n_ev;
 		double v_nri_ne = (ndown_ne + nup_ne)/(n_ne*n_ne) - v_ne*v_ne/n_ne;
-
-		nri = pup_ev - pdown_ev - (pup_ne - pdown_ne);
-		if (se_nri == 0)
-		{
-			se_nri = v_nri_ev + v_nri_ne;
-			se_nri = std::sqrt(se_nri);
-			if (se_nri < std::numeric_limits< double >::min()) se_nri= std::numeric_limits< double >::min();
-		}
-		z_nri =  nri/se_nri;   
+		se_nri = std::max(se_nri,std::sqrt(v_nri_ev + v_nri_ne));
+		if (se_nri < std::numeric_limits< double >::min()) se_nri= std::numeric_limits< double >::min();
+		z_nri =  nri/se_nri;
 		idi = mean(da) - mean(db);
-		if (se_idi == 0)
-		{
-			se_idi = var(da)/da.n_elem + var(db)/db.n_elem;
-			se_idi = std::sqrt(se_idi);
-			if (se_idi < std::numeric_limits< double >::min()) 
-			{
-				se_idi = std::numeric_limits< double >::min();
-			}
-		}
+		se_idi = std::max(se_idi,std::sqrt(var(da)/n_ev + var(db)/n_ne));
+		if (se_idi < std::numeric_limits< double >::min()) se_idi = std::numeric_limits< double >::min();
 		z_idi = idi/se_idi;
-//		double dz_idi =  (mean(dda)-mean(ddb))/std::sqrt(std::numeric_limits< double >::min()+var(dda)/dda.n_elem + var(ddb)/ddb.n_elem);
-//		z_idi = std::max(z_idi,dz_idi);
 
 	}
     vec out(6);
@@ -1194,8 +1189,6 @@ getVReclass getVarBinFunc(const mat &dataframe,const std::string &type,const mat
 	const int z_nri=1;
 	const int idi=2;
 	const int nri=3;
-//	const int se_idi=4;
-//	const int se_nri=5;
 	unsigned int i=3;
 	int nzero=0;
 	int n_var=dataframe.n_cols-3;
@@ -1227,6 +1220,7 @@ getVReclass getVarBinFunc(const mat &dataframe,const std::string &type,const mat
 	vec t_model_nri(n_var);
 	unsigned int samples=dataframe.n_rows;
 	vec FullModel = modelFittingFunc(bestFrame->cols(0,1),bestFrame->cols(2,bestFrame->n_cols-1),type);
+	if (!FullModel.has_nan())
 	{
 		vec FullPredict_train = predictForFresaFunc(FullModel,bestFrame->cols(2,bestFrame->n_cols-1),"prob",type);
 		vec FullPredict = predictForFresaFunc(FullModel,bestTestFrame->cols(2,bestTestFrame->n_cols-1),"prob",type);
@@ -1239,9 +1233,14 @@ getVReclass getVarBinFunc(const mat &dataframe,const std::string &type,const mat
 				dataframe_sh.shed_col(i);
 				independentFrame_sh.shed_col(i);
 			}
+			else
+			{
+				dataframe_sh.fill(1);
+				independentFrame_sh.fill(1);
+			}
 			vec redModel= modelFittingFunc(dataframe_sh.cols(0,1),dataframe_sh.cols(2,dataframe_sh.n_cols-1),type);
-			vec iprob_t = improveProbFunc(predictForFresaFunc(redModel,dataframe_sh.cols(2,dataframe_sh.n_cols-1),"prob",type), FullPredict_train ,dataframe.col(1),0.0,0.0);
-			vec iprob = improveProbFuncSamples(predictForFresaFunc(redModel,independentFrame_sh.cols(2,independentFrame_sh.n_cols-1),"prob",type),FullPredict,independentFrame->col(1),samples,0.0,0.0);
+			vec iprob_t = improveProbFunc(predictForFresaFunc(redModel,dataframe_sh.cols(2,dataframe_sh.n_cols-1),"prob",type), FullPredict_train ,dataframe.col(1));
+			vec iprob = improveProbFuncSamples(predictForFresaFunc(redModel,independentFrame_sh.cols(2,independentFrame_sh.n_cols-1),"prob",type),FullPredict,independentFrame->col(1),samples,iprob_t[5],iprob_t[4]);
 			model_zidi[j]=iprob[z_idi];
 			model_idi[j]=iprob[idi];
 			model_nri[j]=iprob[nri];
@@ -1281,7 +1280,6 @@ double rocAUC(const vec &response,const vec &predictor,const std::string &direct
 	double ncases = sum(response);
 	double ncontrol = predictor.n_elem-ncases;
 	
-//	uvec sindex = arma::sort_index(predictor,dir);
 	uvec sindex = sort_index(predictor,dir.c_str());
 	double auc=0.0;
 	double sen=0.0;
@@ -1387,7 +1385,6 @@ improvedRes improvedResidualsFunc(const vec &oldResiduals,const vec &newResidual
 		uvec samSamples(elem);
 		for (i=0;i<trials;i++)	
 		{
-//			unsigned int off = (randi<uvec>(1))[0] % elem;
 
 			samSamples = sort_index(randu(elem));
 			for (unsigned int n=0;n<samples;n++)
@@ -1397,11 +1394,6 @@ improvedRes improvedResidualsFunc(const vec &oldResiduals,const vec &newResidual
 				vecx2[n]=newResiduals[samSamples[nj]];	
 			}
 
-/*
-			uvec samSamples= randi<uvec>(samples, distr_param(0,elem-1));
-			vecx1 = oldResiduals(samSamples);	
-			vecx2 = newResiduals(samSamples);	
-*/						
 			impt = improvedResidualsFunc(vecx1,vecx2,testType);
 			imppart(0,i)=impt.p1;
 			imppart(1,i)=impt.p2;
@@ -1432,13 +1424,13 @@ improvedRes improvedResidualsFunc(const vec &oldResiduals,const vec &newResidual
     improvedRes result;
 
 
-	double pwil = 1.0;
-	double pbin = 1.0;
-	double ptstu = 1.0;
-	double f_test = 1.0;
+	double pwil = 0.5;
+	double pbin = 0.5;
+	double ptstu = 0.5;
+	double f_test = 0.5;
 	double p1=0.0;
 	double p2=0.0;
-	double pvalue = 1.0;
+	double pvalue = 0.5;
 	double size = oldResiduals.n_elem;
 	double improved = 0.0;
 	if (size==0) 
@@ -1459,12 +1451,16 @@ improvedRes improvedResidualsFunc(const vec &oldResiduals,const vec &newResidual
 	improved = p1-p2; 									//			# the net improvement in residuals
 
 
+//					Rcout << oldResiduals;
+//					Rcout << "....\n";
+//					Rcout << newResiduals;
+//					Rcout << "\n" << reduction << " : " << increase << "\n";
 
 	double rss1 = sum(square(oldResiduals));
 	
 	if (rss1 > 1000*DOUBLEEPS)
 	{
-		pvalue = 1.0*(improved<=0);
+		pvalue = 0.5;
 		pwil = pvalue;
 		pbin =  pvalue;
 		ptstu =  pvalue;
@@ -1472,6 +1468,7 @@ improvedRes improvedResidualsFunc(const vec &oldResiduals,const vec &newResidual
 		double rss2 = sum(square(newResiduals));
 		if (rss2 > DOUBLEEPS)
 		{
+//					Rcout << "\n 1:" << rss1 << " 2:" << rss2 << "\n";
 			int sw=0;
 			std::string tail="greater";
 
@@ -1483,7 +1480,7 @@ improvedRes improvedResidualsFunc(const vec &oldResiduals,const vec &newResidual
 			{
 				case 1:
 				{
-					pbin = 1.0;
+					pbin = 0.5;
 					if (reduction>=increase) pbin = binomtest(reduction,size,0.5,tail);
 					pvalue = pbin;	
 					break;
@@ -1491,8 +1488,9 @@ improvedRes improvedResidualsFunc(const vec &oldResiduals,const vec &newResidual
 				case 2:
 				{
 					rss2 = rss1/rss2;
+//					Rcout << "\n 1:" << rss2 << "\n";
 					if (rss2>10000.0) rss2=10000.0;
-					pvalue = f_test = 1.0-R::pf(size*(rss2-1.0),1.0,size,1,0);
+					pvalue = f_test = (1.0-R::pf(size*(rss2-1.0),1.0,size,1,0))*0.5;
 					break;
 				}
 				case 3:
@@ -1502,26 +1500,30 @@ improvedRes improvedResidualsFunc(const vec &oldResiduals,const vec &newResidual
 				}
 				case 4:
 				{
-					pvalue = ptstu = ttest(oldres, newres,0.0,TRUE,TRUE,tail);
+//					pvalue = ptstu = ttest(oldres, newres,0.0,TRUE,TRUE,tail);
+					pvalue = ptstu = pttest(oldres, newres,tail);
 					break;
 				}
 				default:
 				{
 					rss2 = rss1/rss2;
 					if (rss2>10000.0) rss2=10000.0;
-					f_test = 1.0-R::pf(size*(rss2-1.0),1.0,size,1,0);
+//					Rcout << "\n 1:" << rss2 << "\n";
+					f_test = (1.0-R::pf(size*(rss2-1.0),1.0,size,1,0))*0.5;
 					pvalue =  f_test;
 					pbin=0.5;
 					pwil=1.0;
 					if (reduction>=increase) pbin = binomtest(reduction,size,0.5,tail);
 					if (reduction>=increase) pwil = wilcoxtest(oldres, newres,0.0,TRUE,tail,TRUE);
-					ptstu = ttest(oldres, newres,0.0,TRUE,TRUE,tail);
+//					ptstu = ttest(oldres, newres,0.0,TRUE,TRUE,tail);
+					ptstu = pttest(oldres, newres,tail);
 					break;
 				}
 			}
 		}
 	}
 
+//	Rcout << "\n p:" << pvalue << " f: " << f_test << "\n";
 
 	result.p1 = p1;
 	result.p2 = p2;
@@ -1536,6 +1538,49 @@ improvedRes improvedResidualsFunc(const vec &oldResiduals,const vec &newResidual
 	
 	return (result);
 }
+
+double pttest(const vec &xt, const vec &y,const std::string &tail)
+{
+    double pval=1.0;
+	vec x=xt-y;
+    double nx = x.n_elem;
+    double mx = mean(x);
+    double vy = std::min(var(x)/2,var(y));
+    double df = nx-1.0;
+    double tstat;
+    double stderrr; 
+	if(nx < 2.0) 
+	{
+		tstat = 0.0;	// let's make it zero
+	}
+	else
+	{
+		stderrr = std::sqrt(vy/nx);
+		if(stderrr <= (10.0 * DOUBLEEPS))
+		{
+			tstat = 10.0*(mx > 0); // let's make it 10
+		}
+		else
+		{
+			tstat = mx/stderrr;
+		}
+    }
+    if (tail == "less") 
+    {
+		pval = R::pt(tstat, df,1,0);
+    }
+    else 
+    	if (tail == "greater") 
+    	{
+			pval = R::pt(tstat, df, 0,0);
+    	}
+   		else 
+			{
+				pval = 2.0 * R::pt(-std::abs(tstat), df,1,0);
+			}
+    return(pval);
+}	
+
 
 /* 
 ** This code is based on the t.test function from 
@@ -1562,16 +1607,16 @@ double ttest(const vec &xt, const vec &y, double mu, bool paired, bool var_equal
         if(nx < 2.0) 
 		{
 //			stop("not enough 'x' observations");
-			tstat = 100.0;	// let's make it a large tstat
+			tstat = 0.0;	// let's make it zero
 		}
 		else
 		{
 			df = nx-1.0;
 			stderrr = std::sqrt(vx/nx);
-				if(stderrr < (10.0 * DOUBLEEPS* std::abs(mx)))
+				if(stderrr <= (10.0 * DOUBLEEPS))
 				{
-	//	            stop("data are essentially constant");
-					tstat = 0.0; // we assume that they are the same
+//		            stop("data are essentially constant");
+					tstat = 10.0*(mx != mu); // if equal return 0, else 10
 				}
 			else
 			{
@@ -1601,7 +1646,7 @@ double ttest(const vec &xt, const vec &y, double mu, bool paired, bool var_equal
 		    stderrr = std::sqrt(stderrx*stderrx + stderry*stderry);
 		    df = std::pow(stderrr,4)/(std::pow(stderrx,4)/(nx-1.0) + std::pow(stderry,4)/(ny-1.0));
 		}
-	        if(stderrr < 10.0 *DOUBLEEPS * std::max(std::abs(mx), std::abs(my)))
+	        if(stderrr <= 10.0 *DOUBLEEPS * std::max(std::abs(mx), std::abs(my)))
 			{
 //	            stop("data are essentially constant");
 				tstat=0.0;
@@ -1673,7 +1718,7 @@ double wilcoxtest(const vec &xt,const vec &y , double mu, bool paired,const std:
 								else correc=0.5;
 						}
 				}
-				if (sigma>0.0) z = (z - correc)/sigma; else z=10.0;
+				if (sigma>0.0) z = (z - correc)/sigma; else z=10.0*(z != correc);
 		  
 				if(tail=="less") pvalue= R::pnorm5(z,0.0,1.0,1,0);
 					else if(tail=="greater") pvalue = R::pnorm5(z,0.0,1.0,0,0);
@@ -1806,11 +1851,16 @@ gvarNeRI getVarResFunc(const mat &dataframe,const std::string &type,const mat &t
 			mat dataframe_sh = dataframe;
 			mat testdata_sh = *testdata;
 		
-		if (nvar>nzero)
-		{
-			dataframe_sh.shed_col(i);
-			testdata_sh.shed_col(i);
-		}
+			if (nvar>nzero)
+			{
+				dataframe_sh.shed_col(i);
+				testdata_sh.shed_col(i);
+			}
+			else
+			{
+				dataframe_sh.fill(1);
+				testdata_sh.fill(1);
+			}
 			vec redModel = modelFittingFunc(dataframe_sh.cols(0,1),dataframe_sh.cols(2,dataframe_sh.n_cols-1),type);
 			vec redResiduals = residualForFRESAFunc(redModel,dataframe_sh.cols(2,dataframe_sh.n_cols-1),"",type,dataframe_sh.cols(0,1));
 			vec redTestResiduals = residualForFRESAFunc(redModel,testdata_sh.cols(2,testdata_sh.n_cols-1),"",type,testdata_sh.cols(0,1));

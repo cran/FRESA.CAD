@@ -15,13 +15,10 @@
 	                                         "Wilcox",
 	                                         "tStudent",
 	                                         "Ftest"),
-	                            loops = 250,
-	                            fraction = 1.0,
+	                            loops = 64,
 	                            setIntersect = 1,
 	                            print=TRUE,
-	                            plots=TRUE,
-	                            adjsize= 1,
-	                            uniAdjPvalues=NULL
+	                            plots=TRUE
                                 )
 
 }	
@@ -50,9 +47,6 @@
 	\item{loops}{
 		The number of bootstrap loops
 	}
-	\item{fraction}{
-		The fraction of data (sampled with replacement) to be used as train
-	}
 	\item{setIntersect}{
 		The intersect of the model (To force a zero intersect, set this value to 0)
 	}
@@ -62,12 +56,6 @@
 	\item{plots}{
 		Logical. If \code{TRUE},  plots are displayed
 	}
-	\item{adjsize}{
-		The expected size of a random model for multiple selection correction
-	}
-	\item{uniAdjPvalues}{
-		The univariate p-values
-	}	
 }
 \details{
 	For each model term \eqn{x_i}, the residuals are computed for the Full model and the reduced model( where the term \eqn{x_i} removed).
