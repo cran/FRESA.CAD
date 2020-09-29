@@ -8,8 +8,11 @@ correlated_Remove <- function(data= NULL,fnames= NULL,thr=0.999)
 #	cat(thr,":",length(fnames)," ->");
 	if (length(fnames)>1)
 	{
+#		print(fnames);
+		colsd <- apply(data[,fnames],2,sd,na.rm = TRUE);
+		fnames <- fnames[colsd > 0];
+		
 		corm <- abs(cor(data[,fnames],method="spearman"));
-
 		corm[diag(length(fnames)) == 1] <- 0;
 		keep <- numeric(length(fnames));
 		for (i in length(fnames):1)
@@ -30,13 +33,25 @@ correlated_Remove <- function(data= NULL,fnames= NULL,thr=0.999)
 
 correlated_RemoveToLimit <- function(data,unitPvalues,limit=0,thr=0.975,maxLoops=50,minCorr=0.80)
 {
-	if ((limit > 0) && (thr < 1.0))
+	if ((limit >= 0) && (thr < 1.0))
 	{
 		ntest <- 0;
 		cthr <- thr;
 		if (limit > 0)
 		{
-			slimit <- limit*nrow(data);
+			slimit <- limit;
+			if (limit <= 1)
+			{
+				slimit <- limit*nrow(data);
+			}
+			if (slimit < 2) 
+			{
+				slimit <- 2;
+			}
+			if (slimit >= nrow(data))
+			{
+				slimit = nrow(data) - 1;
+			}
 			if (length(unitPvalues) > (10*slimit))
 			{
 				unitPvalues <- unitPvalues[1:(10*slimit)];
@@ -52,14 +67,17 @@ correlated_RemoveToLimit <- function(data,unitPvalues,limit=0,thr=0.975,maxLoops
 				unitPvalues <- unitPvalues[1:slimit];
 			}
 		}
+		else
+		{
+			unitPvalues <- unitPvalues[correlated_Remove(data,names(unitPvalues),cthr)];
+		}
 	}
 	return (unitPvalues);
 
 }
 
 
-
-univariate_Logit <- function(data=NULL, Outcome=NULL, pvalue=0.2, adjustMethod="BH", uniTest=c("zIDI","zNRI"),limit=0,...)
+univariate_Logit <- function(data=NULL, Outcome=NULL, pvalue=0.2, adjustMethod="BH", uniTest=c("zIDI","zNRI"),limit=0,...,n = 0)
 {
 	varlist <-colnames(data);
 	varlist <- varlist[Outcome != varlist];
@@ -68,7 +86,7 @@ univariate_Logit <- function(data=NULL, Outcome=NULL, pvalue=0.2, adjustMethod="
 	univ <- ForwardSelection.Model.Bin(nrow(varlist),1.0,0.0,1,"1",Outcome,varlist,data,1,type="LOGIT",selectionType=uniTest);
 	unitPvalues <- (1.0 - pnorm(univ$base.Zvalues));
 	names(unitPvalues) <-  varlist[,1];
-	unitPvalues <- p.adjust(unitPvalues,adjustMethod);
+	unitPvalues <- p.adjust(unitPvalues,adjustMethod,n=max(n,length(unitPvalues)));
 	unitPvalues <- unitPvalues[order(unitPvalues)];
 	top <- unitPvalues[1];
 	unitPvalues <- unitPvalues[unitPvalues < pvalue];
@@ -85,7 +103,7 @@ univariate_Logit <- function(data=NULL, Outcome=NULL, pvalue=0.2, adjustMethod="
    return(unitPvalues);
 }
 
-univariate_residual <- function(data=NULL, Outcome=NULL, pvalue=0.2, adjustMethod="BH",uniTest=c("Ftest","Binomial","Wilcox","tStudent"),type=c("LM","LOGIT"),limit=0,...)
+univariate_residual <- function(data=NULL, Outcome=NULL, pvalue=0.2, adjustMethod="BH",uniTest=c("Ftest","Binomial","Wilcox","tStudent"),type=c("LM","LOGIT"),limit=0,...,n = 0)
 {
 	varlist <- colnames(data);
 	varlist <- varlist[Outcome != varlist];
@@ -97,7 +115,7 @@ univariate_residual <- function(data=NULL, Outcome=NULL, pvalue=0.2, adjustMetho
 	unitPvalues <- (1.0 - pnorm(univ$base.Zvalues));
 #	print(unitPvalues);
 	names(unitPvalues) <- varlist[,1];
-	unitPvalues <- p.adjust(unitPvalues,adjustMethod);
+	unitPvalues <- p.adjust(unitPvalues,adjustMethod,n=max(n,length(unitPvalues)));
 	unitPvalues <- unitPvalues[order(unitPvalues)];
 	top <- unitPvalues[1];
 	unitPvalues <- unitPvalues[unitPvalues < pvalue];
@@ -113,7 +131,7 @@ univariate_residual <- function(data=NULL, Outcome=NULL, pvalue=0.2, adjustMetho
 	return(unitPvalues);
 }
 
-univariate_Wilcoxon <- function(data=NULL, Outcome=NULL, pvalue=0.2, adjustMethod="BH",limit=0,...)
+univariate_Wilcoxon <- function(data=NULL, Outcome=NULL, pvalue=0.2, adjustMethod="BH",limit=0,...,n = 0)
 {
 
 	varlist <-colnames(data);
@@ -132,7 +150,7 @@ univariate_Wilcoxon <- function(data=NULL, Outcome=NULL, pvalue=0.2, adjustMetho
 		 unitPvalues[j] <- pval;
 	}
   
-	unitPvalues <- p.adjust(unitPvalues,adjustMethod);
+	unitPvalues <- p.adjust(unitPvalues,adjustMethod,n=max(n,length(unitPvalues)));
 	unitPvalues <- unitPvalues[order(unitPvalues)];
 	top <- unitPvalues[1];
 	unitPvalues <- unitPvalues[unitPvalues < pvalue];
@@ -149,7 +167,7 @@ univariate_Wilcoxon <- function(data=NULL, Outcome=NULL, pvalue=0.2, adjustMetho
    return(unitPvalues);
 }
 
-univariate_tstudent <- function(data=NULL, Outcome=NULL, pvalue=0.2, adjustMethod="BH",limit=0,...)
+univariate_tstudent <- function(data=NULL, Outcome=NULL, pvalue=0.2, adjustMethod="BH",limit=0,...,n = 0)
 {
 
 	varlist <-colnames(data);
@@ -166,7 +184,7 @@ univariate_tstudent <- function(data=NULL, Outcome=NULL, pvalue=0.2, adjustMetho
 		if (is.na(pval)) {pval <- 1.0;}
 		unitPvalues[j] <-  pval;	
 	}
-	unitPvalues <- p.adjust(unitPvalues,adjustMethod);
+	unitPvalues <- p.adjust(unitPvalues,adjustMethod,n=max(n,length(unitPvalues)));
 	unitPvalues <- unitPvalues[order(unitPvalues)];
 	top <- unitPvalues[1];
 	unitPvalues <- unitPvalues[unitPvalues < pvalue];
@@ -182,7 +200,7 @@ univariate_tstudent <- function(data=NULL, Outcome=NULL, pvalue=0.2, adjustMetho
    return(unitPvalues);
 }
 
-univariate_correlation <- function(data=NULL, Outcome=NULL, pvalue=0.2, adjustMethod="BH", method = "kendall",limit=0,...)
+univariate_correlation <- function(data=NULL, Outcome=NULL, pvalue=0.2, adjustMethod="BH", method = "kendall",limit=0,...,n = 0)
 {
 
 	varlist <-colnames(data);
@@ -199,7 +217,7 @@ univariate_correlation <- function(data=NULL, Outcome=NULL, pvalue=0.2, adjustMe
 		unitPvalues[j] <-  pval;
 	}
   
-	unitPvalues <- p.adjust(unitPvalues,adjustMethod);
+	unitPvalues <- p.adjust(unitPvalues,adjustMethod,n=max(n,length(unitPvalues)));
 	unitPvalues <- unitPvalues[order(unitPvalues)];
 	top <- unitPvalues[1];
 	unitPvalues <- unitPvalues[unitPvalues < pvalue];
@@ -221,18 +239,42 @@ mRMR.classic_FRESA <- function(data=NULL, Outcome=NULL,feature_count=0,...)
 	   install.packages("mRMRe", dependencies = TRUE)
 	} 
 
-	varlist <- colnames(data);
-	varlist <- varlist[Outcome != varlist];
 	if (feature_count == 0)
 	{
 		feature_count <- min(c(nrow(data)-1,ncol(data)-1));
 	}
-	fs <- mRMRe::mRMR.classic(data = mRMRe::mRMR.data(data), target_indices = grep(Outcome, colnames(data)), feature_count = feature_count,...);
-	result <- as.vector(mRMRe::scores(fs)[[1]]);
-	names(result) <- colnames(data)[mRMRe::solutions(fs)[[1]]];
-	result <- result[!is.na(result)];
-	gz <- (result >= 0);
-	if (sum(1*gz) > 5)	result <- result[gz];
+	fs <- try(mRMRe::mRMR.classic(data = mRMRe::mRMR.data(data), target_indices = grep(Outcome, colnames(data)), feature_count = feature_count,...));
+	if ( !inherits(fs, "try-error"))
+	{
+		result <- as.vector(mRMRe::scores(fs)[[1]]);
+		names(result) <- colnames(data)[mRMRe::solutions(fs)[[1]]];
+		result <- result[!is.na(result)];
+		gz <- (result >= 0);
+		if (sum(1*gz) > 5)	result <- result[gz];
+	}
+	else
+	{
+		warning("mRMR.classic Error. I'll make all columns numeric and try again\n")
+		data[,1:ncol(data)] <- sapply(data,as.numeric)
+		fs <- try(mRMRe::mRMR.classic(data = mRMRe::mRMR.data(data), target_indices = grep(Outcome, colnames(data)), feature_count = feature_count,...));
+		if ( !inherits(fs, "try-error"))
+		{
+			result <- as.vector(mRMRe::scores(fs)[[1]]);
+			names(result) <- colnames(data)[mRMRe::solutions(fs)[[1]]];
+			result <- result[!is.na(result)];
+			gz <- (result >= 0);
+			if (sum(1*gz) > 5)	result <- result[gz];
+		}
+		else
+		{
+			warning("mRMR.classic Error. Returning the first elements of the data-frame\n")
+			result <- 1:feature_count;
+			varlist <- colnames(data);
+			varlist <- varlist[Outcome != varlist];
+			names(result) <- varlist[result];
+			result <- result/feature_count;
+		}
+	}
 	return(result);
 }
 
@@ -307,7 +349,7 @@ ClassMetric95ci <- function(datatest,nss=4000)
 			}
 			else
 			{
-				csen[n] <- NA;
+				csen[n] <- 0;
 			}
 			if (scoresamples < sz)
 			{
@@ -315,7 +357,7 @@ ClassMetric95ci <- function(datatest,nss=4000)
 			}
 			else
 			{
-				cspe[n] <- (sz - scoresamples)/sz;
+				cspe[n] <- 0;
 			}
 			tp <- sum( (bootsample[,2] == scores[n]) );
 			if (tp > 0)

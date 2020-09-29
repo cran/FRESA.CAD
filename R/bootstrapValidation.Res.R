@@ -23,6 +23,7 @@ function(fraction=1.00,loops=200,model.formula,Outcome,data,type=c("LM","LOGIT",
 	}
 #	cat("Loops :",loops,"\n");
 
+
 	varsList <- all.vars(model.formula)
 	svar <- 1+1*(type=="COX")
 	epts <- c(svar:length(basemodel$coefficients));
@@ -119,7 +120,7 @@ function(fraction=1.00,loops=200,model.formula,Outcome,data,type=c("LM","LOGIT",
 			else
 			{
 				par(mfrow=c(2,2))
-				pROC::roc(as.vector(output$testOutcome), output$testPrediction,auc=TRUE,plot=TRUE,smooth=FALSE,print.auc=TRUE);
+				pROC::roc(as.vector(output$testOutcome), output$testPrediction,auc=TRUE,plot=TRUE,smooth=FALSE,print.auc=TRUE,quiet = TRUE);
 				boxplot(output$testPrediction ~ output$testOutcome,main="Prediction~Outcome");
 				boxplot(output$testResiduals ~ output$testOutcome,main="Residuals");
 			}
@@ -149,7 +150,8 @@ function(fraction=1.00,loops=200,model.formula,Outcome,data,type=c("LM","LOGIT",
 			testRMSE=testRMSE,
 			trainRMSE=trainRMSE,
 			trainSampledRMSE=output$trainSampledRMSE,
-			testSampledRMSE=output$testSampledRMSE
+			testSampledRMSE=output$testSampledRMSE,
+			outcomeSD=output$OutcomeSD
 		), class = "bootstrapValidation_Res");
 	}
 	else

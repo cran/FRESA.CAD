@@ -6,6 +6,7 @@
 \alias{univariate_tstudent}
 \alias{univariate_correlation}
 \alias{correlated_Remove}
+\alias{univariate_cox}
 \title{Univariate Filters}
 
 \description{
@@ -14,16 +15,18 @@
 \usage{
 
 univariate_Logit(data=NULL, Outcome=NULL, pvalue=0.2, adjustMethod="BH", 
-                 uniTest=c("zIDI","zNRI"),limit=0,...)
+                 uniTest=c("zIDI","zNRI"),limit=0,...,n=0)
 univariate_residual(data=NULL, Outcome=NULL, pvalue=0.2, adjustMethod="BH",
                     uniTest=c("Ftest","Binomial","Wilcox","tStudent"),
-                    type=c("LM","LOGIT"),limit=0,...)
+                    type=c("LM","LOGIT"),limit=0,...,n=0)
 univariate_tstudent(data=NULL, Outcome=NULL, pvalue=0.2, adjustMethod="BH",
-                    limit=0,...)
+                    limit=0,...,n=0)
 univariate_Wilcoxon(data=NULL, Outcome=NULL, pvalue=0.2, adjustMethod="BH",
-                     limit=0,...)
+                     limit=0,...,n=0)
 univariate_correlation(data=NULL, Outcome=NULL, pvalue=0.2, adjustMethod="BH",
-                       method = "kendall",limit=0,...)
+                       method = "kendall",limit=0,...,n=0)
+univariate_cox(data=NULL, Outcome=NULL, pvalue=0.2, adjustMethod="BH",
+                     limit=0,...)
 correlated_Remove(data=NULL,fnames=NULL,thr=0.999)
 
 }
@@ -60,6 +63,9 @@ correlated_Remove(data=NULL,fnames=NULL,thr=0.999)
     }
     \item{...}{
     Parameters to be passed to the correlated_Remove function
+    }
+    \item{n}{
+	the number of original features passed to p.adjust
     }
 }
 

@@ -50,6 +50,8 @@ function (object,pvalue=0.05,data,variableList,Outcome="Class",timeOutcome=NULL,
 	varoutcome <- var(as.vector(data[,Outcome]));
 	coff=1;
 	if (type=="COX") coff=0;
+	baseformula <- as.character();;
+
 	if (length( termList)>0)
 	{
 		for ( i in 1:length(termList))
@@ -77,7 +79,7 @@ function (object,pvalue=0.05,data,variableList,Outcome="Class",timeOutcome=NULL,
 						frm1 <- paste(frm1,paste("+",termList[n]));
 					}
 				}
-	#			print(frm1);
+#				print(frm1);
 				ftmp <- formula(frm1);
 				sdata <- data[,all.vars(ftmp)];
 				auxmodel <- modelFitting(ftmp,sdata,type,fitFRESA=TRUE);
@@ -117,27 +119,28 @@ function (object,pvalue=0.05,data,variableList,Outcome="Class",timeOutcome=NULL,
 				formuls[j]=frm1;
 			}
 			apvalues <- p.adjust(pvalues,method,osize);
-			
+			addterm = FALSE;
 			for (j in 1:length(vnames))
 			{
-#				cat(orgpVAL[i],":",vnames[j],". ad p:",apvalues[j],". un p:",pvalues[j],". a Locust p:",apvalues[theLocus[j]],". u Locus p:",pvalues[theLocus[j]],"\n");
+#				cat(termList[i],":",orgpVAL[i],":",vnames[j],". ad p:",apvalues[j],". un p:",pvalues[j],". a Locust p:",apvalues[theLocus[j]],". u Locus p:",pvalues[theLocus[j]],"\n");
 				if (
 					( as.character(vnames[j]) == as.character(termList[i]) ) 
-					|| (( apvalues[j] <= pvalue ) && (tFullMetric[j] > tReducedMetric[j]))
+					|| (( apvalues[j] <= pvalue ) && (tFullMetric[j] >= tReducedMetric[j]))
 				)
 				{
 					listindx <- length(pVALlist)+1;
 					namevector <- append(namevector,vnames[j]);
 					pVALlist[[listindx]] <- pvalues[j];
 					  
-#					if (as.character(vnames[j])!=as.character(termList[i])) 
-#					{
+					if (as.character(vnames[j])!=as.character(termList[i])) 
+					{
 						formulaList <- append(formulaList,formuls[j]);
-#					}
-#					else
-#					{
-#						if (length(formulaList)==0) formulaList <- append(formulaList,formuls[j]);
-#					}
+						addterm = TRUE;
+					}
+					else
+					{
+						baseformula <- formuls[j];
+					}
 					if (description != ".") 
 					{
 						thedescription <- append(thedescription,variableList[j,description]);
@@ -161,9 +164,18 @@ function (object,pvalue=0.05,data,variableList,Outcome="Class",timeOutcome=NULL,
 					theFullPerformance <- append(theFullPerformance,tFullMetric[j]);
 				}
 			}
+			if (addterm)
+			{			
+				formulaList <- append(formulaList,baseformula);
+			}
+
 			names(pVALlist) <- namevector;
 			listindx <- length(pvalueList)+1;
 			pvalueList[[listindx]] <- pVALlist;
+		}
+		if (length(formulaList) == 0)
+		{			
+			formulaList <- append(formulaList,baseformula);
 		}
 		names(pvalueList) <- termList;
 		pzval <- as.data.frame(cbind(Name = as.character(thename),ZUni= numeric(length(thepvalue))));
@@ -181,11 +193,13 @@ function (object,pvalue=0.05,data,variableList,Outcome="Class",timeOutcome=NULL,
 			pzvals2[un,2] <- mean(pzval[pzval[,1] == un,2]);
 		}
 #		print(pzvals2);
-		equmodel <- baggedModel(formulaList,data,type,Outcome,timeOutcome,frequencyThreshold=0.0,univariate=pzvals2,useFreq=FALSE)$bagged.model;
+		bagmodel <- baggedModel(formulaList,data,type,Outcome,timeOutcome,frequencyThreshold=0.0,univariate=pzvals2,useFreq=FALSE,n_bootstrap=1);
+		equmodel <- bagmodel$bagged.model;
 	}
 	else
 	{
 		equmodel <- NULL;
+		bagmodel <- NULL;
 	}
 
 #	cat("Equivalent\n")
@@ -208,6 +222,6 @@ function (object,pvalue=0.05,data,variableList,Outcome="Class",timeOutcome=NULL,
 		Mresult <- cbind(Mresult,smcoff);
 	}
 	Mresult$p.value <- as.numeric(thepvalue);
-	result <- list(pvalueList=pvalueList,equivalentMatrix=Mresult,formula.list=formulaList,equivalentModel=equmodel);
+	result <- list(pvalueList=pvalueList,equivalentMatrix=Mresult,formula.list=formulaList,equivalentModel=equmodel,bagged=bagmodel);
     return (result)
 }

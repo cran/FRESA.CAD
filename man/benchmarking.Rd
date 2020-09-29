@@ -2,6 +2,7 @@
 \alias{BinaryBenchmark}
 \alias{RegresionBenchmark}
 \alias{OrdinalBenchmark}
+\alias{CoxBenchmark}
 \title{Compare performance of different model fitting/filtering algorithms}
 \description{
 	Evaluates a data set with a set of fitting/filtering methods and returns the observed cross-validation performance
@@ -18,6 +19,9 @@ OrdinalBenchmark(theData = NULL, theOutcome = "Class", reps = 100, trainFraction
                 referenceCV = NULL,referenceName = "Reference"
                 ,referenceFilterName="Reference")
 
+CoxBenchmark(theData = NULL, theOutcome = "Class", reps = 100, trainFraction = 0.5,
+                referenceCV = NULL,referenceName = "Reference"
+                ,referenceFilterName="COX.BSWiMS")
 }
 
 \arguments{
@@ -34,7 +38,7 @@ OrdinalBenchmark(theData = NULL, theOutcome = "Class", reps = 100, trainFraction
 	The fraction of the data used for training.
 	}
 	\item{referenceCV}{
-	A user supplied random cross-validation object to be benchmarked
+	A  single random cross-validation object to be benchmarked or a list of CVObjects to be compared
 	}
 	\item{referenceName}{
 	The name of the reference classifier to be used in the reporting tables
@@ -102,6 +106,9 @@ OrdinalBenchmark(theData = NULL, theOutcome = "Class", reps = 100, trainFraction
 		SVM,
 		Random Forest,
 		and Naive Bayes.
+		
+		The CoxBenchmark compares: BSWiMS, LASSO, BeSS and Univariate Cox analysis in their ability to correctly predict the risk of event happening.
+		It uses cox regression with the four alternatives, but BSWiMS, LASSO are also compared as Wrapper methods.
 }
 
 \value{
@@ -177,6 +184,24 @@ OrdinalBenchmark(theData = NULL, theOutcome = "Class", reps = 100, trainFraction
   \item{KendallTable_filter}{
 		the matrix of the Kendall correlation with the 95 CI for filter methods
 	}
+	\item{CIRiskTable}{
+  		the matrix of the concordance index on Risk with the 95 CI 
+  }
+  \item{CIFollowUpTable}{
+  		the matrix of the concordance index on Follow-up times with the 95 CI 
+  }
+  \item{LogRankTable}{
+  		the matrix of the LogRank Test with the 95 CI 
+  }
+  \item{CIRisksTable_filter}{
+  	 	the matrix of the concordance index on Risk with the 95 CI for the filter methods
+  }
+  \item{CIFollowUpTable_filter}{
+  	 	the matrix of the concordance index on Follow-up times with the 95 CI for the filter methods 
+  }
+  \item{LogRankTable_filter}{
+  		the matrix of the LogRank Test with the 95 CI for the filter methods
+  }
   \item{times}{
 		The average CPU time used by the method
 	}
@@ -218,7 +243,7 @@ OrdinalBenchmark(theData = NULL, theOutcome = "Class", reps = 100, trainFraction
 
 		# Impute the missing data
         dataCancerImputed <- nearestNeighborImpute(stagec_mat)
-        dataCancerImputed[,1:ncol(dataCancerImputed)] <- sapply(dataCancerImputed,as.numeric)
+        dataCancerImputed[,1:ncol(dataCancerImputed)] <- sapply(dataCancerImputed,as.numeric)	
 
 		# Cross validating a LDA classifier.
 		# 80% Train and 20% test repeated 10 times

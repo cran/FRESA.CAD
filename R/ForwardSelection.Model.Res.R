@@ -1,5 +1,5 @@
 ForwardSelection.Model.Res <-
-function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,variableList,data,maxTrainModelSize=20,type=c("LM","LOGIT","COX"),testType=c("Binomial","Wilcox","tStudent","Ftest"),timeOutcome="Time",cores = 4,randsize = 0,featureSize = 0)
+function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,variableList,data,maxTrainModelSize=20,type=c("LM","LOGIT","COX"),testType=c("Binomial","Wilcox","tStudent","Ftest"),timeOutcome="Time",cores = 6,randsize = 0,featureSize = 0)
 {
 #	R_CStackLimit = -1;
 
@@ -116,10 +116,11 @@ function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,vari
 		if (loops > 1)
 		{
 			oF <- orderFeatures(output$formula.list,univariate=variableList);
+			oF <- oF$VarFrequencyTable[names(oF$VarFrequencyTable) %in% rownames(variableList)];
 #			print(oF$VarFrequencyTable);
 			linspace <- as.character(1:nrow(variableList))
 			names(linspace) <- rownames(variableList);
-			linspace <- linspace[names(oF$VarFrequencyTable)];
+			linspace <- linspace[names(oF)];
 			topvar <- topvar[linspace];
 		}
 	}

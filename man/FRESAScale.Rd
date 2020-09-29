@@ -6,8 +6,8 @@
 }
 
 \usage{
-	FRESAScale(data,refFrame=NULL,method=c("Norm","Order","RankInv"),
-    refMean=NULL,refDisp=NULL)
+	FRESAScale(data,refFrame=NULL,method=c("Norm","Order","OrderLogit","RankInv"),
+    refMean=NULL,refDisp=NULL,strata=NA)
 }
 \arguments{
 	\item{data}{
@@ -17,13 +17,16 @@
 	The reference frame that will be used to extract the feature distribution
 	}
 	\item{method}{
-	The normalization method. Norm: Mean and Std, Order: Median and IQR, RankInv: \code{\link{rankInverseNormalDataFrame}} 
+	The normalization method. Norm: Mean and Std, Order: Median and IQR,OrderLogit order plus logit, RankInv: \code{\link{rankInverseNormalDataFrame}} 
 	}
 	\item{refMean}{
 	The mean vector of the reference frame
 	}
 	\item{refDisp}{
 	the data dispersion method of the reference frame
+	}
+	\item{strata}{
+	the data stratification variable for the RankInv method
 	}
 }
 

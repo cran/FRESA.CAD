@@ -1,5 +1,6 @@
 barPlotCiError <-  function(ciTable, metricname, thesets, themethod, main, angle=0, offsets=c(0.1,0.1),scoreDirection=">",ho=NULL, ...)
 {
+  op <- par(no.readonly=TRUE);
 
 error.bar <- function(x, y, upper, lower=upper, length=0.03, ...){
   if (length(x) != length(y) | length(y) != length(lower) | length(lower) != length(upper))
@@ -66,6 +67,16 @@ error.bar <- function(x, y, upper, lower=upper, length=0.03, ...){
 
 	cmm <- colMeans(interMethodScore)
 	rmm <- rowMeans(interMethodScore)
+	if (scoreDirection == ">")
+	{
+		cmm <- cmm + 1.0e-10*colMeans(barmatrix)
+		rmm <- rmm + 1.0e-10*rowMeans(barmatrix)
+	}
+	else
+	{
+		cmm <- cmm - 1.0e-10*colMeans(barmatrix)
+		rmm <- rmm - 1.0e-10*rowMeans(barmatrix)
+	}
 
 	interMethodScore <- interMethodScore[order(-rmm),order(-cmm)];
 	SupMethod <- SupMethod[order(-rmm),order(-cmm)];
@@ -79,15 +90,16 @@ error.bar <- function(x, y, upper, lower=upper, length=0.03, ...){
   ymin <- min(0,1.25*min(ciTable));
   ymax <- max(0,1.10*max(ciTable));
   
-  op <- par(no.readonly=TRUE);
-  par(mfrow = c(1,1));
+#  par(mfrow = c(1,1));
+  par(pty="m")
+
   if (length(thesets) > 1)
   {
 	nf <- layout(matrix(c(1,3,1,3,1,4,1,5,1,5,1,6,2,0), 7, 2, byrow = TRUE),widths = c(3,1),heights = c(2,2,1.5,2,2,1.5,3))
   }
   else
   {
-    nf <- layout(matrix(c(1,2), 2, 1, byrow = TRUE),heights = c(5,1))
+    nf <- layout(matrix(c(1,2), 2, 1, byrow = TRUE),heights = c(5,1));
   }
   mar = par("mar")
   par(mar = c(0.0, mar[2],mar[3], mar[4]))
@@ -97,30 +109,30 @@ error.bar <- function(x, y, upper, lower=upper, length=0.03, ...){
     
   error.bar(barpo,as.vector(barmatrix),as.vector((upmatrix - barmatrix)),as.vector((barmatrix-infmatrix)))
 
-	par(mar = c(2.0, mar[2], 0.5, mar[4]))
+	par(mar = c(2.0, mar[2], 0.65, mar[4]))
 	col = heat.colors(1+max(interMethodScore)-min(interMethodScore));
-	barplot(interMethodScore,las=2,cex.axis=0.4,beside = TRUE,axisnames = FALSE,ylab="Score",col=col[as.vector(interMethodScore)-min(interMethodScore)+1]);
+	barplot(interMethodScore,las=2,cex.axis=0.75,beside = TRUE,axisnames = FALSE,ylab="Score",col=col[as.vector(interMethodScore)-min(interMethodScore)+1]);
   #text(cex=0.7, x=xpos, y=-0.1, thesets, xpd=TRUE, srt=45)
   text(cex=0.8, x = xpos - offsets[1], y = min(interMethodScore)-offsets[2], thesets, xpd = TRUE, srt = angle)
   if (length(thesets) > 1)
   {
 	par(mar = c(0.0, mar[2],mar[3], mar[4]))
-	barp <- barplot(colMeans(barmatrix),cex.axis=0.4,cex.names=0.4,las=2,ylim = c(ymin,ymax),ylab=metricname, xaxt="n",cex.lab=0.4)
+	barp <- barplot(colMeans(barmatrix),cex.axis=0.95,cex.names=0.95,las=2,ylim = c(ymin,ymax),ylab=metricname, xaxt="n",cex.lab=0.85)
     xpos <- barp;
-	par(mar = c(2.0, mar[2], 0.5, mar[4]))
+	par(mar = c(2.0, mar[2], 0.65, mar[4]))
 	colmax <- apply(interMethodScore,2,max,na.rm = TRUE);
-	barplot(colmax,cex.axis=0.4,cex.names=0.5,las=2,ylab="Score",xlab="Sets",col=col[colmax-min(interMethodScore)+1],cex.lab=0.4);
+	barplot(colmax,cex.axis=0.95,cex.names=0.75,las=2,ylab="Score",xlab="Sets",col=col[colmax-min(interMethodScore)+1],cex.lab=0.85);
 
 	par(mar = c(0.0, mar[2],mar[3], mar[4]))
-	barp <- barplot(rowMeans(barmatrix),cex.axis=0.4,cex.names=0.4,las=2,ylim = c(ymin,ymax),ylab=metricname, xaxt="n",cex.lab=0.4,...)
-    xpos <- barp
-	par(mar = c(2.0, mar[2], 0.5, mar[4]));
+	barp <- barplot(rowMeans(barmatrix),cex.axis=0.95,cex.names=0.95,las=2,ylim = c(ymin,ymax),ylab=metricname, xaxt="n",cex.lab=0.85)
+    xpos <- barp;
+	par(mar = c(2.0, mar[2], 0.65, mar[4]));
 	rowmax <- apply(interMethodScore,1,max,na.rm = TRUE);
-	barplot(rowmax,cex.axis=0.4,cex.names=0.4,las=2,ylab="Score",xlab="Methods",col=col[rowmax-min(interMethodScore)+1],cex.lab=0.4);
+	barplot(rowmax,cex.axis=0.95,cex.names=0.75,las=2,ylab="Score",xlab="Methods",col=col[rowmax-min(interMethodScore)+1],cex.lab=0.85);
 
  }
   par(mar=mar);
-  par(mfrow = c(1,1),mar=mar);
+#  par(mfrow = c(1,1),mar=mar);
   par(op)
 
   

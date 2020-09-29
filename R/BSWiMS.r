@@ -1,12 +1,25 @@
-BSWiMS.model <-
-function(formula=formula,data=NULL,type=c("Auto","LM","LOGIT","COX"),testType=c("Auto","zIDI","zNRI","Binomial","Wilcox","tStudent","Ftest"),pvalue=0.05,variableList=NULL,size=0,loops=32,elimination.bootstrap.steps=100,fraction=1.0,maxTrainModelSize=20,maxCycles=20,print=FALSE,plots=FALSE,featureSize=0,NumberofRepeats=1)
+BSWiMS.model <-function(formula=formula,data=NULL,
+type=c("Auto","LM","LOGIT","COX"),
+testType=c("Auto","zIDI","zNRI","Binomial","Wilcox","tStudent","Ftest"),
+pvalue=0.05,
+variableList=NULL,
+size=0,
+loops=20,
+elimination.bootstrap.steps=200,
+fraction=1.0,
+maxTrainModelSize=20,
+maxCycles=20,
+print=FALSE,
+plots=FALSE,
+featureSize=0,
+NumberofRepeats=1)
 {
 	type <- match.arg(type);
 	testType <- match.arg(testType);
 
 	a = as.numeric(Sys.time());
 	set.seed(a);
-	
+
 #	cat(featureSize," <- F Size\n");
 
 	#	print(colnames(data))
@@ -15,6 +28,7 @@ function(formula=formula,data=NULL,type=c("Auto","LM","LOGIT","COX"),testType=c(
 	fupdate.model <- NULL;
 	forward.selection.list <- NULL;
 	if (featureSize==0) featureSize = ncol(data)-1;
+	nfeat <- ncol(data)-1;
 #	cat(size,":",pvalue,":",update.pvalue[1],":",elimination.pValue,": fs=",featureSize,"\n")
 	if (class(formula)=="character")
 	{
@@ -30,7 +44,7 @@ function(formula=formula,data=NULL,type=c("Auto","LM","LOGIT","COX"),testType=c(
 		formula <- formula(baseformula);
 	}
 	varsmod <- all.vars(formula);
-		
+
 	varlist <- attr(terms(formula),"variables")
 	termslist <- attr(terms(formula),"term.labels");
 	setIntersect <- attr(terms(formula),"intercept");
@@ -52,7 +66,7 @@ function(formula=formula,data=NULL,type=c("Auto","LM","LOGIT","COX"),testType=c(
 			acovariates <- append(acovariates,termslist[i]);
 		}
 	}
-		
+
 	dependent <- as.character(varlist[[2]])
 	unitype ="Regression";
 	rankingTest="Ztest"
@@ -71,23 +85,26 @@ function(formula=formula,data=NULL,type=c("Auto","LM","LOGIT","COX"),testType=c(
 	else
 	{
 		Outcome = dependent[1];
-		theScores <- as.numeric(names(table(data[,Outcome])))
+		outcomeTable <- table(data[,Outcome]);
+		theScores <- as.numeric(names(outcomeTable))
 		totScores <- length(theScores);
 		univType = type;
+
 		if (type[1] == "Auto")
 		{
 			if (totScores>2)
 			{
 				type = "LM";
 				univType = "LM";
-				if (testType[1]=="Auto") 
+				if (testType[1]=="Auto")
 				{
 					testType="Ftest";
-					if (totScores<=10) 
+					if ((totScores <= 10) && (min(outcomeTable) >= 10))
 					{
 						type = "LOGIT";
 						testType ="zIDI"
 						univType = "LM";
+						warning("Ordinal Model Fit\n")
 					}
 				}
 			}
@@ -107,6 +124,7 @@ function(formula=formula,data=NULL,type=c("Auto","LM","LOGIT","COX"),testType=c(
 					rankingTest="zIDI";
 				}
 			}
+#			cat(testType[1],"<-");
 		}
 		if (testType[1]=="Auto") testType="Ftest";
 	}
@@ -128,18 +146,15 @@ function(formula=formula,data=NULL,type=c("Auto","LM","LOGIT","COX"),testType=c(
 		rownames(variableList) <- variableList$Name;
 #		print(variableList[1:10,]);
 		unirank <- unirank$orderframe;
-#		if (is.null(unitPvalues)) 
-		{
-			unitPvalues <- (1.0-pnorm(variableList$ZUni));
-			names(unitPvalues) <- variableList$Name;
-		}
+		unitPvalues <- (1.0-pnorm(variableList$ZUni));
+		names(unitPvalues) <- variableList$Name;
 		if (size==0)
 		{
 			featureSize <- max(featureSize,nrow(variableList));
 			unitPvalues <- p.adjust(unitPvalues,"BH");
 			unitPvalues <- unitPvalues[unitPvalues < 4*pvalue]; # 4 times the pvalue
 #			print(unitPvalues);
-			
+
 #			filtered <- names(unitPvalues);
 			filtered <- correlated_Remove(data,names(unitPvalues),thr=0.99);
 			if (length(filtered) > 1) featureSize <- featureSize*length(filtered)/length(unitPvalues);
@@ -180,6 +195,7 @@ function(formula=formula,data=NULL,type=c("Auto","LM","LOGIT","COX"),testType=c(
 	forward.selection.list <- character();
 	startVariableList <- variableList;
 	startSize <- size;
+	vartoTest <- variableList[1:size,]
 	selectedVariableList <- NULL;
 	theOutcome <- data[,Outcome];
 	oridinalModels <- NULL
@@ -193,8 +209,15 @@ function(formula=formula,data=NULL,type=c("Auto","LM","LOGIT","COX"),testType=c(
 	sdOutcome <- sd(theOutcome);
 	infraction <- 0;
 	cat("[");
-	for (nrep in 1:NumberofRepeats)
+	equivalent = FALSE;
+	if (NumberofRepeats <= 0)
 	{
+		equivalent = TRUE;
+		NumberofRepeats = abs(NumberofRepeats) + 1*(NumberofRepeats == 0);
+	}
+	equiMaxFreq <- 0;
+	addedEquFreq <- 0;
+	for (nrep in 1:NumberofRepeats){
 		forward.selection.list <- character();
 		firstModel <- NULL;
 		metric <- 0;
@@ -204,7 +227,7 @@ function(formula=formula,data=NULL,type=c("Auto","LM","LOGIT","COX"),testType=c(
 		isInferior <- FALSE;
 		while ( ( !isInferior || (infraction < 0.975) ) && (cycles<maxCycles) && (size>1))
 		{
-			isInferior <-  TRUE;
+#			isInferior <-  TRUE;
 			infraction <- 1.0;
 			ordinalFormulas <- NULL;
 			if ((testType=="zIDI") || (testType=="zNRI") )
@@ -251,7 +274,14 @@ function(formula=formula,data=NULL,type=c("Auto","LM","LOGIT","COX"),testType=c(
 				{
 					forward.model <- ForwardSelection.Model.Bin(size=size,fraction=fraction,pvalue,loops,acovariates,Outcome,variableList,data,maxTrainModelSize,type,timeOutcome,selectionType=testType,featureSize=featureSize);
 					update.model <- forward.model$update.model;
-					BSWiMS.model <- bootstrapVarElimination_Bin(object=update.model$final.model,pvalue=forward.model$theZthr,Outcome=Outcome,data,startOffset=startOffset,type=type,selectionType=testType,loops=elimination.bootstrap.steps,print=print,plots=plots);
+					if (elimination.bootstrap.steps>1)
+					{
+						BSWiMS.model <- bootstrapVarElimination_Bin(object=update.model$final.model,pvalue=forward.model$theZthr,Outcome=Outcome,data,startOffset=startOffset,type=type,selectionType=testType,loops=elimination.bootstrap.steps,print=print,plots=plots);
+					}
+					else
+					{
+						BSWiMS.model <- backVarElimination_Bin(object=update.model$final.model,pvalue=forward.model$theZthr,Outcome=Outcome,data=data,startOffset=startOffset,type=type,selectionType=testType);
+					}
 				}
 				if (length(forward.model$var.names)>0)
 				{
@@ -270,13 +300,15 @@ function(formula=formula,data=NULL,type=c("Auto","LM","LOGIT","COX"),testType=c(
 								curCount <- sum(firstMedAUC <= curAUC)
 								supchance <- sum(0.5 <= curAUC)/length(curAUC);
 								infraction <- 1.0 - 0.5*firstCount/length(IIRMetricPDF)-0.5*curCount/length(curAUC);
-								simTest <- ks.test(IIRMetricPDF,curAUC)$p.value
-								if (print) 
+								simTest <- ks.test(IIRMetricPDF + rnorm(length(IIRMetricPDF),0,1e-10),curAUC + rnorm(length(curAUC),0,1e-10))$p.value
+								if (print)
 								{
+#									hist(IIRMetricPDF)
+#									hist(curAUC)
 									cat(BSWiMS.model$back.formula,": Base AUC: ",firstMedAUC,"Current Blind AUC: ",currentMedAUC," Inferior Count:",firstCount," Tests:",length(IIRMetricPDF)," Fraction:",infraction," KStest:",simTest,"\n");
 								}
-								if (supchance < 0.975) infraction <- 1.0;
-								isInferior <- (infraction > 0.90);
+								if (supchance < 0.75) infraction <- 1.0;
+								isInferior <- (infraction > 0.95);
 								if ( !isInferior && (cycles < 3) && (simTest > 0.05) )
 								{
 									IIRMetricPDF <- c(IIRMetricPDF,curAUC[sample(length(curAUC),(1.0-infraction)*length(curAUC))]);
@@ -284,17 +316,29 @@ function(formula=formula,data=NULL,type=c("Auto","LM","LOGIT","COX"),testType=c(
 							}
 						}
 					}
-					else
-					{
-						BSWiMS.model <- backVarElimination_Bin(object=update.model$final.model,pvalue=forward.model$theZthr,Outcome=Outcome,data=stdata,startOffset=startOffset,type=type,selectionType=testType);
-					}
+#					else
+#					{
+#						BSWiMS.model <- backVarElimination_Bin(object=update.model$final.model,pvalue=forward.model$theZthr,Outcome=Outcome,data=data,startOffset=startOffset,type=type,selectionType=testType);
+#					}
 				}
 			}
 			else
 			{
 				forward.model <- ForwardSelection.Model.Res(size=size,fraction=fraction,pvalue=pvalue,loops=loops,covariates=acovariates,Outcome=Outcome,variableList=variableList,data=data,maxTrainModelSize=maxTrainModelSize,type=type,testType=testType,timeOutcome=timeOutcome,featureSize=featureSize);
 				update.model <- forward.model$update.model;
-				BSWiMS.model <- bootstrapVarElimination_Res(object=update.model$final.model,pvalue=forward.model$p.thresholds,Outcome=Outcome,data=data,startOffset=startOffset,type=type,testType=testType,loops=elimination.bootstrap.steps,setIntersect=setIntersect,print=print,plots=plots);
+				if (elimination.bootstrap.steps>1)
+				{
+					BSWiMS.model <- bootstrapVarElimination_Res(object=update.model$final.model,pvalue=forward.model$p.thresholds,Outcome=Outcome,data=data,startOffset=startOffset,type=type,testType=testType,loops=elimination.bootstrap.steps,setIntersect=setIntersect,print=print,plots=plots);
+				}
+				else
+				{
+					BSWiMS.model <- backVarElimination_Res(object=update.model$final.model,pvalue=forward.model$p.thresholds,Outcome=Outcome,data=data,startOffset=startOffset,type=type,testType=testType,setIntersect=setIntersect);
+				}
+				if (print)
+				{
+					cat("Final Formula:",BSWiMS.model$back.formula,"\n");
+				}
+
 				if (length(forward.model$var.names)>0)
 				{
 					if (elimination.bootstrap.steps>1)
@@ -304,6 +348,7 @@ function(formula=formula,data=NULL,type=c("Auto","LM","LOGIT","COX"),testType=c(
 						{
 							if (length(attr(terms(formula(BSWiMS.model$back.formula)),"term.labels"))>0)
 							{
+								sdOutcome <- BSWiMS.model$bootCV$outcomeSD;
 								curRMS <- BSWiMS.model$bootCV$testSampledRMSE;
 								firstMedRMS <- median(IIRMetricPDF);
 								curMedRMS <- median(curRMS);
@@ -311,13 +356,13 @@ function(formula=formula,data=NULL,type=c("Auto","LM","LOGIT","COX"),testType=c(
 								curCount <- sum(firstMedRMS >= curRMS);
 								supchance <- sum(sdOutcome >= curRMS)/length(curRMS);
 								infraction <- 1.0 - 0.5*firstCount/length(IIRMetricPDF) - 0.5*curCount/length(curRMS);
-								simTest <- ks.test(IIRMetricPDF,curRMS)$p.value
-								if (print) 
+								simTest <- ks.test(IIRMetricPDF + rnorm(length(IIRMetricPDF),0,1e-10),curRMS + rnorm(length(curRMS),0,1e-10))$p.value
+								if (print)
 								{
 									cat("Sd:", sdOutcome,"(",supchance,")",BSWiMS.model$back.formula,": Base: ",firstMedRMS,"(",max(IIRMetricPDF),") Current: ",BSWiMS.model$bootCV$testRMSE,"(",min(BSWiMS.model$bootCV$testSampledRMSE),") Inferior Count:",firstCount," Tests:",length(firstModel$bootCV$testSampledRMSE)," Fraction:",infraction,"\n");
 								}
-								if (supchance < 0.975) infraction <- 1.0;
-								isInferior <- (infraction > 0.90);
+								if (supchance < 0.75) infraction <- 1.0;
+								isInferior <- (infraction > 0.95);
 								if ( !isInferior && (cycles < 3) && (simTest > 0.05) )
 								{
 									IIRMetricPDF <- c(IIRMetricPDF,curRMS[sample(length(curRMS),(1.0-infraction)*length(curRMS))]);
@@ -325,33 +370,48 @@ function(formula=formula,data=NULL,type=c("Auto","LM","LOGIT","COX"),testType=c(
 							}
 						}
 					}
-					else
-					{
-						BSWiMS.model <- backVarElimination_Res(object=update.model$final.model,pvalue=forward.model$p.thresholds,Outcome=Outcome,data=data,startOffset=startOffset,type=type,testType=testType,setIntersect=setIntersect);
-					}
+#					else
+#					{
+#						BSWiMS.model <- backVarElimination_Res(object=update.model$final.model,pvalue=forward.model$p.thresholds,Outcome=Outcome,data=data,startOffset=startOffset,type=type,testType=testType,setIntersect=setIntersect);
+#					}
 				}
 			}
+
 			if (is.null(firstModel))
 			{
+				if (print)
+				{
+					cat("First Formula:",BSWiMS.model$back.formula,"\n");
+				}
 				firstModel <- BSWiMS.model;
 				fforward.model <- forward.model;
 				fupdate.model <- update.model;
 				isInferior <- (length(attr(terms(formula(firstModel$back.formula)),"term.labels"))==0);
 				selectedVariableList <- rownames(variableList[as.numeric(rownames(forward.model$ranked.var)),]);
-				if ((testType=="zIDI") || (testType=="zNRI"))
+				if (!is.null(BSWiMS.model$bootCV))
 				{
-					IIRMetricPDF <- (firstModel$bootCV$sensitivity + firstModel$bootCV$specificity)/2;
-					if (!isInferior) 
+					if ((testType=="zIDI") || (testType=="zNRI"))
 					{
-						isInferior <- ( (sum(0.5 <= IIRMetricPDF)/length(IIRMetricPDF)) < 0.975 );
+						IIRMetricPDF <- (firstModel$bootCV$sensitivity + firstModel$bootCV$specificity)/2;
+						IIRMetricPDF <- IIRMetricPDF;
+						if (!isInferior) 
+						{
+							isInferior <- ( (sum(0.5 <= IIRMetricPDF)/length(IIRMetricPDF)) < 0.5 );
+						}
 					}
-				}
-				else
-				{
-					IIRMetricPDF <- firstModel$bootCV$testSampledRMSE;
-					if (!isInferior) 
+					else
 					{
-						isInferior <- ( (sum(sdOutcome >= IIRMetricPDF)/length(IIRMetricPDF)) < 0.975 );
+						sdOutcome <- BSWiMS.model$bootCV$outcomeSD;
+						IIRMetricPDF <- firstModel$bootCV$testSampledRMSE;
+						IIRMetricPDF <- IIRMetricPDF;
+						if (print)
+						{
+							cat(length(IIRMetricPDF),": Sup std Outcome",sdOutcome,":",(sum(sdOutcome >= IIRMetricPDF)/length(IIRMetricPDF)),"\n");
+						}
+						if (!isInferior) 
+						{
+							isInferior <- ( (sum(sdOutcome >= IIRMetricPDF)/length(IIRMetricPDF)) < 0.5);
+						}
 					}
 				}
 				if (isInferior)
@@ -361,42 +421,65 @@ function(formula=formula,data=NULL,type=c("Auto","LM","LOGIT","COX"),testType=c(
 			}
 			if (!isInferior) #removing the models variables
 			{
-				cat("+");
-				if (print) cat(cycles,":",size,":",metric,":",infraction,":",BSWiMS.model$back.formula,"\n");
-				formula.list <- append(formula.list,BSWiMS.model$back.formula);
-				forward.selection.list <- append(forward.selection.list,forward.model$formula.list);
-				termslist <- character();
-				if (!is.null(oridinalModels))
+
+
+#				formula.list <- append(formula.list,BSWiMS.model$back.formula);
+				termslist <- attr(terms(formula(BSWiMS.model$back.formula)),"term.labels");
+				isInferior <- (length(termslist)==0);
+				if (!isInferior)
 				{
-#					print(ordinalFormulas);
-					oridinalModels$formulas <- append(oridinalModels$formulas,ordinalFormulas);
-					for (fn in 1:length(ordinalFormulas))
+					cat("+");
+					if (print) cat(cycles,":",size,":",nrow(variableList),":",metric,":",infraction,":",BSWiMS.model$back.formula,"\n");
+					if (equivalent)
 					{
-						termslist <- append(termslist,attr(terms(formula(ordinalFormulas[fn])),"term.labels"));
+	#					print(variableList[as.integer(names(forward.model$ranked.var)),]);
+						equmod <- reportEquivalentVariables(BSWiMS.model$back.model,pvalue = 0.25*pvalue,
+								  data=data,
+								  variableList = variableList[as.integer(names(forward.model$ranked.var)),],
+								  Outcome = Outcome,
+								  timeOutcome = timeOutcome,
+								  type = type, osize=nfeat,
+								  method="BH");
+						formula.list <- append(formula.list,equmod$formula.list);
+						if (print) print(equmod$formula.list);
+						equiMaxFreq <- equiMaxFreq+max(equmod$bagged$frequencyTable);
+						addedEquFreq <- addedEquFreq + 1;
+						termslist <- attr(terms(formula(equmod$bagged$formula)),"term.labels");
 					}
-					termslist <- unique(termslist);
-				}
-				else
-				{
-					termslist <- attr(terms(formula(BSWiMS.model$back.formula)),"term.labels");
-				}
-				
-				selectedVariableList <- unique(c(selectedVariableList,rownames(variableList[as.numeric(rownames(forward.model$ranked.var)),])));
+					else
+					{
+						formula.list <- append(formula.list,BSWiMS.model$back.formula);
+					}
+					forward.selection.list <- append(forward.selection.list,forward.model$formula.list);
+					if (!is.null(oridinalModels))
+					{
+	#					print(ordinalFormulas);
+						oridinalModels$formulas <- append(oridinalModels$formulas,ordinalFormulas);
+						for (fn in 1:length(ordinalFormulas))
+						{
+							termslist <- append(termslist,attr(terms(formula(ordinalFormulas[fn])),"term.labels"));
+						}
+						termslist <- unique(termslist);
+					}
 
-				if (cycles == max(as.integer(maxCycles/3),5))
-				{
-					included <- rownames(variableList) %in% selectedVariableList;
-					variableList <- variableList[included,]
-					size <- nrow(variableList);
-				}
-				else
-				{
-					size <- size - length(termslist);
-				}
+					selectedVariableList <- unique(c(selectedVariableList,rownames(variableList[as.numeric(rownames(forward.model$ranked.var)),])));
 
-				included <- rownames(variableList) %in% termslist;
-				variableList <- variableList[!included,]
-				size <- min(c(size,nrow(variableList)));
+					if (cycles == max(as.integer(maxCycles/3),5))
+					{
+						included <- rownames(variableList) %in% selectedVariableList;
+						variableList <- variableList[included,]
+						size <- nrow(variableList);
+					}
+					else
+					{
+						size <- size - length(termslist);
+					}
+
+					included <- rownames(variableList) %in% termslist;
+	#				print(included);
+					variableList <- variableList[!included,]
+					size <- min(c(size,nrow(variableList)));
+				}
 			}
 			else
 			{
@@ -409,14 +492,19 @@ function(formula=formula,data=NULL,type=c("Auto","LM","LOGIT","COX"),testType=c(
 					variableList <- variableList[!included,]
 					size <- min(c(size,nrow(variableList)));
 				}
-				if (cycles == 0) 
+				else
 				{
-					firstModel <- NULL;					
+					isInferior <- TRUE;
+				}
+				if (cycles == 0)
+				{
+					firstModel <- NULL;
 					infraction <- 0.5;
 				}
 				cycles <- cycles + 1;
 			}
 			cycles <- cycles + 1;
+#			if (equivalent) cycles <- maxCycles;
 		}
 		if (length(formula.list) == 0)
 		{
@@ -433,21 +521,21 @@ function(formula=formula,data=NULL,type=c("Auto","LM","LOGIT","COX"),testType=c(
 	}
 	data[,Outcome] <- theOutcome;
 	bagg <- NULL;
-	if (!is.null(oridinalModels)) 
+	if (!is.null(oridinalModels))
 	{
-		bagg <- baggedModel(oridinalModels$formulas,data,"LM",univariate=unirank,useFreq=FALSE); 
+		bagg <- baggedModel(oridinalModels$formulas,data,"LM",univariate=unirank,useFreq=FALSE);
 		totmodels <- length(theScores)-1;
 		repet <- length(oridinalModels$formulas)/totmodels - 1;
 		theBaggs <- list();
 		theBaggs2 <- list();
 		theClassBaggs <- list();
-		mc <- 1; 
+		mc <- 1;
 		for (s in theScores)
 		{
 			sdata <- data;
 			sdata[,Outcome] <- 1*(sdata[,Outcome] == s);
 			theClassBaggs[[mc]] <- baggedModel(oridinalModels$formulas,sdata,type="LOGIT",univariate=unirank,useFreq=TRUE);
-			
+
 			if (mc <= totmodels)
 			{
 				olist <- (0:repet)*totmodels+mc;
@@ -460,31 +548,42 @@ function(formula=formula,data=NULL,type=c("Auto","LM","LOGIT","COX"),testType=c(
 			}
 			mc <- mc + 1;
 		}
-		oridinalModels$theBaggedModels <- theBaggs; 
-		oridinalModels$redBaggedModels <- theBaggs2; 
+		oridinalModels$theBaggedModels <- theBaggs;
+		oridinalModels$redBaggedModels <- theBaggs2;
 		oridinalModels$theClassBaggs <- theClassBaggs;
 #		print(oridinalModels$formulas);
 
 		if (!requireNamespace("MASS", quietly = TRUE)) {
 			install.packages("MASS", dependencies = TRUE)
-		} 
+		}
 		data[,Outcome] <- as.factor(theOutcome);
 		frma <- as.character(bagg$formula);
 #		print(frma);
 		oridinalModels$formula <- frma;
 		oridinalModels$polr <- try(MASS::polr(frma,data));
+#		environment(oridinalModels$polr$formula) <- globalenv();
+#		environment(oridinalModels$formula) <- globalenv();
+
 		if (inherits(oridinalModels$polr, "try-error"))
 		{
 			cat(frma,"\n");
 			warning (paste(frma,": No ordinal model\n"));
 		}
+		else
+		{
+			environment(oridinalModels$polr$terms) <- globalenv();		
+		}
 	}
 	else
 	{
-		bagg <- baggedModel(formula.list,data,type,univariate=unirank,useFreq=FALSE); 
+		if (addedEquFreq>0)
+		{
+			equiMaxFreq <- equiMaxFreq/addedEquFreq;
+		}
+		bagg <- baggedModel(formula.list,data,type,univariate=unirank,useFreq=FALSE,equifreqCorrection=equiMaxFreq,n_bootstrap=1);
 	}
 
-	
+
 
 	result <- list(BSWiMS.model=firstModel,
 		forward.model=fforward.model,
@@ -493,9 +592,10 @@ function(formula=formula,data=NULL,type=c("Auto","LM","LOGIT","COX"),testType=c(
 		bagging=bagg,
 		formula.list=formula.list,
 		forward.selection.list=forward.selection.list,
-		oridinalModels=oridinalModels
+		oridinalModels=oridinalModels,
+		equivalent=equivalent
 	);
 	class(result) <- c("fitFRESA","BSWiMS");
-	
+
 	return (result);
 }

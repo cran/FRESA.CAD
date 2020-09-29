@@ -129,6 +129,18 @@ function(formula,data,OptType=c("Binary","Residual"),pvalue=0.05,filter.p.value=
 		{
 			OptType = "Residual";
 		}
+		
+		if (categorizationType=="RawRaw")
+		{
+			rownames(variables) <- variables[,1];
+			unirank <- uniRankVar(variables,baseModel,Outcome,data,categorizationType="Raw",type,rankingTest="Ztest",cateGroups,raw.dataFrame,description="Description",uniType="Regression",FullAnalysis=FALSE,acovariates=acovariates,timeOutcome=timeOutcome)
+			univariate <- unirank$orderframe;
+			featureSize <- nrow(univariate);
+			unitPvalues <- (1.0-pnorm(univariate$ZUni));
+			names(unitPvalues) <- univariate$Name;
+			adjPvalues <- p.adjust(unitPvalues,"BH");
+			variables <- variables[names(adjPvalues[adjPvalues <= 2*filter.p.value]),];
+		}
 
 		if (OptType == "Binary")
 		{
@@ -339,7 +351,7 @@ function(formula,data,OptType=c("Binary","Residual"),pvalue=0.05,filter.p.value=
 				{
 					eqdata <- data;
 				}
-				eq <- reportEquivalentVariables(reducedModel$back.model,pvalue = pvalue,
+				eq <- reportEquivalentVariables(reducedModel$back.model,pvalue = 0.25*pvalue,
 							  data=eqdata,
 							  variableList=cbind(eshortlist,eshortlist),
 							  Outcome = Outcome,

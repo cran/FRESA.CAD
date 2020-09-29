@@ -232,7 +232,10 @@ bootstrapVarElimination_Res <- function (object,pvalue=0.05,Outcome="Class",data
 	{
 		cat("Before BSC   Mod:",beforeFSC.model.formula,"\n");
 		cat("Min RMSE Formula:",min.formula,"\n");
-		if (!is.null(bk)) cat("Final  Formula:",bk$backfrm,"\n")
+		if (!is.null(bk)) 
+		{
+			cat("Final Formula:",bk$backfrm,"\n")			
+		}
 		cat("Start RMSE:",startRMSE,"Min RMSE:",bestbootRMSE[2],"final RMSE:",NeRICV$testRMSE,"\n")
 	}
 

@@ -17,17 +17,16 @@
 	            pvalue=0.05,
 	            variableList=NULL,
 	            size=0,
-	            loops=32,
-	            elimination.bootstrap.steps = 100,
+	            loops=20,
+	            elimination.bootstrap.steps = 200,
 	            fraction=1.0,
 	            maxTrainModelSize=20,
 	            maxCycles=20,
 	            print=FALSE,
 	            plots=FALSE,
 	            featureSize=0,
-				NumberofRepeats=1
+	            NumberofRepeats=1
 	            )
-
 }
 \arguments{
 	\item{formula}{

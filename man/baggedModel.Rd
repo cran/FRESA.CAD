@@ -13,7 +13,8 @@
 	            frequencyThreshold=0.025,
 	            univariate=NULL,
 				useFreq=TRUE,
-				n_bootstrap=1
+				n_bootstrap=1,
+				equifreqCorrection=0
 	            )
 }
 \arguments{
@@ -43,6 +44,9 @@
 	}
 	\item{n_bootstrap}{
 		if greater than 1, defines the number of bootstraps samples to be used
+	}
+	\item{equifreqCorrection}{
+		Indicates the average size of repeated features in an equivalent model
 	}
 }
 \value{

@@ -1,5 +1,5 @@
 ForwardSelection.Model.Bin <-
-function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,variableList,data,maxTrainModelSize=20,type=c("LM","LOGIT","COX"),timeOutcome="Time",selectionType=c("zIDI","zNRI"),cores=4,randsize = 0,featureSize=0)
+function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,variableList,data,maxTrainModelSize=20,type=c("LM","LOGIT","COX"),timeOutcome="Time",selectionType=c("zIDI","zNRI"),cores=6,randsize = 0,featureSize=0)
 {
 #	    R_CStackLimit = -1;
 	type <- match.arg(type)
@@ -72,6 +72,10 @@ function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,vari
 
 	
 	colNames=colnames(modelFrame);
+#	print(colNames);
+#	print(variableList[,1]);
+#	print(covariates);
+	
 	if (randsize >= 0)
 	{
 		output<-.Call("ReclassificationFRESAModelCpp",size, fraction, pvalue, loops, covariates, Outcome,as.vector(variableList[,1]), maxTrainModelSize, type, timeOutcome, seltype,data.matrix(modelFrame),colNames,featureSize,cores);
@@ -113,7 +117,9 @@ function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,vari
 	names(base.Zvalues) <- vnames[1:nrow(base.Zvalues)];
 	
 	mynames <- output$mynames + 1 
+#		print(mynames);
 	topvar <- table(mynames);
+#		print(topvar);
 	if (length(topvar)>1)
 	{
 		topvar <- topvar[order(-topvar)];
@@ -121,13 +127,21 @@ function(size=100,fraction=1.0,pvalue=0.05,loops=100,covariates="1",Outcome,vari
 		{
 #			print(topvar);
 			oF <- orderFeatures(output$formula.list,univariate=variableList);
-			linspace <- as.character(1:nrow(variableList))
+#			print(names(oF$VarFrequencyTable));
+			oF <- oF$VarFrequencyTable[names(oF$VarFrequencyTable) %in% rownames(variableList)];
+#			print(names(oF));
+			linspace <- as.character(1:nrow(variableList));
 			names(linspace) <- rownames(variableList);
-			linspace <- linspace[names(oF$VarFrequencyTable)];
+#			print(names(linspace));
+			linspace <- linspace[names(oF)];
+#			print(names(linspace));
 			topvar <- topvar[linspace];
 #			print(topvar);
 		}
 	}
+
+#		print(output$formula.list);
+#		print(topvar);
 
 	
 	update.model <- updateModel.Bin(Outcome=Outcome,covariates=covariates,pvalue=c(pvalue,pvalue),VarFrequencyTable=topvar,variableList=variableList,data=data,type=type,lastTopVariable= 0,timeOutcome=timeOutcome,selectionType=selectionType,zthrs=output$Zthr)

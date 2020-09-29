@@ -24,6 +24,17 @@ function (object,...)
 		{
 			testData <- parameters[[1]];
 			predictType <- "linear";
+			if (!is.null(object$type))
+			{
+				if (object$type== "LOGIT")
+				{
+					predictType <- "prob";
+				}
+			}			
+			if (!is.null(object$coefficients.List))
+			{
+				predictType <- "bagg";
+			}
 		}
 		else
 		{
@@ -38,6 +49,17 @@ function (object,...)
 			if (is.null(parameters$predictType))
 			{
 				predictType <- "linear";
+				if (!is.null(object$type))
+				{
+					if (object$type== "LOGIT")
+					{
+						predictType <- "prob";
+					}
+				}			
+				if (!is.null(object$coefficients.List))
+				{
+					predictType <- "bagg";
+				}
 			}
 			else
 			{
@@ -92,8 +114,166 @@ function (object,...)
 			{
 				mm[,-1]=nearestNeighborImpute(tobeimputed=mm[,-1],referenceSet = object$model[,-1]);
 			}
-			pred <-.Call("predictForFresa",cf,mm,predictType[1],object$type);
-			out <- as.vector(pred$prediction);
+			if ((predictType[1] == "bagg") && (!is.null(object$coefficients.List)))
+			{
+				pred <- NULL;
+				if (object$type == "LOGIT") 
+				{
+					pred <- .Call("predictForFresa",cf,mm,"prob",object$type);
+				}
+				if (length(object$coefficients.List) > 0)
+				{
+#					cat("Bagging");
+					premin <- 2.0*object$fraction;
+					premax <- 1.0 - premin;
+					mm <- model.matrix(formula(object$formula.List[[1]]), testData);
+					maout <- as.vector(mm  %*% object$coefficients.List[[1]]);
+					npout <- maout;
+					avgout <- maout;
+#					print(object$coefficients.List);
+					totwts <- sum(object$wts.List);
+					wts <- object$wts.List[1]/totwts;
+					fraction <- numeric(nrow(testData));
+					if (object$type == "LOGIT") 
+					{
+						fraction <- fraction + wts*(maout > 0.0);
+						tgext <- (maout > 36.0);
+						if (sum(tgext) > 0 ) 
+						{
+							maout[tgext] <- 36.0;
+						}
+						tgext <- (maout < -36.0);
+						if (sum(tgext) > 0 ) 
+						{
+							maout[tgext] <- -36.0;
+						}
+						maout <- 1.0/(1.0+exp(-maout));
+						tgext <- (maout > premax);
+						if (sum(tgext) > 0 ) 
+						{
+							maout[tgext] <- premax;
+						}
+						tgext <- (maout < premin);
+						if (sum(tgext) > 0 ) 
+						{
+							maout[tgext] <- premin;
+						}
+						avgout <- maout*wts;
+						npout <- log(1.0-maout)*wts;
+						maout <- log(maout)*wts; 
+					}
+					else
+					{
+						maout <- maout*wts;
+					}
+					if (length(object$coefficients.List) > 1)
+					{
+						for (nm in 2:length(object$coefficients.List))
+						{
+							mm <- model.matrix(formula(object$formula.List[[nm]]), testData)
+							nout <- as.vector(mm  %*% object$coefficients.List[[nm]]);
+							wts <- object$wts.List[nm]/totwts;
+							fraction <- fraction + wts*(nout > 0.0);
+							if (object$type == "LOGIT") 
+							{
+								tgext <- (nout > 36.0);
+								if (sum(tgext) > 0 ) 
+								{
+									nout[tgext] <- 36.0;
+								}
+								tgext <- (nout < -36.0);
+								if (sum(tgext) > 0 ) 
+								{
+									nout[tgext] <- -36.0;
+								}
+								nout <- 1.0/(1.0+exp(-nout));
+								tgext <- (nout > premax);
+								if (sum(tgext) > 0 ) 
+								{
+									nout[tgext] <- premax;
+								}
+								tgext <- (nout < premin);
+								if (sum(tgext) > 0 ) 
+								{
+									nout[tgext] <- premin;
+								}
+								avgout <- avgout+nout*wts;
+								maout <- maout+log(nout)*wts;
+								npout <- npout+log(1.0-nout)*wts;
+							}
+							else
+							{
+								maout <- maout + wts*nout;
+							}
+						}
+					}
+#					out <- maout;
+					if (object$type == "LOGIT") 
+					{
+						tgext <- (maout > 36.0);
+						if (sum(tgext) > 0 ) 
+						{
+							maout[tgext] <- 36.0;
+						}
+						tgext <- (maout < -36.0);
+						if (sum(tgext) > 0 ) 
+						{
+							maout[tgext] <- -36.0;
+						}
+						tgext <- (npout > 36.0);
+						if (sum(tgext) > 0 ) 
+						{
+							npout[tgext] <- 36.0;
+						}
+						tgext <- (npout < -36.0);
+						if (sum(tgext) > 0 ) 
+						{
+							npout[tgext] <- -36.0;
+						}
+						nout <- exp(maout)/(exp(maout)+exp(npout));
+						out <- avgout;
+						if (length(object$coefficients.List) >= 10)
+						{
+#							selcheck <- ((avgout > 0.5) & (fraction < 0.5) ) | ((avgout < 0.5) & (fraction > 0.5)); 
+#							out[selcheck] <- 0.5*(avgout[selcheck]+fraction[selcheck]);
+							out <- 0.5*(avgout+fraction);
+						}
+						attr(out,"WeightedAverage") <- avgout;
+						attr(out,"wLOP") <- nout;
+						attr(out,"LOGIT") <- as.vector(pred$prediction);
+						attr(out,"Fraction") <- fraction;
+#						print(out);
+					}
+					else
+					{
+						out <- maout;
+					}
+				}
+				else
+				{
+					mm <- model.matrix(frm, testData)
+					out <- as.vector(mm  %*% cf);
+					if (object$type=="LOGIT") 
+					{
+						tgext <- (out > 36.0);
+						if (sum(tgext) > 0 ) 
+						{
+							out[tgext] <- 36.0;
+						}
+						tgext <- (out < -36.0);
+						if (sum(tgext) > 0 ) 
+						{
+							out[tgext] <- -36.0;
+						}
+						out <- 1.0/(1.0+exp(-out));
+					}
+				}
+			}
+			else
+			{
+				pred <-.Call("predictForFresa",cf,mm,predictType[1],object$type);
+				out <- as.vector(pred$prediction);
+			}
 			names(out) <- rownames(testData);
 		},
 		tr =
@@ -254,18 +434,36 @@ function (object,...)
 				if (is.null(object$bagging) || is.null(object$bagging$bagged.model))
 				{
 					out <- predict(object$forward.model$final.model,...);
-					attributes(out) <- list(model="forward.update");
+					attr(out,"model") <- "forward.update";
 				}
 				else
 				{
-					out <- predict(object$bagging$bagged.model,...);
-					attributes(out) <- list(model="bagged");
+					if (object$equivalent)
+					{
+						if (object$bagging$bagged.model$type == "LOGIT")
+						{
+							pred <- ensemblePredict(object$formula.list,object$BSWiMS.model$bootCV$data,testData,"prob",object$bagging$bagged.model$type)
+						}
+						else
+						{
+							pred <- ensemblePredict(object$formula.list,object$BSWiMS.model$bootCV$data,testData,predictType,object$bagging$bagged.model$type)
+						}						
+						out <- as.numeric(pred$ensemblePredict)
+						names(out) <- rownames(testData);
+						attr(out,"MeanEnsemblePredict") <- pred$wPredict;
+						attr(out,"model") <- "Ensemble";
+					}
+					else
+					{
+						out <- predict(object$bagging$bagged.model,...);
+						attr(out,"model") <- "bagged";
+					}
 				}
 			}
 			else
 			{
 				out <- predict(object$oridinalModels,...)[,1];
-				attributes(out) <- list(model="ordinal");
+				attr(out,"model") <- "ordinal";
 			}
 		},
 		{
@@ -311,7 +509,48 @@ function (object,...)
 										{
 										  out <- as.vector(mm  %*% cf);
 										  out <- 1.0/(1.0+exp(-out));
-										}, 
+										},
+									pbagg =
+										{
+											if (!is.null(object$coefficients.List))
+											{
+												if (length(object$coefficients.List)>0)
+												{
+													mm <- model.matrix(formula(object$formula.List[[1]]), testData)
+													maout <- as.vector(mm  %*% object$coefficients.List[[1]]);
+													maout <- 1.0/(1.0+exp(-maout));
+#													miout <- maout;
+													if (length(object$coefficients.List)>1)
+													{
+														for (nm in 2:length(object$coefficients.List))
+														{
+															mm <- model.matrix(formula(object$formula.List[[nm]]), testData)
+															nout <- as.vector(mm  %*% object$coefficients.List[[nm]]);
+															nout <- 1.0/(1.0+exp(-nout));
+															maout <- maout + nout;
+#															maout <- pmax(maout,nout);
+#															miout <- pmin(miout,nout);
+#															print(c(maout[1],miout[1],nout[1]));
+														}
+													}
+													out <- maout/length(object$coefficients.List);
+#													whodif <- ((1.0-miout) > out);
+#													out[whodif] <- miout[whodif];
+#													print(c(maout[1],miout[1],out[1]));
+												}
+												else
+												{
+													  out <- as.vector(mm  %*% cf);
+													  out <- 1.0/(1.0+exp(-out));
+												}
+											}
+											else
+											{
+												  out <- as.vector(mm  %*% cf);
+												  out <- 1.0/(1.0+exp(-out));
+											}
+											
+										},
 										{
 										  out <- as.vector(mm  %*% cf);
 										}

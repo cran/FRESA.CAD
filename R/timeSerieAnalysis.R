@@ -30,7 +30,6 @@ if (!requireNamespace("nlme", quietly = TRUE)) {
 	  contime=timevar;
 	}
 
-	t <- tapply(data[,contime], data[,timevar], mean,na.rm=TRUE)
 	
 	if (timesign=="-")
 	{
@@ -41,7 +40,9 @@ if (!requireNamespace("nlme", quietly = TRUE)) {
 		timeorder <- data[order(data[,contime]),];
 	}
 
-	farctionlowess <- 1.0/(length(table(data[,timevar])))
+	t <- tapply(timeorder[,contime], timeorder[,timevar], mean,na.rm=TRUE);
+
+	farctionlowess <- min(0.5,2.0/(length(table(data[,timevar]))));
 
 	if (Outcome != ".")
 	{
@@ -130,7 +131,7 @@ if (!requireNamespace("nlme", quietly = TRUE)) {
 					sdval <- tapply(timeorderCases[,vnames[j]], timeorderCases[,timevar], sd,na.rm=TRUE)
 					size <- tapply(timeorderCases[,vnames[j]], timeorderCases[,timevar], length)
 					delta <- sdval / sqrt( size)
-					errbar(-tCase,mval,mval-delta,mval+delta,col="red",ylab=vnames[j],xlab="time",type="b",ylim=c(miny,maxy))
+					errbar(-tCase,mval,mval-delta,mval+delta,col="red",ylab=vnames[j],xlab="time",type="b",ylim=c(miny,maxy),xlim=c(mintime,maxtime))
 					lines(lowess(-timeorderCases[,contime],predCases,f = farctionlowess),col="red",lty=3)
 		   
 					mval <- tapply(timeorderControl[,vnames[j]], timeorderControl[,timevar], mean,na.rm=TRUE)
@@ -140,7 +141,8 @@ if (!requireNamespace("nlme", quietly = TRUE)) {
 					errbar(-tControl,mval,mval-delta,mval+delta,add=TRUE,col="blue",type="b")
 		  
 					lines(lowess(-timeorderControl[,contime],predControl,f = farctionlowess),col="blue",lty=2)
-					legend(-maxtime+0.1*deltatime,miny + 0.2*(maxy-miny), catgo.names, col=c("blue","red"), lty = 2:3,bty="n")
+#					legend(-maxtime+0.1*deltatime,miny + 0.2*(maxy-miny), catgo.names, col=c("blue","red"), lty = 2:3,bty="n")
+					legend("bottomleft", catgo.names, col=c("blue","red"), lty = 2:3,bty="n")
 				
 					if (!is.null(reg))
 					{
@@ -182,7 +184,7 @@ if (!requireNamespace("nlme", quietly = TRUE)) {
 					size <- tapply(timeorderCases[,vnames[j]], timeorderCases[,timevar], length)
 					delta <- sdval / sqrt( size)
 
-					errbar(tCase,mval,mval-delta,mval+delta,col="red",ylab=vnames[j],xlab="time",type="b",ylim=c(miny,maxy))
+					errbar(tCase,mval,mval-delta,mval+delta,col="red",ylab=vnames[j],xlab="time",type="b",ylim=c(miny,maxy),xlim=c(mintime,maxtime))
 					lines(lowess(timeorderCases[,contime],predCases,f = farctionlowess),col="red",lty=3)
 
 					mval <- tapply(timeorderControl[,vnames[j]], timeorderControl[,timevar], mean,na.rm=TRUE)
@@ -193,7 +195,8 @@ if (!requireNamespace("nlme", quietly = TRUE)) {
 					errbar(tControl,mval,mval-delta,mval+delta,add=TRUE,col="blue",type="b")
 		  
 					lines(lowess(timeorderControl[,contime],predControl,f = farctionlowess),col="blue",lty=2)
-					legend(maxtime-0.9*deltatime,miny + 0.2*(maxy-miny), catgo.names, col=c("blue","red"), lty = 2:3,bty="n")
+#					legend(maxtime-0.9*deltatime,miny + 0.2*(maxy-miny), catgo.names, col=c("blue","red"), lty = 2:3,bty="n")
+					legend("bottomleft", catgo.names, col=c("blue","red"), lty = 2:3,bty="n")
 			
 					if (!is.null(reg))
 					{
@@ -235,7 +238,7 @@ if (!requireNamespace("nlme", quietly = TRUE)) {
 			{
 				if (timesign=="-")
 				{			
-				  errbar(-t,mval,mval-delta,mval+delta,ylab=vnames[j],xlab="time",type="b",ylim=c(miny,maxy))
+				  errbar(-t,mval,mval-delta,mval+delta,ylab=vnames[j],xlab="time",type="b",ylim=c(miny,maxy),xlim=c(mintime,maxtime))
 				  lines(lowess(-timeorder[,contime],predict(obj_s,timeorder,na.action=na.exclude),f = farctionlowess),col="blue",lty=2)      
 				  for (lg in 1:length(Ptoshow))
 					{
@@ -269,7 +272,7 @@ if (!requireNamespace("nlme", quietly = TRUE)) {
 				}
 				else
 				{
-					errbar(t,mval,mval-delta,mval+delta,ylab=vnames[j],xlab="time",type="b",ylim=c(miny,maxy))
+					errbar(t,mval,mval-delta,mval+delta,ylab=vnames[j],xlab="time",type="b",ylim=c(miny,maxy),xlim=c(mintime,maxtime))
 					lines(lowess(timeorder[,contime],predict(obj_s,timeorder,na.action=na.exclude),f = farctionlowess),col="blue",lty=2)      
 					for (lg in 1:length(Ptoshow))
 					{
@@ -351,17 +354,64 @@ if (!requireNamespace("nlme", quietly = TRUE)) {
 	return (result);
 }
 
-trajectoriesPolyFeatures <- function(data,feature="v1", degree=2, time="t", group="ID")
+trajectoriesPolyFeatures <- function(data,feature="v1", degree=2, time="t", group="ID",timeOffset=0,strata=NULL,plot=TRUE,...)
 {
   aids <- data[,group]
   ids <- unique(aids)
   coefs <- as.data.frame(matrix(0,nrow = length(ids),ncol = degree + 1));
   rownames(coefs) <- ids;
+  miny <- min(data[,feature],na.rm = TRUE);
+  maxy <- max(data[,feature],na.rm = TRUE);
+  minx <- min(data[,time],na.rm = TRUE);
+  maxx <- max(data[,time],na.rm = TRUE);
+  if (plot) 
+  {
+    plot(1,type="n",xlim=c(minx, maxx), ylim=c(miny, maxy),...)
+    abline(v=timeOffset,col = "gray");
+  }
+  range <- (maxx-minx);
+  timesamples <- minx + ((0:100)/100.0)*range;
+  dataTime <- as.data.frame(cbind(0:100,timesamples));
+  colors <- rep(1,length(ids));
+  if (!is.null(strata))
+  {
+    colors <- tapply(data[,strata], data[,group], mean,na.rm = TRUE) + 1;
+  }
+  
   for (i in 1:length(ids))
   {
-    whoid <- ids[i] == aids;
-    fd <- as.data.frame(cbind(xs = data[whoid,feature],t = data[whoid,time]));
-    coefs[i,] <- lm(paste("xs ~ poly(t, degree=",degree,", raw=TRUE)"),data = fd,na.action = na.omit)$coefficients;
+    whoid <- aids == ids[i];
+    coefs[i,] <- rep(NA,1 + degree);
+    if (sum(whoid) > 0)
+    {
+      minv = min(data[whoid,time],na.rm = TRUE);
+      maxv = max(data[whoid,time],na.rm = TRUE);
+      dta <- data[whoid,feature];
+      dtpts <- length(dta[!is.na(dta)]);
+      
+      if ((dtpts > degree) && (minv < maxv) && (minv <= timeOffset) && (maxv >= timeOffset))
+      {
+        colnames(dataTime) <- c(ids[i],"t");
+        stddev <- try(sd(data[whoid,feature],na.rm = TRUE))
+        if (!inherits(stddev, "try-error"))
+        {
+          wts <- exp(-(2*(data[whoid,time] - timeOffset)/range)^2);
+          fd <- as.data.frame(cbind(xs = data[whoid,feature],t = data[whoid,time],wts=wts));
+          fitlm <- try(lm(paste("xs ~ poly(I(t -",timeOffset,"),degree = ",degree,", raw=TRUE)"),data = fd,weights = wts,na.action = na.omit));
+          if (!inherits(fitlm, "try-error"))
+          {
+            coefs[i,] <- fitlm$coefficients;
+            if (plot)
+            {
+              points(data[whoid,time],data[whoid,feature],type="p",col=colors[i]);
+              lines(timesamples,predict(fitlm,dataTime,na.action=na.exclude),col=colors[i],lty= 1 + colors[i])
+            }
+          }
+        }
+      }
+    }
   }
+  
+  
   return(coefs)
 }

@@ -50,7 +50,7 @@ OrdinalBenchmark <-  function(theData = NULL, theOutcome = "Class", reps = 100, 
   SENTable_filter <- NULL;
   ACCTable_filter <- NULL;
   fmeth_0 <- NULL;
-  par(mfrow = c(1,1));
+#  par(mfrow = c(1,1));
 
   FilterMethod <-  function(ordFun = e1071::svm, classname = "",...)
   {
@@ -206,6 +206,10 @@ OrdinalBenchmark <-  function(theData = NULL, theOutcome = "Class", reps = 100, 
 	  referenceName = "BSWiMS";
 	  referenceFilterName = "BSWiMS";
   }
+  else
+  {
+		reps <- referenceCV$repetitions;
+  }
   
   sta <- predictionStats_ordinal(referenceCV$medianTest,referenceName);
   BMAETable <- rbind(BMAETable,sta$BMAE);
@@ -269,7 +273,7 @@ OrdinalBenchmark <-  function(theData = NULL, theOutcome = "Class", reps = 100, 
   
   #  Method Meta Ensemble  
   ens <- cbind(referenceCV$medianTest[,1],rowMedians(cbind(referenceCV$medianTest[,2],rcvLASSO$medianTest[,2],rcvRF$medianTest[,2],rcvKNN$medianTest[,2],rcvSVM$medianTest[,2])))
-  sta <- predictionStats_ordinal(ens,"ENS");
+  sta <- predictionStats_ordinal(ens,"Ensemble");
   BMAETable <- rbind(BMAETable,sta$BMAE);
   KappaTable <- rbind(KappaTable,sta$Kapp);
   BiasTable <- rbind(BiasTable,sta$Bias);
@@ -364,9 +368,14 @@ OrdinalBenchmark <-  function(theData = NULL, theOutcome = "Class", reps = 100, 
   theOrdinalMethod <- c("Ordinal","KNN","Naive Bayes","RF","SVM")
   theFiltersets <- c(referenceFilterName,"LASSO","RPART","RF.ref","F.Test","Kendall","mRMR")
 
-  Nvar <- min(c(1000,length(ff)))
+#  Nvar <- min(c(1000,length(ff)))
+#	selFrequency <- matrix(0,nrow = Nvar,ncol = length(theFiltersets))
+#	rownames(selFrequency) <- names(rcvRF$featureFrequency)[1:Nvar]
+
+	Nvar <- length(ff);
 	selFrequency <- matrix(0,nrow = Nvar,ncol = length(theFiltersets))
-	rownames(selFrequency) <- names(rcvRF$featureFrequency)[1:Nvar]
+	rownames(selFrequency) <- ff
+
 	selnames <- rownames(selFrequency)
 	colnames(selFrequency) <- theFiltersets
 	ff <- referenceCV$featureFrequency

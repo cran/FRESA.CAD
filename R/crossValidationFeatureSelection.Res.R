@@ -302,7 +302,7 @@ if (!requireNamespace("glmnet", quietly = TRUE)) {
 						{
 							eqdata <- ETraningSet;
 						}
-						eq <- reportEquivalentVariables(redfoldmodel,pvalue = pvalue,
+						eq <- reportEquivalentVariables(redfoldmodel,pvalue = 0.25*pvalue,
 									  data=eqdata,
 									  variableList=cbind(eshortlist,eshortlist),
 									  Outcome = Outcome,

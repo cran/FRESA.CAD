@@ -8,17 +8,18 @@
 
 \usage{
 	randomCV(theData = NULL,
-        	  theOutcome = "Class",
-        	  fittingFunction=NULL, 
-        	  trainFraction = 0.5,
-        	  repetitions = 100,
-        	  trainSampleSets=NULL,
-        	  featureSelectionFunction=NULL,
-        	  featureSelection.control=NULL,
-        	  asFactor=FALSE,
-        	  addNoise=FALSE,
-        	  ...
-        	  )
+             theOutcome = "Class",
+             fittingFunction=NULL, 
+             trainFraction = 0.5,
+             repetitions = 100,
+             trainSampleSets=NULL,
+             featureSelectionFunction=NULL,
+             featureSelection.control=NULL,
+             asFactor=FALSE,
+             addNoise=FALSE,
+             classSamplingType=c("Augmented","NoAugmented","Proportional","Balanced"),
+             ...
+             )
 }
 \arguments{
 	\item{theData}{
@@ -50,6 +51,12 @@
 	}
 	\item{addNoise}{
 	if TRUE will add 0.1% of random noise to the predictors
+	}
+	\item{classSamplingType}{
+	if "Proportional": proportional to the data classes. 
+	"Augmented": Augment samples to balance training class
+	"NoAugmented": Avoid Data augmentation hece training may not be balanced
+	"Balanced": All class in training set have the same samples
 	}
 	\item{...}{
 	Parameters to be passed to the fitting function

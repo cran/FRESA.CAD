@@ -40,7 +40,7 @@ RegresionBenchmark <-  function(theData = NULL, theOutcome = "Class", reps = 100
 	  MAETable_filter <- NULL
 	  CorSpearman_filter <- NULL
 	  fmeth_0 <- NULL; 
-	  par(mfrow = c(1,1));
+#	  par(mfrow = c(1,1));
 
 	  FilterMethod <-  function(regresionfun = e1071::svm, regnamefunc = "",...)
 	  {
@@ -209,6 +209,10 @@ RegresionBenchmark <-  function(theData = NULL, theOutcome = "Class", reps = 100
 		referenceFilterName = "BSWiMS";
 		referenceName = "BSWiMS";
 	  }
+	  else
+	  {
+			reps <- referenceCV$repetitions;
+	  }
 
 	  stats <- predictionStats_regression(referenceCV$medianTest,referenceName);
 	  CorTable <- rbind(CorTable,stats$corci);
@@ -317,21 +321,49 @@ RegresionBenchmark <-  function(theData = NULL, theOutcome = "Class", reps = 100
 
 	
 	test_Predictions <- referenceCV$medianTest;
-	tnames <- rownames(test_Predictions)
-	test_Predictions <- cbind(test_Predictions,rcvRF$medianTest[tnames,2])
-	test_Predictions <- cbind(test_Predictions,rcvLASSO$medianTest[tnames,2])
-	test_Predictions <- cbind(test_Predictions,rcvRPART$medianTest[tnames,2])
-	test_Predictions <- cbind(test_Predictions,rcvSVM$medianTest[tnames,2])
- 	test_Predictions <- cbind(test_Predictions,ens)
-	test_Predictions <- cbind(test_Predictions,fmeth$rcvFilter_Reference$medianTest[tnames,2]);
-	test_Predictions <- cbind(test_Predictions,fmeth$rcvFilter_LASSO$medianTest[tnames,2]);
-	test_Predictions <- cbind(test_Predictions,fmeth$rcvFilter_RPART$medianTest[tnames,2]);
-	test_Predictions <- cbind(test_Predictions,fmeth$rcvFilter_RF$medianTest[tnames,2]);
-	test_Predictions <- cbind(test_Predictions,fmeth$rcvFilter_FT$medianTest[tnames,2]);
-	test_Predictions <- cbind(test_Predictions,fmeth$rcvFilter_Wt$medianTest[tnames,2]);
- 	test_Predictions <- cbind(test_Predictions,fmeth$rcvFilter_pearson$medianTest[tnames,2]);
- 	test_Predictions <- cbind(test_Predictions,fmeth$rcvFilter_kendall$medianTest[tnames,2]);
- 	test_Predictions <- cbind(test_Predictions,fmeth$rcvFilter_mRMR$medianTest[tnames,2])
+	tnames <- rownames(test_Predictions);
+	testres <- rep(NA,nrow(test_Predictions));
+	names(testres) <- tnames;
+	testresnamed <- testres;
+	testres[tnames %in% rownames(rcvRF$medianTest)] <- rcvRF$medianTest[tnames[tnames %in% rownames(rcvRF$medianTest)],2];
+	test_Predictions <- cbind(test_Predictions,testres);
+	testres <- testresnamed;
+	testres[tnames %in% rownames(rcvLASSO$medianTest)] <- rcvLASSO$medianTest[tnames[tnames %in% rownames(rcvLASSO$medianTest)],2];
+	test_Predictions <- cbind(test_Predictions,testres);
+	testres <- testresnamed;
+	testres[tnames %in% rownames(rcvRPART$medianTest)] <- rcvRPART$medianTest[tnames[tnames %in% rownames(rcvRPART$medianTest)],2];
+	test_Predictions <- cbind(test_Predictions,testres);
+	testres <- testresnamed;
+	testres[tnames %in% rownames(rcvSVM$medianTest)] <- rcvSVM$medianTest[tnames[tnames %in% rownames(rcvSVM$medianTest)],2];
+	test_Predictions <- cbind(test_Predictions,testres);
+ 	test_Predictions <- cbind(test_Predictions,ens);
+	testres <- testresnamed;
+	testres[tnames %in% rownames(fmeth$rcvFilter_Reference$medianTest)] <- fmeth$rcvFilter_Reference$medianTest[tnames[tnames %in% rownames(fmeth$rcvFilter_Reference$medianTest)],2];
+	test_Predictions <- cbind(test_Predictions,testres);
+	testres <- testresnamed;
+	testres[tnames %in% rownames(fmeth$rcvFilter_LASSO$medianTest)] <- fmeth$rcvFilter_LASSO$medianTest[tnames[tnames %in% rownames(fmeth$rcvFilter_LASSO$medianTest)],2];
+	test_Predictions <- cbind(test_Predictions,testres);
+	testres <- testresnamed;
+	testres[tnames %in% rownames(fmeth$rcvFilter_RPART$medianTest)] <- fmeth$rcvFilter_RPART$medianTest[tnames[tnames %in% rownames(fmeth$rcvFilter_RPART$medianTest)],2];
+	test_Predictions <- cbind(test_Predictions,testres);
+	testres <- testresnamed;
+	testres[tnames %in% rownames(fmeth$rcvFilter_RF$medianTest)] <- fmeth$rcvFilter_RF$medianTest[tnames[tnames %in% rownames(fmeth$rcvFilter_RF$medianTest)],2];
+	test_Predictions <- cbind(test_Predictions,testres);
+	testres <- testresnamed;
+	testres[tnames %in% rownames(fmeth$rcvFilter_FT$medianTest)] <- fmeth$rcvFilter_FT$medianTest[tnames[tnames %in% rownames(fmeth$rcvFilter_FT$medianTest)],2];
+	test_Predictions <- cbind(test_Predictions,testres);
+	testres <- testresnamed;
+	testres[tnames %in% rownames(fmeth$rcvFilter_Wt$medianTest)] <- fmeth$rcvFilter_Wt$medianTest[tnames[tnames %in% rownames(fmeth$rcvFilter_Wt$medianTest)],2];
+	test_Predictions <- cbind(test_Predictions,testres);
+	testres <- testresnamed;
+	testres[tnames %in% rownames(fmeth$rcvFilter_pearson$medianTest)] <- fmeth$rcvFilter_pearson$medianTest[tnames[tnames %in% rownames(fmeth$rcvFilter_pearson$medianTest)],2];
+ 	test_Predictions <- cbind(test_Predictions,testres);
+	testres <- testresnamed;
+	testres[tnames %in% rownames(fmeth$rcvFilter_kendall$medianTest)] <- fmeth$rcvFilter_kendall$medianTest[tnames[tnames %in% rownames(fmeth$rcvFilter_kendall$medianTest)],2];
+ 	test_Predictions <- cbind(test_Predictions,testres);
+	testres <- testresnamed;
+	testres[tnames %in% rownames(fmeth$rcvFilter_mRMR$medianTest)] <- fmeth$rcvFilter_mRMR$medianTest[tnames[tnames %in% rownames(fmeth$rcvFilter_mRMR$medianTest)],2];
+ 	test_Predictions <- cbind(test_Predictions,testres)
 	
 	
 	colnames(test_Predictions) <- c("Outcome",referenceName,"RF","LASSO","RPART","SVM.mRMR","Ensemble",paste("RIDGE.",referenceFilterName,sep=""),"RIDGE.LASSO","RIDGE.RPART","RIDGE.RF.ref","RIDGE.FT","RIDGE.Wt","RIDGE.Pearson","RIDGE.Kendall","RIDGE.mRMR");
@@ -361,9 +393,10 @@ RegresionBenchmark <-  function(theData = NULL, theOutcome = "Class", reps = 100
 	ff <- c(ff,names(fmeth$rcvFilter_mRMR$featureFrequency))
 	ff <- unique(ff)
 
-	Nvar <- min(c(1000,length(ff)))
+	Nvar <- length(ff);
 	selFrequency <- matrix(0,nrow = Nvar,ncol = length(theFiltersets))
-	rownames(selFrequency) <- names(rcvRF$featureFrequency)[1:Nvar]
+#	rownames(selFrequency) <- ff[1:Nvar]
+	rownames(selFrequency) <- ff
 	selnames <- rownames(selFrequency)
 	colnames(selFrequency) <- theFiltersets
 	ff <- referenceCV$featureFrequency
