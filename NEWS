@@ -1,4 +1,4 @@
-Changes from FRESA.CAD 3.1.1 to FRESA.CAD version 3.3.0
+Changes from FRESA.CAD 3.1.1 to FRESA.CAD version 3.3.1
 	Enhancements:
 		nearestNeighborImpute now can handle longitudinal datasets
 		Benchmarking Survival Models: CoxBenchmark
@@ -7,12 +7,17 @@ Changes from FRESA.CAD 3.1.1 to FRESA.CAD version 3.3.0
 		Hybrid Learning methods: ClustClass and GMVEBSWiMS
 		Longitudinal Features: trajectoriesPolyFeatures
 		Train prediction Wrappers for: BeSS and glmnet objects
+	    featureDecorrelation for the estimation of an outcome-steered decorrelated dataframe
+		filteredFit with normalization and PCA
 	Bugs:
 	-Try added to prediction, to avoid crashing errors.
+	- Calls to epiR::epi.tests updated
 	Minor Changes:
 	-FRESAScale OrderLogit function nows retunrs values form -2 to 2.
 	-ENS changed to ensemble
 	-Removed par(mfrow = c(1,1)) from code, so user has the freedom to collate plots
+	Requested changes.
+	-call to wilcox_free() has been added to cpp code.
 	
 Changes from FRESA.CAD 3.0.1 to FRESA.CAD version 3.1.1
 

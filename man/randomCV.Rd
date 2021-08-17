@@ -17,7 +17,9 @@
              featureSelection.control=NULL,
              asFactor=FALSE,
              addNoise=FALSE,
-             classSamplingType=c("Augmented","NoAugmented","Proportional","Balanced"),
+             classSamplingType=c("Augmented","NoAugmented",
+                                 "Proportional","Balanced","LOO"),
+              testingSet=NULL,
              ...
              )
 }
@@ -57,6 +59,9 @@
 	"Augmented": Augment samples to balance training class
 	"NoAugmented": Avoid Data augmentation hece training may not be balanced
 	"Balanced": All class in training set have the same samples
+	}
+	\item{testingSet}{
+	 An extra set for testing Models
 	}
 	\item{...}{
 	Parameters to be passed to the fitting function

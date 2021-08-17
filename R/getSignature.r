@@ -10,7 +10,7 @@ function(data,varlist=NULL,Outcome=NULL,target=c("All","Control","Case"),CVFolds
 #... parameters to the distanceFuntion
 
 trimvalue = 0.05; #trim 5% of the tails
-theProbs <-  c(0.025,0.16,0.25, 0.5,0.75,0.84, 0.975);
+theProbs <-  c(0.025,0.100,0.159,0.250,0.500,0.750,0.841,0.900,0.975);
 
 CVDistance <- function (casesample,controlsample,CVFolds,totRepeats,target)
 {
@@ -48,7 +48,7 @@ CVDistance <- function (casesample,controlsample,CVFolds,totRepeats,target)
 	if (target=="Control") 
 	{
 		distance = controlDistance;
-		cAUC <- pROC::roc(outcomes,distance,auc=TRUE,direction="<")$auc
+		cAUC <- pROC::roc(outcomes,distance,auc=TRUE,direction="<",quiet = TRUE)$auc
 		cont <- distance[outcomes==0];
 		case <- distance[outcomes==1];
 		zdis <- (mean(case,trim=trimvalue,na.rm=TRUE)-mean(cont,trim=trimvalue,na.rm=TRUE))/(1.0e-10+sqrt((var(case,na.rm=TRUE)+var(cont,na.rm=TRUE))/2));
@@ -58,7 +58,7 @@ CVDistance <- function (casesample,controlsample,CVFolds,totRepeats,target)
 		if (target=="Case") 
 		{
 			distance = caseDistance;
-			cAUC <- pROC::roc(outcomes,distance,auc=TRUE,direction=">")$auc
+			cAUC <- pROC::roc(outcomes,distance,auc=TRUE,direction=">",quiet = TRUE)$auc
 			cont <- distance[outcomes==0];
 			case <- distance[outcomes==1];
 			zdis <- (mean(cont,trim=trimvalue,na.rm=TRUE)-mean(case,trim=trimvalue,na.rm=TRUE))/(1.0e-10+sqrt((var(case,na.rm=TRUE)+var(cont,na.rm=TRUE))/2));
@@ -68,7 +68,7 @@ CVDistance <- function (casesample,controlsample,CVFolds,totRepeats,target)
 			distance = controlDistance-caseDistance;
 			sen <- sum((distance>=0)*outcomes)/sum(outcomes);
 			spe <- sum((distance<0)*(outcomes==0))/sum(outcomes==0);
-			cAUC <- (0.75*(sen+spe)/2+0.25*pROC::roc(outcomes,distance,auc=TRUE,direction="<")$auc);
+			cAUC <- (0.75*(sen+spe)/2+0.25*pROC::roc(outcomes,distance,auc=TRUE,direction="<",quiet = TRUE)$auc);
 #			cat("Sen",sen,"Spe",spe,"AUC",pROC::roc(outcomes,distance,auc=TRUE,direction="<")$auc,"(",sum(outcomes),":",sum(outcomes==0),")\n")
 			cont <- distance[outcomes==0];
 			case <- distance[outcomes==1];
@@ -182,8 +182,25 @@ CVDistance <- function (casesample,controlsample,CVFolds,totRepeats,target)
 
 	Ntemplate <- apply(as.matrix(controlsample[,minkeep]),2,quantile,probs = theProbs,na.rm = TRUE);
 	Ptemplate <- apply(as.matrix(casesample[,minkeep]),2,quantile,probs = theProbs,na.rm = TRUE);
-	Ntemplate <- list(template=Ntemplate,quant=theProbs);
-	Ptemplate <- list(template=Ptemplate,quant=theProbs);
+	Nmedian <- apply(as.matrix(controlsample[,minkeep]),2,median,na.rm = TRUE);
+	Pmedian <- apply(as.matrix(casesample[,minkeep]),2,median,na.rm = TRUE);
+	Nmean <- apply(as.matrix(controlsample[,minkeep]),2,mean,na.rm = TRUE);
+	Pmean <- apply(as.matrix(casesample[,minkeep]),2,mean,na.rm = TRUE);
+	Nsd <- apply(as.matrix(controlsample[,minkeep]),2,sd,na.rm = TRUE);
+	Psd <- apply(as.matrix(casesample[,minkeep]),2,sd,na.rm = TRUE);
+	for (sf in minkeep)
+	{
+		vtype <- length(table(data[,sf]));
+		if (vtype > 4)
+		{
+			Nmean[sf] <- Nmedian[sf];
+			Pmean[sf] <- Pmedian[sf];
+		}		
+	}
+
+
+	Ntemplate <- list(template=Ntemplate,quant=theProbs,meanv=Nmean,sdv=Nsd,samples=controlsamplesize);
+	Ptemplate <- list(template=Ptemplate,quant=theProbs,meanv=Pmean,sdv=Psd,samples=casesamplesize);
 	
 	result <- list(controlTemplate=Ntemplate,
 				   caseTamplate=Ptemplate,
@@ -192,7 +209,7 @@ CVDistance <- function (casesample,controlsample,CVFolds,totRepeats,target)
 				   featureSizeEvolution=featureSizeEvolution,
 				   featureList=minkeep,
 				   CVOutput=CVOutput,
-				   maxES=maxES
+				   maxES=maxES 
 				   );
   
 	return (result);

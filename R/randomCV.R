@@ -1,4 +1,4 @@
-randomCV <-  function(theData = NULL, theOutcome = "Class",fittingFunction=NULL, trainFraction = 0.5, repetitions = 100,trainSampleSets=NULL,featureSelectionFunction=NULL,featureSelection.control=NULL,asFactor=FALSE,addNoise=FALSE,classSamplingType=c("Augmented","NoAugmented","Proportional","Balanced"),...)
+randomCV <-  function(theData = NULL, theOutcome = "Class",fittingFunction=NULL, trainFraction = 0.5, repetitions = 100,trainSampleSets=NULL,featureSelectionFunction=NULL,featureSelection.control=NULL,asFactor=FALSE,addNoise=FALSE,classSamplingType=c("Augmented","NoAugmented","Proportional","Balanced","LOO"),testingSet=NULL,...)
 {
   classSamplingType <- match.arg(classSamplingType);
   if (is.null(theData))
@@ -15,6 +15,11 @@ randomCV <-  function(theData = NULL, theOutcome = "Class",fittingFunction=NULL,
     assign("theDataOutcome",theOutcome,FRESAcacheEnv);
   }
   
+  fullSet <- theData
+  if (!is.null(testingSet))
+  {
+    fullSet <- rbind(fullSet,testingSet);
+  }
   
   survpredict <- function(currentModel,Dataset,TestDataset,selectedFeatures)
   {
@@ -212,6 +217,10 @@ randomCV <-  function(theData = NULL, theOutcome = "Class",fittingFunction=NULL,
     {
       samplePerClass <- as.integer(min(dataTable)*trainFraction);
     }
+    if (classSamplingType == "Augmented")
+    {
+      samplePerClass <- as.integer(max(dataTable)*trainFraction);
+    }
     jind <- 1;
     for (s in theClasses)
     {
@@ -226,7 +235,8 @@ randomCV <-  function(theData = NULL, theOutcome = "Class",fittingFunction=NULL,
   theTimes <- NULL;
   survTestPredictions <- NULL;
   survTrainPredictions <- NULL;
-  
+  avgsel <- 0;
+
   theVars <-colnames(theData)[!colnames(theData) %in% c(as.character(theTime),as.character(theOutcome))];
   survHR <- data.frame(matrix(ncol = length(theVars), nrow = 0));
   colnames(survHR) <- theVars;
@@ -253,27 +263,35 @@ randomCV <-  function(theData = NULL, theOutcome = "Class",fittingFunction=NULL,
         sampleTrain <- NULL;
         if (is.null(trainSampleSets))
         {
-          if (classSamplingType == "Proportional")
+          if (classSamplingType == "LOO")
           {
-            sampleTrain <- sample(nrow(ssubsets[[jind]]),as.integer(nrow(ssubsets[[jind]])*trainFraction),replace=BootReplace);
+            smp <- seq(1,nrow(ssubsets[[jind]]));
+            sampleTrain <- smp[-(1 + (rept %% nrow(ssubsets[[jind]])))];
           }
           else
           {
-            maxfrac <- max(c(trainFraction,0.95));
-            ssize <- min(c(nrow(ssubsets[[jind]])-1,as.integer(nrow(ssubsets[[jind]])*maxfrac))); # minimum training size
-            if (samplePerClass > ssize)
+            minfrac <- min(c(trainFraction,0.99));
+            if (classSamplingType == "Proportional")
             {
-              sampleTrain <- sample(nrow(ssubsets[[jind]]),ssize,replace=BootReplace);
-              if (classSamplingType == "Augmented")
-              {
-                therest <- samplePerClass-ssize;
-                nsample <- sample(ssize,therest,replace=TRUE);
-                sampleTrain <- append(sampleTrain,sampleTrain[nsample]);
-              }
+              sampleTrain <- sample(nrow(ssubsets[[jind]]),as.integer(nrow(ssubsets[[jind]])*minfrac),replace=BootReplace);
             }
             else
             {
-              sampleTrain <- sample(nrow(ssubsets[[jind]]),samplePerClass,replace=BootReplace);
+              ssize <- nrow(ssubsets[[jind]])*minfrac;
+              if (samplePerClass > ssize)
+              {
+                sampleTrain <- sample(nrow(ssubsets[[jind]]),ssize,replace=BootReplace);
+                if (classSamplingType == "Augmented")
+                {
+                  therest <- samplePerClass-ssize;
+                  nsample <- sample(ssize,therest,replace=TRUE);
+                  sampleTrain <- append(sampleTrain,sampleTrain[nsample]);
+                }
+              }
+              else
+              {
+                sampleTrain <- sample(nrow(ssubsets[[jind]]),samplePerClass,replace=BootReplace);
+              }
             }
           }
 		  usample <- unique(sampleTrain);
@@ -289,7 +307,57 @@ randomCV <-  function(theData = NULL, theOutcome = "Class",fittingFunction=NULL,
         }
         tset <- tset + 1;
         
-        trainSet <- rbind(trainSet,ssubsets[[jind]][sampleTrain,]);
+        samdup <- duplicated(sampleTrain)
+        if (sum(samdup) > 0 )
+        {
+          noPerturbedTrain <- ssubsets[[jind]][sampleTrain[!samdup],];
+          tobePerturbed <- as.data.frame(ssubsets[[jind]][sampleTrain[samdup],])
+          rownames(tobePerturbed) <- paste(rownames(tobePerturbed),"D",sep="");
+          fnames <- !(colnames(ssubsets[[jind]]) %in% c(varsmod));
+          cols <- sum(fnames);
+          if (cols > 1)
+          {
+            fnames <- colnames(ssubsets[[jind]])[fnames];
+            for (nf in fnames)
+            {
+              dto <- tobePerturbed[,nf]
+              tb <- table(noPerturbedTrain[,nf])
+              
+              if (length(tb) > 5)
+              {
+#                if (nf == fnames[3])
+#                {
+#                  hist(noPerturbedTrain[,nf])
+#                  hist(tobePerturbed[,nf])
+#               }
+                tbnames <- names(tb);
+                indx <- 1:length(tb);
+                names(indx) <- tbnames;
+                ralea <- runif(length(dto),-1.0,1.0);
+                peturblen <- min(1,0.025*length(tb));
+                nidx <- indx[as.character(dto)] + floor(peturblen*ralea + 0.5);
+                nidx[nidx < 1] <- 1;
+                nidx[nidx > length(tb)] <- length(tb);
+                tobePerturbed[,nf] <- 0.5*(dto + as.numeric(names(tb[nidx])));
+#                if (nf == fnames[3])
+#                {
+#                  hist(tobePerturbed[,nf])
+#                }
+              }
+#              else
+#              {
+#                tobechanged <- (runif(length(dto)) < 0.1);
+#                tobePerturbed[tobechanged,nf] <- noPerturbedTrain[sample(nrow(noPerturbedTrain),sum(tobechanged)),nf];
+#              }
+            }
+          }
+          trainSet <- rbind(trainSet,noPerturbedTrain,tobePerturbed);
+        }
+        else
+        {
+          trainSet <- rbind(trainSet,ssubsets[[jind]][sampleTrain,]);
+        }
+        
         testSet <- rbind(testSet,ssubsets[[jind]][-unique(sampleTrain),]);
         
         jind <- jind + 1;
@@ -316,6 +384,12 @@ randomCV <-  function(theData = NULL, theOutcome = "Class",fittingFunction=NULL,
       tset <- tset + 1;
       trainSet <- theData[sampleTrain,];
       testSet <- theData[-unique(sampleTrain),];
+    }
+    
+    if (!is.null(testingSet))
+    {
+       toremove <- (rownames(testingSet) %in% rownames(trainSet)) | (rownames(testingSet) %in% rownames(testSet))
+       testSet <- rbind(testSet,testingSet[!toremove,]);
     }
     
     selnames <- character();
@@ -386,27 +460,44 @@ randomCV <-  function(theData = NULL, theOutcome = "Class",fittingFunction=NULL,
       {
         fnames <- !(colnames(trainSet) %in% c(varsmod));
         cols <- sum(fnames);
-        if (cols>1)
+        if (cols > 1)
         {
+          fnames <- colnames(trainSet)[fnames];
+          nlevel = 1.0*addNoise;
+          nlthr <- min(nlevel/3,0.5);
           sdg <- apply(trainSet[,fnames],2,sd,na.rm = TRUE);
-          iqrg <- apply(trainSet[,fnames],2,IQR,na.rm = TRUE);
-          rangeg <- apply(trainSet[,fnames],2,max,na.rm = TRUE)-apply(trainSet[,fnames],2,min,na.rm = TRUE);
+          iqrg <- apply(trainSet[,fnames],2,IQR,na.rm = TRUE)/(2*abs(qnorm(0.25)));
           iqrg[iqrg == 0] <- sdg[iqrg == 0];
-          iqrg[iqrg == 0] <- rangeg[iqrg == 0];
           iqrg[iqrg == 0] <- 1.0e-10;
           rows <- nrow(trainSet);
-          iqrg <- iqrg/(2*rows);
-#          print(iqrg);
-#          print(summary(trainSet[,fnames]));
-          for (nf in names(iqrg))
+          for (nf in fnames)
           {
-#            cat(nf,":",iqrg[nf],"\n");
-            noise <- as.numeric(rnorm(rows,0,iqrg[nf]));
-#           print(noise);
-            trainSet[,nf] <- trainSet[,nf]+noise;
+            dto <- trainSet[,nf];
+            tb <- table(dto)
+            if (length(tb) > 5)
+            {
+              noise <- as.numeric(rnorm(rows,0,iqrg[nf]/length(tb)));
+
+              tbnames <- names(tb);
+              indx <- 1:length(tb);
+              names(indx) <- tbnames;
+              ralea <- runif(length(dto),-1.0,1.0);
+              peturblen <- min(1,nlthr*0.05*length(tb))
+
+              nidx <- indx[as.character(dto)] + floor(peturblen*ralea + 0.5);
+              nidx[nidx < 1] <- 1;
+              nidx[nidx > length(tb)] <- length(tb);
+              dto <- 0.5*(dto + as.numeric(names(tb[nidx])));
+
+              trainSet[,nf] <- dto + nlevel*noise;
+            }
+#            else
+#            {
+#              tobechanged <- (runif(length(dto)) < nlthr/5.0);
+#              trainSet[tobechanged,nf] <- dto[sample(length(dto),sum(tobechanged))];
+#            }
           }
-#          print(summary(trainSet[,fnames]));
-        }
+         }
       }
       if ((testClases) && (asFactor))
       {
@@ -431,6 +522,8 @@ randomCV <-  function(theData = NULL, theOutcome = "Class",fittingFunction=NULL,
           if (olength>2) 
           {
             selnames <- correlated_Remove(trainSet,selnames);
+            attr(selnames,"CorrMatrix") <- NULL;
+
             if ((length(selnames)>1) && (olength>length(selnames)))
             {
               warning("Fit Error. I will try with less features. Original Number of features:",olength," New number of features:",length(selnames),"\n");
@@ -568,17 +661,18 @@ randomCV <-  function(theData = NULL, theOutcome = "Class",fittingFunction=NULL,
       trainPredictions <- rbind(trainPredictions,ctrainPredictions);
     }
     MADERROR[rept] = 0;
+    avgsel <- avgsel + length(selectedFeaturesSet[[rept]])
     if ((!is.null(testPredictions) && length(rownames(testPredictions)) > 3 ))
     {
       boxstaTest <- try(boxplot(as.numeric(as.character(testPredictions[,3]))~rownames(testPredictions),plot = FALSE));
       if (!inherits(boxstaTest, "try-error"))
       {
-        medianTest <- cbind(theData[boxstaTest$names,theOutcome],boxstaTest$stats[3,])
+        medianTest <- cbind(fullSet[boxstaTest$names,theOutcome],boxstaTest$stats[3,])
         tb <- table(rownames(testPredictions));
         MADERROR[rept] = mean(abs(medianTest[,1]-medianTest[,2]));
         if ((rept %% 10) == 0)
         {
-          cat(rept," Tested:",nrow(medianTest),"Min Tests:",min(tb),"Max Tests:",max(tb),"Mean Tests:",mean(tb),". MAD:",MADERROR[rept],"\n");
+          cat(rept," Tested:",nrow(medianTest),"Avg. Selected:",avgsel/rept,"Min Tests:",min(tb),"Max Tests:",max(tb),"Mean Tests:",mean(tb),". MAD:",MADERROR[rept],"\n");
         }
       }
     }
@@ -622,14 +716,14 @@ randomCV <-  function(theData = NULL, theOutcome = "Class",fittingFunction=NULL,
     boxstaTest <- try(boxplot(as.numeric(as.character(testPredictions[,3]))~rownames(testPredictions),plot = FALSE));
     if (!inherits(boxstaTest, "try-error"))
     {
-      medianTest <- cbind(theData[boxstaTest$names,theOutcome],boxstaTest$stats[3,])
+      medianTest <- cbind(fullSet[boxstaTest$names,theOutcome],boxstaTest$stats[3,])
       rownames(medianTest) <- boxstaTest$names
     }
     else
     {
       warning("boxplot test failed");
-      medianTest <- cbind(theData[,theOutcome],rep(0,nrow(theData)));
-      rownames(medianTest) <- rownames(theData);
+      medianTest <- cbind(fullSet[,theOutcome],rep(0,nrow(fullSet)));
+      rownames(medianTest) <- rownames(fullSet);
     }
     colnames(medianTest) <- c("Outcome","Median");
     

@@ -2,7 +2,7 @@
 \alias{filteredFit}
 \title{A generic fit method with a filtered step for feature selection}
 \description{
-	Sequential application of feature selection method followed by a fitting algorithm
+	Sequential application of feature selection method followed by optional scaling, PCA then fitting algorithm
 }
 \usage{	
     filteredFit(formula = formula, 
@@ -10,8 +10,10 @@
 	            filtermethod=univariate_Wilcoxon,
 	            fitmethod=e1071::svm,
 	            filtermethod.control=list(pvalue=0.10,limit=0.1),
+	            Scale="none",
+	            PCA=FALSE,
 	            ...
-				)
+	            )
 }
 \arguments{
 	\item{formula}{
@@ -28,6 +30,12 @@
 	}
 	\item{filtermethod.control}{
 	the set of parameters required by the feature selection function
+	}
+	\item{Scale}{
+	Scale the data using the provided method
+	}
+	\item{PCA}{
+	Estimate the PCA
 	}
 	\item{...}{
 	parameters for the fitting function

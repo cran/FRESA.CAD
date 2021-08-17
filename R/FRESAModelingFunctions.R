@@ -2,8 +2,9 @@ CVsignature <- function(formula = formula, data=NULL, ...)
 {
 	baseformula <- as.character(formula);
 	usedFeatures <- colnames(data)[!(colnames(data) %in% baseformula[2])]
-	if (length(usedFeatures)<5) #if less than 5 features, just use a glm fit.
+	if (length(usedFeatures)<3) #if less than 3 features, just use a glm fit.
 	{
+#		print(usedFeatures)
 		warning("Less than five features. Returning a glm model");
 		result <- glm(formula,data=data,na.action=na.exclude,family=binomial(link=logit));
 	}
@@ -11,8 +12,8 @@ CVsignature <- function(formula = formula, data=NULL, ...)
 	{
 		parameters <- list(...);
 		target="All";
-		CVFolds=0;
-		repeats=9;
+		CVFolds <- 0;
+		repeats <- 9;
 		distanceFunction=signatureDistance;
 		method="pearson";
 		if (!is.null(parameters$target)) target=parameters$target;
@@ -20,10 +21,42 @@ CVsignature <- function(formula = formula, data=NULL, ...)
 		if (!is.null(parameters$repeats)) repeats=parameters$repeats;
 		if (!is.null(parameters$distanceFunction)) distanceFunction=parameters$distanceFunction;
 		if (!is.null(parameters$method)) method=parameters$method;
+		
 		cvsig <- getSignature(data=data,varlist=usedFeatures,Outcome=baseformula[2],target,CVFolds,repeats,distanceFunction,method);
-		variable.importance <- 1:length(cvsig$featureList);
-		names(variable.importance) <- cvsig$featureList;
-		result <- list(fit=cvsig,method=method,variable.importance=variable.importance);
+#		variable.importance <- 1:length(cvsig$featureList);
+#		names(variable.importance) <- cvsig$featureList;
+		
+		misam <- min(cvsig$caseTamplate$samples,cvsig$controlTemplate$samples);
+		lowtthr <- qt(0.40,misam-1,lower.tail = FALSE); # The distance has to greater than t values with a chance of 0.6 success
+		uptthr  <- qt(0.01,misam-1,lower.tail = FALSE); # The upper distance of the t value of weights 
+		ca_tmp <- cvsig$caseTamplate$template;
+		co_tmp <- cvsig$controlTemplate$template;
+		mvs <- as.integer((nrow(ca_tmp)+ 1.0)/2);
+		wts <- cvsig$caseTamplate$meanv - cvsig$controlTemplate$meanv;
+		sddCa <- (ca_tmp[mvs,]-ca_tmp[mvs-2,])/pt(1,cvsig$caseTamplate$samples-1);
+		sddCo <- (co_tmp[mvs+2,]-co_tmp[mvs,])/pt(1,cvsig$controlTemplate$samples-1);
+		sddP <- pmin(sddCa,sddCo);
+		sddCa <- (ca_tmp[mvs+2,]-ca_tmp[mvs,])/pt(1,cvsig$caseTamplate$samples-1);
+		sddCo <- (co_tmp[mvs,]-co_tmp[mvs-2,])/pt(1,cvsig$controlTemplate$samples-1);
+		sddN <- pmin(sddCa,sddCo);
+		sdd <- sddP;
+		sdd[wts < 0] <- sddN[wts < 0];
+		sdd[sdd == 0] <- 0.5*(sddP[sdd == 0] + sddN[sdd == 0]);
+		sdd[sdd == 0] <- 0.5*(cvsig$controlTemplate$sdv[sdd == 0]/pt(1,cvsig$controlTemplate$samples) + cvsig$caseTamplate$sdv[sdd == 0]/pt(1,cvsig$caseTamplate$samples));
+		sdd[sdd == 0] <- 0.25;
+		wts <- (abs(wts)/sdd);
+		variable.importance <- wts[order(-wts)];
+		wts[wts > uptthr] <- uptthr;
+		wts[wts < lowtthr] <- 0.01*wts[wts < lowtthr]; 
+		cmat <- abs(cor(data[,colnames(cvsig$caseTamplate$template)],method="spearman"));
+		cmat[cmat < 0.75] <- 0;
+		cmat <- cmat*cmat;
+		cwts <- sqrt(1.0/apply(cmat,1,sum));
+#		print(cwts);
+
+		wts <- wts*cwts;
+
+		result <- list(fit=cvsig,method=method,variable.importance=variable.importance,wts=wts,cwts=cwts);
 		class(result) <- "FRESAsignature";
 	}
 	return (result);
@@ -32,13 +65,30 @@ CVsignature <- function(formula = formula, data=NULL, ...)
 predict.FRESAsignature <- function(object, ...) 
 {
 	parameters <- list(...);
+	wts <- NULL;
 	testframe <- parameters[[1]];
 	method <- object$method;
-	if (!is.null(parameters$method)) method=parameters$method;
-	controlDistances <- signatureDistance(object$fit$controlTemplate,testframe,method);
-	caseDistances <- signatureDistance(object$fit$caseTamplate,testframe,method);
-	distance <- controlDistances-caseDistances;
-	return (distance);
+	if (!is.null(parameters$method)) method <- parameters$method;
+	if (!is.null(parameters$wts)) 
+	{
+		wts <- parameters$wts;
+	}
+	else
+	{
+		if (class(object$fit$caseTamplate) == "list")
+		{
+			wts <- object$wts;
+		}
+	}
+	
+
+	controlDistances <- signatureDistance(object$fit$controlTemplate,testframe,method,wts);
+	caseDistances <- signatureDistance(object$fit$caseTamplate,testframe,method,wts);
+	distancep <- pnorm(controlDistances-caseDistances);
+	attr(distancep,"controlDistances") <- controlDistances;
+	attr(distancep,"caseDistances") <- caseDistances;
+	attr(distancep,"wts") <- wts;
+	return (distancep);
 }
 
 KNN_method <- function(formula = formula, data=NULL, ...)
@@ -158,12 +208,12 @@ GLMNET <- function(formula = formula, data=NULL,coef.thr=0.001,s="lambda.min",..
 	isSurv <- FALSE;
 	baseformula <- as.character(formula);
 	usedFeatures <- colnames(data)[!(colnames(data) %in% baseformula[2])]
-	if (length(usedFeatures)<5) #if less than 5 features, just use a lm fit.
-	{
-		warning("Less than five features. Returning a lm model");
-		result <- lm(formula,data);
-	}
-	else
+#	if (length(usedFeatures)<5) #if less than 5 features, just use a lm fit.
+#	{
+#		warning("Less than five features. Returning a lm model");
+#		result <- lm(formula,data);
+#	}
+#	else
 	{
 		if (sum(str_count(baseformula,"Surv")) > 0)
 		{
@@ -304,7 +354,7 @@ BESS <- function(formula = formula, data=NULL, method="sequential", ic.type="BIC
 		y <- as.numeric(unlist(data[featuresOnSurvivalObject[[1]][2]]))
 		baseformula <- gsub(featuresOnSurvivalObject[[1]][1],"x",baseformula)
 		baseformula <- gsub(featuresOnSurvivalObject[[1]][2],"y",baseformula)
-		result <- list(fit=BeSS::bess(as.matrix(data[,usedFeatures]), survival::Surv(x, y), method=method, family = "cox",ic.type=ic.type,...),formula = formula,usedFeatures=usedFeatures);
+		result <- list(fit=BeSS::bess(as.matrix(data[,usedFeatures]), survival::Surv(x, y), method=method, family = "cox",...),formula = formula,usedFeatures=usedFeatures);
 		bessCoefficients <- result$fit$bestmodel$coefficients
 	}
 	else
@@ -312,11 +362,12 @@ BESS <- function(formula = formula, data=NULL, method="sequential", ic.type="BIC
 		tb <- table(data[,baseformula[2]]);
 		if (length(tb)>2)
 		{
-			result <- list(fit=BeSS::bess(as.matrix(data[,usedFeatures]),as.vector(data[,baseformula[2]]), method=method, family = "gaussian", epsilon = 1e-12,...),ic.type=ic.type,formula = formula,usedFeatures=usedFeatures);
+#			result <- list(fit=BeSS::bess(as.matrix(data[,usedFeatures]),as.vector(data[,baseformula[2]]), method=method, family = "gaussian", epsilon = 1e-12,...),ic.type=ic.type,formula = formula,usedFeatures=usedFeatures);
+			result <- list(fit=BeSS::bess(as.matrix(data[,usedFeatures]),as.vector(data[,baseformula[2]]), method=method, family = "gaussian",...),formula = formula,usedFeatures=usedFeatures);
 		}
 		else
 		{
-			result <- list(fit=BeSS::bess(as.matrix(data[,usedFeatures]),as.vector(data[,baseformula[2]]), method=method, family = "binomial", epsilon = 0,...),ic.type=ic.type, formula = formula,usedFeatures=usedFeatures);
+			result <- list(fit=BeSS::bess(as.matrix(data[,usedFeatures]),as.vector(data[,baseformula[2]]), method=method, family = "binomial",...), formula = formula,usedFeatures=usedFeatures);
 
 		}
 		bessCoefficients <- result$fit$bestmodel$coefficients[-1];
@@ -337,7 +388,7 @@ BESS_GSECTION <- function(formula = formula, data=NULL, method="gsection", ic.ty
 	return(result);
 }
 
-BESS_GIC <- function(formula = formula, data=NULL, ic.type="GIC",...)
+BESS_EBIC <- function(formula = formula, data=NULL, ic.type="EBIC",...)
 {
 	result <- BESS(formula = formula, data = data, ic.type=ic.type,...);
 	return(result);
@@ -351,7 +402,7 @@ predict.FRESA_BESS <- function(object,...)
 	if (!is.null(parameters$type))
 	{
 		type <- parameters$type;
-		if (type == "response")
+		if ((type == "response") || (type == "link"))
 		{
 			newdata <- as.data.frame(cbind(y=1:nrow(testData),testData[,object$selectedfeatures]))
 			colnames(newdata) <- c("y",paste("xbest",object$selectedfeatures,sep=""))
@@ -391,7 +442,7 @@ TUNED_SVM <- function(formula = formula, data=NULL,gamma = 10^(-5:-1), cost = 10
 	if (!requireNamespace("e1071", quietly = TRUE)) {
 		install.packages("e1071", dependencies = TRUE)
 		}
-	obj <- e1071::tune.svm(formula, data=data,gamma = gamma, cost = cost);
+	obj <- e1071::tune.svm(formula, data=data,gamma = gamma, cost = cost,...);
 	fit <- e1071::svm(formula, data=data,gamma=obj$best.parameters$gamma,cost=obj$best.parameters$cost,...);
 	
 	parameters <- list(...);
@@ -440,11 +491,12 @@ if (!requireNamespace("naivebayes", quietly = TRUE)) {
 		if (normalize)
 		{
 			scaleparm <- FRESAScale(data,method="OrderLogit");
-			pcaobj <- prcomp(scaleparm$scaledData);
+			pcaobj <- prcomp(scaleparm$scaledData,center = FALSE);
+			scaleparm$scaledData <- NULL
 		}
 		else
 		{
-			pcaobj <- prcomp(data);
+			pcaobj <- prcomp(data,center = FALSE);
 		}
 		data <- as.data.frame(cbind(as.numeric(as.character(outcome)),pcaobj$x));
 		colnames(data) <- c(baseformula[2],colnames(pcaobj$x));
@@ -452,7 +504,36 @@ if (!requireNamespace("naivebayes", quietly = TRUE)) {
 	}
 	if (length(list(...)) == 0)
 	{
-		result <- list(fit = naivebayes::naive_bayes(formula,data,usekernel = TRUE,bw="SJ",adjust=0.5),pcaobj=pcaobj,outcome=baseformula[2],scaleparm=scaleparm,numClases=numclases);
+#		print(colnames(data))
+        fit <- try (naivebayes::naive_bayes(formula,data,
+		laplace = 0.001,
+		usekernel = TRUE,
+		bw="SJ",adjust=1.25), silent=TRUE)
+		if (inherits(fit, "try-error"))
+		{
+#			print("Error. Try again")
+			for (fn in colnames(data)[!(colnames(data) %in% baseformula[2])])
+			{
+				if (length(table(data[,fn])) < 5)
+				{
+					data[,fn] <- data[,fn] + rnorm(nrow(data),0,0.10);
+				}
+			}
+	        fit <- try(naivebayes::naive_bayes(formula,data,
+			laplace = 0.001,
+			usekernel = TRUE,
+			bw="SJ",adjust=1.25), silent=TRUE);
+			if (inherits(fit, "try-error")) 
+			{
+				fit <- naivebayes::naive_bayes(formula,data);
+			}
+
+		}
+		result <- list(fit = fit,
+		pcaobj=pcaobj,
+		outcome=baseformula[2],
+		scaleparm=scaleparm,
+		numClases=numclases);
 	}
 	else
 	{
@@ -477,7 +558,9 @@ predict.FRESA_NAIVEBAYES <- function(object,...)
 	}
 	else
 	{
-		testData <- as.data.frame(testData[,!(colnames(testData) %in% object$outcome)]);
+		usedcolumns <- colnames(testData)[!(colnames(testData) %in% object$outcome)];
+		testData <- as.data.frame(as.matrix(testData[,usedcolumns]));
+		colnames(testData) <- usedcolumns;
 	}
 	pLS <- as.numeric(as.character(predict(object$fit,testData)));
 	if (is.null(parameters$probability))
@@ -557,12 +640,11 @@ HLCM <- function(formula = formula, data=NULL,method=BSWiMS.model,hysteresis = 0
 	{
 		formula <- formula(formula);
 	}
-	varlist <- attr(terms(formula,data=data),"variables")
-	dependent <- as.character(varlist[[2]])
+	dependent <- all.vars(formula)
 	Outcome = dependent[1];
 	if (length(dependent) == 3)
 	{
-		Outcome = dependent[3];
+		Outcome = dependent[2];
 	}
 
 
@@ -715,12 +797,11 @@ HLCM_EM <- function(formula = formula, data=NULL,method=BSWiMS.model,hysteresis 
 	{
 		formula <- formula(formula);
 	}
-	varlist <- attr(terms(formula,data=data),"variables")
-	dependent <- as.character(varlist[[2]])
+	dependent <- all.vars(formula)
 	Outcome = dependent[1];
 	if (length(dependent) == 3)
 	{
-		Outcome = dependent[3];
+		Outcome = dependent[2];
 	}
 
 	errorfreq <- numeric();
@@ -1061,11 +1142,15 @@ predict.FRESA_HLCM <- function(object,...)
 					prbclas[condone,n] <- classPred2[condone];
 					condtwo <- (classPred2 < 0.5) & (classPred2 < prbclas[,n]);
 					prbclas[condtwo,n] <- classPred2[condtwo];
+					prbclas[,n] <- 0.5*(prbclas[,n] +  classPred2);
 				}
 				else
 				{
 					nclass <- as.numeric(attributes(classPred)$class);
-					prbclas[,n] <- classPred*(nclass == 3) + (1.0 - classPred)*(nclass == 2);
+					tclass <- names(table(nclass));
+					prbclas[,n] <- classPred;
+					if (sum(tclass == c("0","1")) > 1) prbclas[,n] <- (1.0-classPred)*(nclass == 1) + classPred*(nclass == 0);
+					if (sum(tclass == c("2","3")) > 1) prbclas[,n] <- (1.0-classPred)*(nclass == 2) + classPred*(nclass == 3);
 				}
 			}
 			else
@@ -1091,26 +1176,21 @@ predict.FRESA_HLCM <- function(object,...)
 			pmodel <- cbind(pmodel,ptmp);
 		}
 		nm <- length(object$classModel);
-		mpclas <- 1.0*(apply(prbclas,1,max) > 0.75);
+		mpclas <- apply(prbclas,1,max) - 0.5;
+		mpclas[mpclas < 0] <- 0.01; 
+		mpclas <- (2.0*mpclas)^2;
 		for (i in 1:length(pLS))
 		{
-			nwt <- object$classfreq[1]*(1.0 - prbclas[i,1])*mpclas[i];
-			wts <- prbclas[i,1] + nwt;
-			pLS[i] <- prbclas[i,1]*pmodel[i,1] + nwt*(1.0-pmodel[i,1]);
+			nwt <- object$classfreq[1]*prbclas[i,1];
+			pLS[i] <- nwt*pmodel[i,1];
+			wts <- nwt;
 			if (nm > 1)
 			{
 				for (n in 2:nm)
 				{
-					if ((object$baseClass[n] == 0) || (object$baseClass[n] > nm))
-					{
-						nwt <- object$classfreq[n]*(1.0 - prbclas[i,n])*mpclas[i];
-					}
-					else
-					{
-						nwt <- object$classfreq[n]*prbclas[i,object$baseClass[n]]*mpclas[i];
-					}
-					wts <- wts + prbclas[i,n]*mpclas[i] + nwt;
-					pLS[i] <- pLS[i] + prbclas[i,n]*pmodel[i,n]*mpclas[i] + nwt*(1.0-pmodel[i,n]);
+					nwt <- object$classfreq[n]*prbclas[i,n];
+					pLS[i] <- pLS[i] + nwt*pmodel[i,n];
+					wts <- wts + nwt;
 				}
 			}
 			if (wts > 0) pLS[i] <- pLS[i]/wts;
@@ -1121,20 +1201,23 @@ predict.FRESA_HLCM <- function(object,...)
 }
 
 
-filteredFit <- function(formula = formula, data=NULL, filtermethod=univariate_Wilcoxon, fitmethod=e1071::svm,filtermethod.control=list(pvalue=0.10,limit=0.1),...)
+filteredFit <- function(formula = formula, data=NULL, filtermethod=univariate_Wilcoxon, fitmethod=e1071::svm,filtermethod.control=list(pvalue=0.10,limit=0.1),Scale="none",PCA=FALSE,...)
 {
 	if (class(formula) == "character")
 	{
 		formula <- formula(formula);
 	}
-	varlist <- attr(terms(formula,data=data),"variables")
-	dependent <- as.character(varlist[[2]])
+	dependent <- all.vars(formula)
 	Outcome = dependent[1];
 	if (length(dependent) == 3)
 	{
-		Outcome = dependent[3];
+		Outcome = dependent[2];
 	}
-	fm <- NULL
+	fm <- colnames(data)
+	fm <- fm[!(fm %in% dependent)]
+
+	scaleparm <- NULL;
+#	cat ("Here 1")
 	
 	if (is.null(filtermethod.control))
 	{
@@ -1144,10 +1227,67 @@ filteredFit <- function(formula = formula, data=NULL, filtermethod=univariate_Wi
 	{
 		fm <- do.call(filtermethod,c(list(data,Outcome),filtermethod.control));
 	}
-	usedFeatures <-  c(Outcome,names(fm));
-	fit <- try(fitmethod(formula,data[,usedFeatures],...));
+	filtout <- fm;
+#	cat ("Here 2")
+	fm <- names(fm)
+	usedFeatures <-  c(Outcome,fm);
+	data <- data[,usedFeatures]
+	if ((Scale != "none") && (length(fm) > 1) )
+	{
+		scaleparm <- FRESAScale(as.data.frame(data[,fm]),method=Scale);
+		data[,fm] <- as.data.frame(scaleparm$scaledData);
+		scaleparm$scaledData <- NULL;
+	}
+#	cat ("Here 3")
+	
+	pcaobj <- NULL;
+
+
+	binOutcome <- length(table(data[,Outcome])) == 2
+	isFactor <- class(data[,Outcome]) == "factor"
+	if (PCA && (length(fm) > 1))
+	{
+		if (binOutcome)
+		{
+			controlSet <- subset(data,get(Outcome) == 0)
+			if ((nrow(controlSet) > 2*length(usedFeatures)))
+			{
+				pcaobj <- prcomp(controlSet[,fm],center = (Scale == "none"), scale.= (Scale == "none"));
+				data <- as.data.frame(cbind(data[,Outcome],as.data.frame(predict(pcaobj,data[,fm]))));
+				colnames(data) <- c(Outcome,colnames(pcaobj$x));
+				if (isFactor)
+				{
+					data[,Outcome] <-as.factor(data[,Outcome])
+				}
+			}
+		}
+		else
+		{
+			pcaobj <- prcomp(data[,fm],center = (Scale == "none"), scale.= (Scale == "none"));
+			data <- as.data.frame(cbind(data[,Outcome],as.data.frame(pcaobj$x)));
+			colnames(data) <- c(Outcome,colnames(pcaobj$x));
+			if (isFactor)
+			{
+				data[,Outcome] <-as.factor(data[,Outcome])
+			}
+		}
+	}
+#	cat ("Here 4:",ncol(data),"\n")
+	
+	fit <- try(fitmethod(formula,data,...));
 	parameters <- list(...);
-	result <- list(fit=fit,filter=fm,selectedfeatures = names(fm),usedFeatures = usedFeatures,parameters=parameters,asFactor=(class(data[,Outcome])=="factor"),classLen=length(table(data[,Outcome])));
+	result <- list(fit=fit,
+					filter=filtout,
+					selectedfeatures = fm,
+					usedFeatures = usedFeatures,
+					parameters=parameters,
+					asFactor=(class(data[,Outcome])=="factor"),
+					classLen=length(table(data[,Outcome])),
+					Scale = scaleparm,
+					binOutcome = binOutcome,
+					Outcome = Outcome,
+					pcaobj = pcaobj
+					);
 	class(result) <- c("FRESA_FILTERFIT");
 	if (inherits(fit, "try-error"))
 	{
@@ -1161,32 +1301,47 @@ predict.FRESA_FILTERFIT <- function(object,...)
 {
 	parameters <- list(...);
 	testData <- parameters[[1]];
+	testData <- as.data.frame(testData[,object$usedFeatures])
+	if (!is.null(object$Scale))
+	{
+		testData[,object$selectedfeatures] <- FRESAScale(as.data.frame(testData[,object$selectedfeatures]),
+		method=object$Scale$method,
+		refMean=object$Scale$refMean,
+		refDisp=object$Scale$refDisp)$scaledData;
+	}
+#	boxplot(testData[,object$selectedfeatures])
+	if (!is.null(object$pcaobj))
+	{
+		pcapred <- predict(object$pcaobj,testData[,object$selectedfeatures]);
+		testData <- as.data.frame(cbind(testData[,object$usedFeatures[1]],pcapred));
+		colnames(testData) <-  c(object$usedFeatures[1],colnames(pcapred));
+	}
+	
 	probability <- FALSE;
 	if (!is.null(object$parameters$probability))
 	{
 		probability <- object$parameters$probability;
 	}
-	pLS <- rpredict(object$fit,testData[,object$usedFeatures],asFactor=object$asFactor,classLen=object$classLen,probability=probability,...);
+	pLS <- rpredict(object$fit,testData,asFactor=object$asFactor,classLen=object$classLen,probability=probability,...);
 	return (pLS);
 }
 
-ClustClass <- function(formula = formula, data=NULL, filtermethod=univariate_Wilcoxon, clustermethod=GMVECluster, classmethod=LASSO_1SE,filtermethod.control=list(pvalue=0.1,limit=10),clustermethod.control=list(p.threshold = 0.95,p.samplingthreshold = 0.5),classmethod.control=list(family = "binomial"))
+ClustClass <- function(formula = formula, data=NULL, filtermethod=univariate_KS, clustermethod=GMVECluster, classmethod=LASSO_1SE,filtermethod.control=list(pvalue=0.1,limit=21),clustermethod.control=list(p.threshold = 0.95,p.samplingthreshold = 0.5),classmethod.control=list(family = "binomial"),pca=TRUE,normalize=TRUE)
 {
 	if (class(formula) == "character")
 	{
 		formula <- formula(formula);
 	}
-	varlist <- attr(terms(formula,data=data),"variables")
-	dependent <- as.character(varlist[[2]])
+	dependent <- all.vars(formula)
 	Outcome = dependent[1];
 	if (length(dependent) == 3)
 	{
-		Outcome = dependent[3];
+		Outcome = dependent[2];
 	}
 
 	outcomedata <- data[,Outcome];
 	totsamples <- nrow(data);
-	minSamples <- max(5,0.05*totsamples);
+	minSamples <- max(5,0.025*totsamples);
 	clus <- NULL
 	fm <- NULL
 	
@@ -1198,23 +1353,48 @@ ClustClass <- function(formula = formula, data=NULL, filtermethod=univariate_Wil
 	{
 		fm <- do.call(filtermethod,c(list(data,Outcome),filtermethod.control));
 	}
+	selectedfeatures <- names(fm);
+	datapca <- as.data.frame(data[,selectedfeatures]);
+	pcaobj <- NULL;
+	scaleparm <- NULL;
+	if (pca && ((nrow(datapca) > 2*ncol(datapca)) && (ncol(datapca) > 3)))
+	{
+		rank. = max(3,as.integer(length(selectedfeatures)/3+0.5));
+		rank. = min(rank.,length(selectedfeatures))
+		if (normalize)
+		{
+			scaleparm <- FRESAScale(datapca,method="OrderLogit");
+			pcaobj <- prcomp(scaleparm$scaledData,center = FALSE,rank.=rank. );
+			scaleparm$scaledData <- NULL
+		}
+		else
+		{
+			pcaobj <- prcomp(datapca,center = TRUE,rank.=rank.);
+		}
+		datapca <- as.data.frame(pcaobj$x);
+	}
+
 	if (is.null(clustermethod.control))
 	{
-		clus <- clustermethod(data[,names(fm)]);
+		clus <- clustermethod(datapca);
 	}
 	else
 	{
-		clus <- do.call(clustermethod,c(list(data[,names(fm)]),clustermethod.control));
+		clus <- do.call(clustermethod,c(list(datapca),clustermethod.control));
 	}
-	selectedfeatures <- names(fm);
+#	print(selectedfeatures)
 	tb <- table(clus$classification);
 	classlabels <- as.numeric(names(tb));
 	models <- list();
+#	data <- data[,c(Outcome,selectedfeatures)];
+	allfeatures <- selectedfeatures;
 	if (length(classlabels) > 1)
 	{
 			tb <- table(clus$classification,outcomedata);
+#			print(tb)
 			for (i	in 1:nrow(tb))
 			{
+#				cat(i,":")
 				if (min(tb[i,]) > minSamples)
 				{
 					if (is.null(classmethod.control))
@@ -1225,11 +1405,13 @@ ClustClass <- function(formula = formula, data=NULL, filtermethod=univariate_Wil
 					{
 						models[[i]] <- do.call(classmethod,c(list(formula,subset(data,clus$classification == classlabels[i])),classmethod.control));
 					}
+					allfeatures <- c(allfeatures,models[[i]]$selectedFeatures);
 				}
 				else
 				{
 					models[[i]] <- as.numeric(colnames(tb)[which.max(tb[i,])]);
 				}
+#				cat(tb[i,],"<")
 			}
 	}
 	else
@@ -1242,9 +1424,10 @@ ClustClass <- function(formula = formula, data=NULL, filtermethod=univariate_Wil
 		{
 			models[[1]] <- do.call(classmethod,c(list(formula,data),classmethod.control));
 		}
+		allfeatures <- c(allfeatures,models[[1]]$selectedFeatures);
 	}
-	result <- list(features = fm,cluster = clus,models = models);
-	result$selectedfeatures <- selectedfeatures;
+	result <- list(features = selectedfeatures,cluster = clus,models = models,pcaobj = pcaobj,scaleparm=scaleparm );
+	result$selectedfeatures <- allfeatures;
 
 	class(result) <- "CLUSTER_CLASS"
 	return(result);
@@ -1254,13 +1437,22 @@ predict.CLUSTER_CLASS <- function(object,...)
 {
 	parameters <- list(...);
 	testData <- parameters[[1]];
-	pLS <- predict(object$cluster,testData[,names(object$features)])$classification;
+	pcaData <- testData[,object$features];
+	if (!is.null(object$pcaobj))
+	{
+		if (!is.null(object$scaleparm))
+		{
+			pcaData <- FRESAScale(pcaData,method=object$scaleparm$method,refMean=object$scaleparm$refMean,refDisp=object$scaleparm$refDisp)$scaledData;
+		}
+		pcaData <- as.data.frame(predict(object$pcaobj,pcaData));
+	}
+	pLS <- predict(object$cluster,pcaData)$classification;
 	tb <- table(pLS);
 	index <- as.numeric(names(tb));
 	for (i in 1:nrow(tb))
 	{
 		predeictset <- (pLS == index[i]);
-		if (class(object$models[[index[i]]]) == "numeric")
+		if (class(object$models[[index[i]]])[1] == "numeric")
 		{
 			pLS[predeictset] <- object$models[[index[i]]];
 		}
@@ -1303,15 +1495,17 @@ GMVEBSWiMS <- function(formula = formula, data=NULL, GMVE.control = list(p.thres
 #	cat(error)
 
 	models <- list();
-	selectedfeatures <- names(baseClass$bagging$frequencyTable);
-	fm <- selectedfeatures
+	selectedfeatures <- baseClass$selectedfeatures;
+#	print(selectedfeatures);
+	fm <- names(baseClass$BSWiMS.model$at.opt.model$coefficients)[-1]
 #			print(fm)
 	if (length(fm) > 0)
 	{		
 		if (error > 0.025) # more than 2.5% of error
 		{
-			fm <- names(univariate_Wilcoxon(data,Outcome,pvalue=0.05,limit=10));
+			fm <- unique(fm,names(univariate_KS(data,Outcome,pvalue=0.05,limit=10,thr=0.8)));
 			selectedfeatures <- unique(fm,selectedfeatures);
+#			print(selectedfeatures);
 			if (is.null(GMVE.control))
 			{
 				clus <- GMVECluster(as.data.frame(data[,fm]));
