@@ -14,7 +14,7 @@
 
 nearestCentroid <- function(dataset,clustermean=NULL,clustercov=NULL, p.threshold=1.0e-6)
 {
-	if (class(clustermean) == "matrix")
+	if (inherits(clustermean,"matrix"))
 	{
 		centers <- clustermean;
 		clustermean <- list();
@@ -25,7 +25,7 @@ nearestCentroid <- function(dataset,clustermean=NULL,clustercov=NULL, p.threshol
 	}
 	distance <- numeric(nrow(dataset));
 	ClusterLabels <- numeric(nrow(dataset));
-	if (is.null(clustermean) && (class(clustercov) == "list"))
+	if (is.null(clustermean) && inherits(clustercov,"list") )
 	{
 		if (length(clustercov)>0)
 		{

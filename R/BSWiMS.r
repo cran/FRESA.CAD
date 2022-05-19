@@ -19,6 +19,13 @@ NumberofRepeats=1)
 
 	a = as.numeric(Sys.time());
 	set.seed(a);
+	
+	if (loops==0)
+	{
+		loops <- 1;
+		maxCycles <- 1;
+		elimination.bootstrap.steps <- 0;
+	}
 
 #	cat(featureSize," <- F Size\n");
 
@@ -30,7 +37,7 @@ NumberofRepeats=1)
 	if (featureSize==0) featureSize = ncol(data)-1;
 	nfeat <- ncol(data)-1;
 #	cat(size,":",pvalue,":",update.pvalue[1],":",elimination.pValue,": fs=",featureSize,"\n")
-	if (class(formula)=="character")
+	if (inherits(formula,"character"))
 	{
 		formula <- str_replace_all(formula,"[.]","1");
 		baseformula <- formula;
@@ -110,6 +117,10 @@ NumberofRepeats=1)
 			}
 			else
 			{
+				if (inherits(data[,Outcome], "factor"))
+				{
+					data[,Outcome] <- as.numeric(as.character(data[,Outcome]));
+				}
 				univType = "LOGIT";
 				if (min(data[,Outcome]) != 0)
 				{
@@ -206,11 +217,11 @@ NumberofRepeats=1)
 		oridinalModels <- list(theScores=theScores,data=data,formulas=NULL)
 		class(oridinalModels) <- c("fitFRESA","ordinalFit");
 	}
-	halfSocres <- as.integer(totScores/2+0.5);
+	halfscores <- as.integer(totScores/2+0.5);
 	IIRMetricPDF <- NULL;
 	sdOutcome <- sd(theOutcome);
 	infraction <- 0;
-	cat("[");
+	if (loops > 1) cat("[");
 	equivalent = FALSE;
 	if (NumberofRepeats <= 0)
 	{
@@ -430,7 +441,7 @@ NumberofRepeats=1)
 				isInferior <- (length(termslist)==0);
 				if (!isInferior)
 				{
-					cat("+");
+					if (loops > 1) cat("+");
 					if (print) cat(cycles,":",size,":",nrow(variableList),":",metric,":",infraction,":",BSWiMS.model$back.formula,"\n");
 					if (equivalent)
 					{
@@ -515,7 +526,7 @@ NumberofRepeats=1)
 		}
 		if (NumberofRepeats>1) formula.list <- append(formula.list,"=-=End=-=");
 	}
-	cat("]");
+	if (loops > 1) cat("]");
 	if(is.null(unirank))
 	{
 		unirank <- invariableList;
