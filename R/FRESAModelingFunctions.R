@@ -638,7 +638,7 @@ predict.FRESA_RIDGE <- function(object,...)
 }
 
 
-HLCM <- function(formula = formula, data=NULL,method=BSWiMS.model,hysteresis = 0.25,classMethod=KNN_method,classModel.Control=NULL,minsize=10,...)
+HLCM <- function(formula = formula, data=NULL,method=BSWiMS.model,hysteresis = 0.1,classMethod=KNN_method,classModel.Control=NULL,minsize=10,...)
 {
 	if (inherits(formula, "character"))
 	{
@@ -687,7 +687,7 @@ HLCM <- function(formula = formula, data=NULL,method=BSWiMS.model,hysteresis = 0
 	{
 		thePredict <- rpredict(orgModel,data);
 		outcomedata <- data[,Outcome];
-		correct <- ((thePredict >= (0.5 - hysteresis)) == (outcomedata > 0));
+		correct <- (abs(thePredict - outcomedata) <= (0.5 - hysteresis) );
 		accuracy <- sum(correct)/nrow(data);
 		toterror <- sum(!correct);
 		baseClass <- c(baseClass,0);
@@ -730,7 +730,7 @@ HLCM <- function(formula = formula, data=NULL,method=BSWiMS.model,hysteresis = 0
 						cat("[",sum(incorrectSet),"]");
 						alternativeModel[[n]] <- alternativeM;
 						thePredict <- rpredict(alternativeM,nextdata);
-						correct <- ((thePredict >= (0.5 - hysteresis)) == (nextdata[,Outcome] > 0));
+						correct <- (abs(thePredict - nextdata[,Outcome])  < (0.5 - hysteresis)) ;
 						correctSet[[n+1]] <- rownames(nextdata[correct,]);
 						classfreq <- c(classfreq,length(correctSet[[n+1]]));
 						toterror <- sum(abs(thePredict - nextdata[,Outcome]) > 0.5 );
@@ -760,8 +760,8 @@ HLCM <- function(formula = formula, data=NULL,method=BSWiMS.model,hysteresis = 0
 					classData[,Outcome] <- numeric(nrow(classData));
 					classData[correctSet[[i]],Outcome] <- 1;
 					classData[,Outcome] <- as.factor(classData[,Outcome]);
-					classFeatures <- names(univariate_KS(data=classData, Outcome=Outcome,pvalue = 0.05));
-					allClassFeatures <- c(allClassFeatures,classFeatures)
+					classFeatures <- names(univariate_KS(data=classData, Outcome=Outcome,pvalue = 0.025,thr=0.9));
+					allClassFeatures <- unique(c(allClassFeatures,classFeatures))
 
 					if (is.null(classModel.Control))
 					{
@@ -794,7 +794,7 @@ HLCM <- function(formula = formula, data=NULL,method=BSWiMS.model,hysteresis = 0
 	return(result);
 }
 
-HLCM_EM <- function(formula = formula, data=NULL,method=BSWiMS.model,hysteresis = 0.25,classMethod=KNN_method,classModel.Control=NULL,minsize=10,...)
+HLCM_EM <- function(formula = formula, data=NULL,method=BSWiMS.model,hysteresis = 0.10,classMethod=KNN_method,classModel.Control=NULL,minsize=10,...)
 {
 	if (inherits(formula, "character"))
 	{
@@ -819,6 +819,9 @@ HLCM_EM <- function(formula = formula, data=NULL,method=BSWiMS.model,hysteresis 
 	firstModel <- 0.5;
 	secondModel <- 0.5;
 	selectedfeatures <- colnames(data)[!(colnames(data) %in% Outcome)]
+	outcomeFeatures <- c(Outcome,names(univariate_BinEnsemble(data=data,Outcome=Outcome,pvalue=0.01,limit = -1)));
+	nselected <- selectedfeatures;
+
 	orgModel <- try(method(formula,data,...));
 	if (inherits(orgModel, "try-error"))
 	{
@@ -836,6 +839,8 @@ HLCM_EM <- function(formula = formula, data=NULL,method=BSWiMS.model,hysteresis 
 			selectedfeatures <- names(orgModel$bagging$frequencyTable);
 		}
 	}
+	fselected <- selectedfeatures;
+	outcomeFeatures <- unique(c(outcomeFeatures,selectedfeatures))
 	accuracy <- 1.0;
 	changes <- minsize;
 	n=0;
@@ -843,11 +848,10 @@ HLCM_EM <- function(formula = formula, data=NULL,method=BSWiMS.model,hysteresis 
 	classData[,Outcome] <- rep(0,nrow(classData));
 	sselectedfeatures <- colnames(data);
 	baseClass <- numeric();
-	nselected <- character();
-	fselected <- character();
 	allClassFeatures <- character();
-	truelimit <- 1.0 - hysteresis;
-	falselimit <- 0.5*truelimit;
+	truelimit <- 0.5 + hysteresis;
+	falselimit <- 0.5 - hysteresis;
+	cat(length(outcomeFeatures),"\n");
 	if (length(selectedfeatures) > 0)
 	{
 		thePredict <- rpredict(orgModel,data);
@@ -860,7 +864,7 @@ HLCM_EM <- function(formula = formula, data=NULL,method=BSWiMS.model,hysteresis 
 		if (sum(1*(!correct),na.rm=TRUE) > minsize)
 		{
 			outcomedata <- data[,Outcome];
-			secondSet <- (d0 >= falselimit);
+			secondSet <- (d0 >= 0.9*falselimit);
 			firstSet <- (d0 <= truelimit);
 			nfirstSet <- firstSet;
 			nsecondSet <- secondSet;
@@ -873,32 +877,18 @@ HLCM_EM <- function(formula = formula, data=NULL,method=BSWiMS.model,hysteresis 
 				while ((changes > (minsize/2)) && (loops < 10))
 				{
 					loops <- loops + 1;
-					n <- 2;
 					changes <- 0;
 					firstSet <- nfirstSet;
 					secondSet <- nsecondSet;
-					firstdata <- data[firstSet,];
-					seconddata <- data[secondSet,];
+					firstdata <- data[firstSet,c(Outcome,selectedfeatures)];
+					seconddata <- data[secondSet,outcomeFeatures];
 					tb1 <- table(firstdata[,Outcome]);
 					tb2 <- table(seconddata[,Outcome]);
 					if ((length(tb1) > 1) && (length(tb2) > 1) && (min(tb1) >= minsize) && (min(tb2) >= minsize))
 					{
+						n <- 2;
 						firstModel <- method(formula,firstdata,...);
-						alternativeModel[[1]] <- firstModel;
 						secondModel <- method(formula,seconddata,...);
-						if (!is.null(secondModel$selectedfeatures))
-						{
-							nselected <- secondModel$selectedfeatures;
-							fselected <- firstModel$selectedfeatures;
-						}
-						else
-						{
-							if (!is.null(secondModel$bagging))
-							{
-								nselected <- names(secondModel$bagging$frequencyTable);
-								fselected <- names(firstModel$bagging$frequencyTable);
-							}
-						}
 					}
 					else
 					{
@@ -908,7 +898,7 @@ HLCM_EM <- function(formula = formula, data=NULL,method=BSWiMS.model,hysteresis 
 							if (inherits(secondModel,"numeric"))
 							{
 								secondModel <- sum(seconddata[,Outcome])/nrow(seconddata);
-								cat("{",sum(nrow(seconddata)),"}")
+#								cat("{",sum(nrow(seconddata)),"}")
 							}
 						}
 						else
@@ -927,12 +917,12 @@ HLCM_EM <- function(formula = formula, data=NULL,method=BSWiMS.model,hysteresis 
 						secondPredict <- rpredict(secondModel,data);
 						d1 <-  abs(firstPredict - outcomedata);
 						d2 <-  abs(secondPredict - outcomedata);
-						nfirstSet <-  ( d1 < d2 ) | ( d1 <= truelimit );
+						nfirstSet <-  (d1 <= d2) | (d1 < falselimit);
 						changes <- sum(nfirstSet != firstSet) ;
-						nsecondSet <- (( d2 < (d1 + 0.25*hysteresis)) & (d2 <= truelimit)) | ( d1 >= falselimit );
+						nsecondSet <- (d2 < (d1 + hysteresis)) | (d2 < falselimit);
 						changes <- changes + sum(nsecondSet != secondSet);
 					}
-					cat("(",changes,")");
+					cat("[(",changes,")<",length(firstModel$selectedfeatures),",",length(secondModel$selectedfeatures),">]");
 				}
 #				cat("[",sum(secondSet),"]")
 				if (n > 0)
@@ -949,6 +939,19 @@ HLCM_EM <- function(formula = formula, data=NULL,method=BSWiMS.model,hysteresis 
 					errorfreq <- c(sum(!originalSet),sum(!firstSet),sum(!secondSet),0);
 					classfreq <- c(sum(originalSet),sum(firstSet),sum(secondSet),sum(errorSet));
 					baseClass <- c(0,0,0,0);
+					if (!is.null(firstModel$selectedfeatures))
+					{
+						nselected <- secondModel$selectedfeatures;
+						fselected <- firstModel$selectedfeatures;
+					}
+					else
+					{
+						if (!is.null(firstModel$bagging))
+						{
+							nselected <- names(secondModel$bagging$frequencyTable);
+							fselected <- names(firstModel$bagging$frequencyTable);
+						}
+					}
 				}
 			}
 			else
@@ -959,7 +962,7 @@ HLCM_EM <- function(formula = formula, data=NULL,method=BSWiMS.model,hysteresis 
 					n <- 2;
 					alternativeModel[[1]] <- firstModel;
 					alternativeModel[[2]] <- sum(data[secondSet,Outcome])/sumsecond;
-					cat("{",sumsecond,"}")
+#					cat("{",sumsecond,"}")
 					firstPredict <- rpredict(firstModel,data);
 					secondPredict <- rpredict(secondModel,data);
 					d1 <-  abs(firstPredict - outcomedata);
@@ -974,23 +977,27 @@ HLCM_EM <- function(formula = formula, data=NULL,method=BSWiMS.model,hysteresis 
 			if (n > 1)
 			{
 				originalSet <- (d0 <= falselimit);
-				firstSet <- (d1 <= truelimit) & (d1 < d2) & firstSet;
-				secondSet <- (d2 <= truelimit) & (d2 < (d1 + 0.25*hysteresis)) & secondSet | !firstSet;
+				firstSet <- (d1 < 0.5);
+				secondSet <- (d2 < 0.5);
 				if (sum(secondSet) > minsize)
 				{
 
 	#Check for statistical significance of second set. If not do not, there is no latent class
+					classData[,Outcome] <- as.factor(1*firstSet);
+					classpFeatures <- univariate_KS(data=classData, Outcome=Outcome,pvalue = 0.025);
 					classData[,Outcome] <- as.factor(1*secondSet);
-					classpFeatures <- univariate_BinEnsemble(data=classData, Outcome=Outcome,pvalue = 0.05);
+					classpFeatures <- c(classpFeatures,univariate_KS(data=classData, Outcome=Outcome,pvalue = 0.025));
+					classpFeatures <- classpFeatures[order(classpFeatures)]
 					
 					if (classpFeatures[1] <= 0.05) # If significant then go ahead
 					{
-						errorSet <- (d0 > 0.5) & (d1 > 0.5) & (d2 > 0.5);
-						cat("[p=",classpFeatures[1],",",length(classpFeatures),"]<",sum(originalSet),",",sum(firstSet),",",sum(secondSet),",",sum(errorSet),">") 
-						selectedfeatures <- unique(c(selectedfeatures,nselected,fselected));
+						errorSet <- (d0 >= 0.5) & (d1 >= 0.5) & (d2 >= 0.5);
+#						cat("[p=",classpFeatures[1],",",length(classpFeatures),"]<",sum(originalSet),",",sum(firstSet),",",sum(secondSet),",",sum(errorSet),">") 
+						cat("<",sum(originalSet),",",sum(firstSet),",",sum(secondSet),",",sum(errorSet),",",length(nselected),">") 
 						classData[,Outcome] <- as.factor(1*originalSet);
+						classpFeatures <- univariate_KS(data=classData, Outcome=Outcome,pvalue = 0.025,thr=0.90);
 						classFeatures <- names(classpFeatures);
-						allClassFeatures <- classFeatures
+						allClassFeatures <- unique(c(allClassFeatures,classFeatures))
 						if (is.null(classModel.Control))
 						{
 							classModel[[1]] <- classMethod(formula(paste(Outcome,"~.")),classData[,c(Outcome,classFeatures)]);
@@ -1000,6 +1007,9 @@ HLCM_EM <- function(formula = formula, data=NULL,method=BSWiMS.model,hysteresis 
 							classModel[[1]] <- do.call(classMethod,c(list(formula(paste(Outcome,"~.")),classData[,c(Outcome,classFeatures)]),classModel.Control));
 						}
 						classData[,Outcome] <- as.factor(1*firstSet);
+						classpFeatures <- univariate_KS(data=classData, Outcome=Outcome,pvalue = 0.025,thr=0.90);
+						classFeatures <- names(classpFeatures);
+						allClassFeatures <- unique(c(allClassFeatures,classFeatures))
 						if (is.null(classModel.Control))
 						{
 							classModel[[2]] <- classMethod(formula(paste(Outcome,"~.")),classData[,c(Outcome,classFeatures)]);
@@ -1009,6 +1019,9 @@ HLCM_EM <- function(formula = formula, data=NULL,method=BSWiMS.model,hysteresis 
 							classModel[[2]] <- do.call(classMethod,c(list(formula(paste(Outcome,"~.")),classData[,c(Outcome,classFeatures)]),classModel.Control));
 						}
 						classData[,Outcome] <- as.factor(1*secondSet);
+						classpFeatures <- univariate_KS(data=classData, Outcome=Outcome,pvalue = 0.05,thr=0.90);
+						classFeatures <- names(classpFeatures);
+						allClassFeatures <- unique(c(allClassFeatures,classFeatures))
 						if (is.null(classModel.Control))
 						{
 							classModel[[3]] <- classMethod(formula(paste(Outcome,"~.")),classData[,c(Outcome,classFeatures)]);
@@ -1018,6 +1031,7 @@ HLCM_EM <- function(formula = formula, data=NULL,method=BSWiMS.model,hysteresis 
 							classModel[[3]] <- do.call(classMethod,c(list(formula(paste(Outcome,"~.")),classData[,c(Outcome,classFeatures)]),classModel.Control));
 						}
 						classData[,Outcome] <- 1*originalSet + 2*firstSet + 4*secondSet;
+						selectedfeatures <- unique(c(selectedfeatures,nselected,fselected,allClassFeatures));
 					}
 					else
 					{
@@ -1097,7 +1111,15 @@ predict.FRESA_HLCM <- function(object,...)
 			ptmp <- rpredict(object$alternativeModel[[n]],testData);
 			pmodel <- cbind(pmodel,ptmp);
 		}
-		pLS <- apply(pmodel*prbclas,1,sum)/apply(prbclas,1,sum);
+		lmodels <- c(2:length(object$classModel));
+		if (length(lmodels)>1)
+		{
+			pLS <- apply(pmodel[,lmodels]*prbclas[,lmodels],1,sum)/apply(prbclas[,lmodels],1,sum);
+		}
+		else
+		{
+			pLS <- pmodel[,lmodels];
+		}
 		wt <- prbclas[,1]*object$classfreq[1];
 		pLS <- wt*pLSOr + (1.0-wt)*pLS;
 		attr(pLS,"probabilities.class") <- prbclas;
@@ -1108,16 +1130,19 @@ predict.FRESA_HLCM <- function(object,...)
 
 
 filteredFit <- function(formula = formula, data=NULL, 
-							filtermethod=univariate_Wilcoxon, 
+							filtermethod=univariate_KS, 
 							fitmethod=e1071::svm,
-							filtermethod.control=list(pvalue=0.10,limit=0.1),
+							filtermethod.control=list(pvalue=0.10,limit=0),
 							Scale="none",
 							PCA=FALSE,
+							WHITE=c("none","CCA"),
 							DECOR=FALSE,
 							DECOR.control=list(thr=0.80,method="fast",type="NZLM"),
 							...
 						)
 {
+
+	WHITE <- match.arg(WHITE);
 	if (inherits(formula, "character"))
 	{
 		formula <- formula(formula);
@@ -1130,54 +1155,63 @@ filteredFit <- function(formula = formula, data=NULL,
 	}
 	fm <- colnames(data)
 	fm <- fm[!(fm %in% dependent)]
+	usedFeatures <-  c(Outcome,fm);
 
 	scaleparm <- NULL;
 	GDSTM <- NULL;
 	pcaobj <- NULL;
+	ccaobj <- NULL;
 	transColnames <- NULL;
 
 	if (DECOR && (length(fm) > 1))
 	{
 		if (is.null(DECOR.control))
 		{
-			data <- GDSTMDecorrelation(data,Outcome=Outcome);
+			data <- GDSTMDecorrelation(data);
 		}
 		else
 		{
-			data <- do.call(GDSTMDecorrelation,c(list(data,Outcome=Outcome),DECOR.control));
+			data <- do.call(GDSTMDecorrelation,c(list(data),DECOR.control));
 		}
 		GDSTM <- attr(data,"GDSTM")
 		attr(data,"GDSTM") <- NULL
 		transColnames <- colnames(data);
 		fm <- colnames(data)
 		fm <- fm[!(fm %in% dependent)]
+		usedFeatures <-  c(Outcome,fm);
 	}
-	
+	if (!PCA && (WHITE=="CCA") && (Scale == "none"))
+	{
+		Scale <- "Norm"
+	}
 	if ((Scale != "none") && (length(fm) > 1) )
 	{
 		scaleparm <- FRESAScale(as.data.frame(data[,fm]),method=Scale);
 		data[,fm] <- as.data.frame(scaleparm$scaledData);
 		scaleparm$scaledData <- NULL;
 	}
-	
-	
-	if (is.null(filtermethod.control))
+	filtout <- filtermethod
+	if (!is.null(filtermethod))
 	{
-		fm <- filtermethod(data,Outcome);
+		
+		if (is.null(filtermethod.control))
+		{
+			fm <- filtermethod(data,Outcome);
+		}
+		else
+		{
+			fm <- do.call(filtermethod,c(list(data,Outcome),filtermethod.control));
+		}
+		filtout <- fm;
+		if (length(fm) > 1)
+		{
+			selpvalue <- sqrt(median(fm)*(min(fm)+1.0e-12));
+			maxpvalue <- selpvalue*1.0e3 + 1.0e-6;
+			fm <- fm[fm <= maxpvalue];
+		}
+		fm <- names(fm)
+		usedFeatures <-  c(Outcome,fm);
 	}
-	else
-	{
-		fm <- do.call(filtermethod,c(list(data,Outcome),filtermethod.control));
-	}
-	filtout <- fm;
-	if (length(fm) > 1)
-	{
-		medianpvalue <- median(fm);
-		maxpvalue <- medianpvalue*1.0e6 + 1.0e-6;
-		fm <- fm[fm <= maxpvalue];
-	}
-	fm <- names(fm)
-	usedFeatures <-  c(Outcome,fm);
 	data <- data[,usedFeatures]
 
 
@@ -1210,13 +1244,62 @@ filteredFit <- function(formula = formula, data=NULL,
 			}
 		}
 	}
+	if (!PCA && (WHITE=="CCA") && (length(fm) > 1))
+	{
+		if (!requireNamespace("whitening", quietly = TRUE)) {
+			 install.packages("whitening", dependencies = TRUE)
+		}
+		mx <- as.matrix(data[,fm]);
+		ccaobj <- whitening::scca(mx, mx,verbose=FALSE);
+		ccaobj$WY <- NULL
+		CCAX <- as.data.frame(tcrossprod( mx, ccaobj$WX ))
+		data <- as.data.frame(cbind(data[,Outcome],CCAX));
+		colnames(data) <-  c(Outcome,colnames(CCAX));
+		if (isFactor)
+		{
+			data[,Outcome] <-as.factor(data[,Outcome])
+		}
+#		cat(colnames(data));
+	}
 	
 	fit <- try(fitmethod(formula,data,...));
+	selectedfeatures <- fm;
+	if (!is.null(fit$selectedfeatures))
+	{
+		selectedfeatures <- fit$selectedfeatures;
+	}
+	else
+	{
+		 vs <- NULL;
+          if (!is.null(fit$importance))
+          {
+            vs <- fit$importance[,1];
+          }
+          if (!is.null(fit$variable.importance))
+          {
+            vs <- fit$variable.importance;
+          }
+          if (!is.null(vs))
+          {
+            #						print(vs)
+            if (length(vs)>1)
+            {
+              if (length(vs) > 2) vs <- vs[order(-vs)];
+              if (sum(vs > 0.0) > 1)
+              {
+                vs <- vs[vs > 0.0];							
+              }
+              selectedfeatures <- names(vs);
+            }
+          }
+	}
+
 	
 	parameters <- list(...);
 	result <- list(fit=fit,
 					filter=filtout,
-					selectedfeatures = fm,
+					processedFeatures = fm,
+					selectedfeatures = selectedfeatures,
 					usedFeatures = usedFeatures,
 					parameters=parameters,
 					asFactor=(class(data[,Outcome])=="factor"),
@@ -1225,6 +1308,7 @@ filteredFit <- function(formula = formula, data=NULL,
 					binOutcome = binOutcome,
 					Outcome = Outcome,
 					pcaobj = pcaobj,
+					ccaobj = ccaobj,
 					GDSTM = GDSTM,
 					transColnames = transColnames
 					);
@@ -1257,9 +1341,17 @@ predict.FRESA_FILTERFIT <- function(object,...)
 	testData <- as.data.frame(testData[,object$usedFeatures])
 	if (!is.null(object$pcaobj))
 	{
-		pcapred <- predict(object$pcaobj,testData[,object$selectedfeatures]);
+		pcapred <- predict(object$pcaobj,testData[,object$processedFeatures]);
 		testData <- as.data.frame(cbind(testData[,object$usedFeatures[1]],pcapred));
 		colnames(testData) <-  c(object$usedFeatures[1],colnames(pcapred));
+	}
+	if (!is.null(object$ccaobj))
+	{
+		mx <- as.matrix(testData[,object$processedFeatures]);
+		CCAX <- as.data.frame(tcrossprod( mx, object$ccaobj$WX ))
+		testData <- as.data.frame(cbind(testData[,object$usedFeatures[1]],CCAX));
+		colnames(testData) <-  c(object$usedFeatures[1],colnames(CCAX));
+#		cat(colnames(testData));
 	}
 	
 	probability <- FALSE;
