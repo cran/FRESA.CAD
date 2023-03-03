@@ -96,9 +96,9 @@ export(GLMNET_RIDGE_1SE)
 export(univariate_cox)
 export(filteredFit)
 export(predict.FRESA_FILTERFIT)
-export(GDSTMDecorrelation)
+export(IDeA)
 export(predictDecorrelate)
-export(getDerivedCoefficients)
+export(getLatentCoefficients)
 
 useDynLib(FRESA.CAD,.registration = TRUE, .fixes = "C_")
 

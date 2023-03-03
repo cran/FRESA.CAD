@@ -55,6 +55,7 @@ summary.fitFRESA <- function(object,type=c("Improvement","Residual"),ci=c(0.025,
 				vres$FP.value <- object$baggingAnalysis$pF_values;
 				vres$BinP.value <- object$baggingAnalysis$pBin_values;
 				vres$FullTrainMSE <- object$baggingAnalysis$mMSE_values;
+				vres$dR2 <- object$baggingAnalysis$dMSE_values/var(object$response[,2]);
 				vres$RelativeFrequency <- as.vector(object$baggingAnalysis$RelativeFrequency[names(coefficients)]);
 #				print(vres$RelativeFrequency)
 #				print(coefficients);
@@ -73,7 +74,7 @@ summary.fitFRESA <- function(object,type=c("Improvement","Residual"),ci=c(0.025,
 					# }
 					# else
 					{
-						azval <- qnorm(exp(-object$baggingAnalysis$avgLogPvalues[n]))
+						azval <- qnorm(10^(-object$baggingAnalysis$avgLogPvalues[n]))
 						lowci[n] <- zval1*abs(lowci[n]/azval);
 						hici[n] <- zval2*abs(hici[n]/azval);
 					}
@@ -90,10 +91,11 @@ summary.fitFRESA <- function(object,type=c("Improvement","Residual"),ci=c(0.025,
 					cis[i,] = as.vector(quantile(bv$s.coef[,i+coffset], probs = c(ci[1],0.5,ci[2]), na.rm = TRUE,names = FALSE, type = 7));
 				}
 				cinames <- c("lower","median","upper");
+				vres$dR2 <- (vres$redtrainMSE - vres$FullTrainMSE)/var(object$response[,2]);
 				vres$RelativeFrequency <- rep(1,ncoef);
 			}
-			coefficients=as.data.frame(cbind(coefficients,cis,vres$unitrainMSE,vres$redtrainMSE,vres$FullTrainMSE,vres$NeRIs,vres$FP.value,vres$tP.value,vres$BinP.value,vres$WilcoxP.value,vres$RelativeFrequency));
-			colnames(coefficients) <- c("Estimate",cinames,"u.MSE","r.MSE","model.MSE","NeRI","F.pvalue","t.pvalue","Sign.pvalue","Wilcox.pvalue","Frequency");
+			coefficients=as.data.frame(cbind(coefficients,cis,vres$unitrainMSE,vres$redtrainMSE,vres$FullTrainMSE,vres$NeRIs,vres$FP.value,vres$tP.value,vres$BinP.value,vres$WilcoxP.value,vres$dR2,vres$RelativeFrequency));
+			colnames(coefficients) <- c("Estimate",cinames,"u.MSE","r.MSE","model.MSE","NeRI","F.pvalue","t.pvalue","Sign.pvalue","Wilcox.pvalue","%VarExp","Frequency");
 			coefficients <- coefficients[order(vres$FP.value),];
 
 			residaulsMSE <- mean((object$response[,2]-predict(object))^2);
@@ -121,6 +123,7 @@ summary.fitFRESA <- function(object,type=c("Improvement","Residual"),ci=c(0.025,
 				vres$z.NRIs <- object$baggingAnalysis$znri_values;
 				vres$fullTrainAccuracy <- object$baggingAnalysis$mACC_values;
 				vres$fullTrainAUC <- object$baggingAnalysis$mAUC_values;
+				vres$DeltaAUC <- object$baggingAnalysis$dAUC_values;
 				vres$RelativeFrequency <- as.vector(object$baggingAnalysis$RelativeFrequency[names(coefficients)]);
 #				print(vres$RelativeFrequency);
 #				print(coefficients);
@@ -140,7 +143,7 @@ summary.fitFRESA <- function(object,type=c("Improvement","Residual"),ci=c(0.025,
 					# }
 					# else
 					{
-						azval <- qnorm(exp(-object$baggingAnalysis$avgLogPvalues[n]))
+						azval <- qnorm(10^(-object$baggingAnalysis$avgLogPvalues[n]))
 						lowci[n] <- zval1*abs(lowci[n]/azval);
 						hici[n] <- zval2*abs(hici[n]/azval);
 					}
@@ -148,6 +151,10 @@ summary.fitFRESA <- function(object,type=c("Improvement","Residual"),ci=c(0.025,
 				cis = cbind(object$baggingAnalysis$coefficients+lowci,object$baggingAnalysis$coefficients,object$baggingAnalysis$coefficients+hici);
 				cis = exp(cis);
 				cinames <- c("lower","OR","upper");
+				if (object$type == "COX")
+				{
+					cinames <- c("lower","HR","upper");
+				}
 			}
 			else
 			{
@@ -158,10 +165,11 @@ summary.fitFRESA <- function(object,type=c("Improvement","Residual"),ci=c(0.025,
 				{
 					cis[i,] = as.vector(quantile(bv$s.coef[,i+coffset], probs = c(ci[1],0.5,ci[2]), na.rm = TRUE,names = FALSE, type = 7));
 				}
+				vres$DeltaAUC <- vres$redtrainAUC - vres$fullTrainAUC;
 				vres$RelativeFrequency <- rep(1,ncoef);
 			}
-			coefficients=as.data.frame(cbind(coefficients,cis,vres$uniTrainAccuracy,vres$redtrainAccuracy,vres$fullTrainAccuracy,vres$uniTrainAUC,vres$redtrainAUC,vres$fullTrainAUC,vres$IDIs,vres$NRIs,vres$z.IDIs,vres$z.NRIs,vres$RelativeFrequency));
-			colnames(coefficients) <- c("Estimate",cinames,"u.Accuracy","r.Accuracy","full.Accuracy","u.AUC","r.AUC","full.AUC","IDI","NRI","z.IDI","z.NRI","Frequency");
+			coefficients=as.data.frame(cbind(coefficients,cis,vres$uniTrainAccuracy,vres$redtrainAccuracy,vres$fullTrainAccuracy,vres$uniTrainAUC,vres$redtrainAUC,vres$fullTrainAUC,vres$IDIs,vres$NRIs,vres$z.IDIs,vres$z.NRIs,vres$DeltaAUC,vres$RelativeFrequency));
+			colnames(coefficients) <- c("Estimate",cinames,"u.Accuracy","r.Accuracy","full.Accuracy","u.AUC","r.AUC","full.AUC","IDI","NRI","z.IDI","z.NRI","Delta.AUC","Frequency");
 			coefficients <- coefficients[order(-vres$z.IDIs),];
 			
 			pred <- 1*(predict(object)>uthr);

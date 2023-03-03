@@ -12,7 +12,9 @@ maxCycles=20,
 print=FALSE,
 plots=FALSE,
 featureSize=0,
-NumberofRepeats=1)
+NumberofRepeats=1,
+bagPredictType=c("Bag","wNN","Ens")
+)
 {
 	type <- match.arg(type);
 	testType <- match.arg(testType);
@@ -167,7 +169,7 @@ NumberofRepeats=1)
 #			print(unitPvalues);
 
 #			filtered <- names(unitPvalues);
-			filtered <- correlated_Remove(data,names(unitPvalues),thr=0.99);
+			filtered <- correlated_Remove(data,names(unitPvalues),thr=0.999);
 			attr(filtered,"CorrMatrix") <- NULL;
 
 			if (length(filtered) > 1) featureSize <- featureSize*length(filtered)/length(unitPvalues);
@@ -258,8 +260,12 @@ NumberofRepeats=1)
 					{
 						stdata[,Outcome] <- 1*(data[,Outcome] >= s);
 						oforward.model <- ForwardSelection.Model.Bin(size=size,fraction=fraction,pvalue,loops,acovariates,Outcome,variableList,stdata,maxTrainModelSize,type,timeOutcome,selectionType=testType,featureSize=featureSize);
+						zthr <- unique(oforward.model$theZthr);
+						zthr <- min(zthr);
+						if (zthr < 0.5) zthr <- 0.5
+
 						oupdate.model <- oforward.model$update.model;
-						oBSWiMS.model <- bootstrapVarElimination_Bin(object=oupdate.model$final.model,pvalue=oforward.model$theZthr,Outcome=Outcome,data=stdata,startOffset=startOffset,type=type,selectionType=testType,loops=elimination.bootstrap.steps,print=print,plots=plots);
+						oBSWiMS.model <- bootstrapVarElimination_Bin(object=oupdate.model$final.model,pvalue=zthr,Outcome=Outcome,data=stdata,startOffset=startOffset,type=type,selectionType=testType,loops=elimination.bootstrap.steps,print=print,plots=plots);
 						if (length(all.vars(formula(oBSWiMS.model$back.formula)))>1)
 						{
 							ordinalFormulas <- append(ordinalFormulas,oBSWiMS.model$back.formula);
@@ -287,13 +293,22 @@ NumberofRepeats=1)
 				{
 					forward.model <- ForwardSelection.Model.Bin(size=size,fraction=fraction,pvalue,loops,acovariates,Outcome,variableList,data,maxTrainModelSize,type,timeOutcome,selectionType=testType,featureSize=featureSize);
 					update.model <- forward.model$update.model;
+					zthr <- unique(forward.model$theZthr);
+					if (print)
+					{
+						cat("Z:",zthr,"\n")
+						cat("median(Z):",min(zthr),":",abs(qnorm(pvalue)),"\n")
+					}
+					zthr <- min(zthr);
+					if (zthr < 0.5) zthr <- 0.5
+
 					if (elimination.bootstrap.steps>1)
 					{
-						BSWiMS.model <- bootstrapVarElimination_Bin(object=update.model$final.model,pvalue=forward.model$theZthr,Outcome=Outcome,data,startOffset=startOffset,type=type,selectionType=testType,loops=elimination.bootstrap.steps,print=print,plots=plots);
+						BSWiMS.model <- bootstrapVarElimination_Bin(object=update.model$final.model,pvalue=zthr,Outcome=Outcome,data,startOffset=startOffset,type=type,selectionType=testType,loops=elimination.bootstrap.steps,print=print,plots=plots);
 					}
 					else
 					{
-						BSWiMS.model <- backVarElimination_Bin(object=update.model$final.model,pvalue=forward.model$theZthr,Outcome=Outcome,data=data,startOffset=startOffset,type=type,selectionType=testType);
+						BSWiMS.model <- backVarElimination_Bin(object=update.model$final.model,pvalue=zthr,Outcome=Outcome,data=data,startOffset=startOffset,type=type,selectionType=testType);
 					}
 				}
 				if (length(forward.model$var.names)>0)
@@ -331,21 +346,24 @@ NumberofRepeats=1)
 					}
 #					else
 #					{
-#						BSWiMS.model <- backVarElimination_Bin(object=update.model$final.model,pvalue=forward.model$theZthr,Outcome=Outcome,data=data,startOffset=startOffset,type=type,selectionType=testType);
+#						BSWiMS.model <- backVarElimination_Bin(object=update.model$final.model,pvalue=median(forward.model$theZthr),Outcome=Outcome,data=data,startOffset=startOffset,type=type,selectionType=testType);
 #					}
 				}
 			}
 			else
 			{
 				forward.model <- ForwardSelection.Model.Res(size=size,fraction=fraction,pvalue=pvalue,loops=loops,covariates=acovariates,Outcome=Outcome,variableList=variableList,data=data,maxTrainModelSize=maxTrainModelSize,type=type,testType=testType,timeOutcome=timeOutcome,featureSize=featureSize);
+				
+				pvals <- unique(forward.model$p.thresholds);
+
 				update.model <- forward.model$update.model;
 				if (elimination.bootstrap.steps>1)
 				{
-					BSWiMS.model <- bootstrapVarElimination_Res(object=update.model$final.model,pvalue=forward.model$p.thresholds,Outcome=Outcome,data=data,startOffset=startOffset,type=type,testType=testType,loops=elimination.bootstrap.steps,setIntersect=setIntersect,print=print,plots=plots);
+					BSWiMS.model <- bootstrapVarElimination_Res(object=update.model$final.model,pvalue=max(pvals),Outcome=Outcome,data=data,startOffset=startOffset,type=type,testType=testType,loops=elimination.bootstrap.steps,setIntersect=setIntersect,print=print,plots=plots);
 				}
 				else
 				{
-					BSWiMS.model <- backVarElimination_Res(object=update.model$final.model,pvalue=forward.model$p.thresholds,Outcome=Outcome,data=data,startOffset=startOffset,type=type,testType=testType,setIntersect=setIntersect);
+					BSWiMS.model <- backVarElimination_Res(object=update.model$final.model,pvalue=max(pvals),Outcome=Outcome,data=data,startOffset=startOffset,type=type,testType=testType,setIntersect=setIntersect);
 				}
 				if (print)
 				{
@@ -385,7 +403,7 @@ NumberofRepeats=1)
 					}
 #					else
 #					{
-#						BSWiMS.model <- backVarElimination_Res(object=update.model$final.model,pvalue=forward.model$p.thresholds,Outcome=Outcome,data=data,startOffset=startOffset,type=type,testType=testType,setIntersect=setIntersect);
+#						BSWiMS.model <- backVarElimination_Res(object=update.model$final.model,pvalue=median(forward.model$p.thresholds),Outcome=Outcome,data=data,startOffset=startOffset,type=type,testType=testType,setIntersect=setIntersect);
 #					}
 				}
 			}
@@ -524,7 +542,8 @@ NumberofRepeats=1)
 			formula.list <- append(formula.list,baseformula);
 			forward.selection.list <- append(forward.selection.list,forward.model$formula.list);
 		}
-		if (NumberofRepeats>1) formula.list <- append(formula.list,"=-=End=-=");
+#		if (NumberofRepeats>1) formula.list <- append(formula.list,"=-=End=-=");
+		formula.list <- append(formula.list,"=-=End=-=");
 	}
 	if (loops > 1) cat("]");
 	if(is.null(unirank))
@@ -612,7 +631,8 @@ NumberofRepeats=1)
 		forward.selection.list=forward.selection.list,
 		oridinalModels=oridinalModels,
 		equivalent=equivalent,
-		selectedfeatures = selectedfeatures
+		selectedfeatures = selectedfeatures,
+		bagPredictType = bagPredictType
 	);
 	class(result) <- c("fitFRESA","BSWiMS");
 

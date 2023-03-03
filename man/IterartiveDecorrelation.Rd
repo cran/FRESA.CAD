@@ -1,18 +1,23 @@
-\name{GDSTMDecorrelation}
-\alias{GDSTMDecorrelation}
+\name{IDeA}
+\alias{IDeA}
 \alias{predictDecorrelate}
 \title{Decorrelation of data frames}
 \description{
 	All continous features that with significant correlation will be decorrelated
 }
+
 \usage{
-	GDSTMDecorrelation(data=NULL,thr=0.80,
-	                     refdata=NULL,Outcome=NULL,
-	                     baseFeatures=NULL,unipvalue=0.05,
-	                     useDeCorr=TRUE,maxLoops=100,
-	                     verbose=FALSE,
+	IDeA(data=NULL,thr=0.80,
 	                     method=c("fast","pearson","spearman","kendall"),
-						 skipRelaxed=TRUE,
+	                     Outcome=NULL,
+	                     refdata=NULL,
+	                     drivingFeatures=NULL,
+	                     useDeCorr=TRUE,
+	                     relaxed=TRUE,
+	                     corRank=FALSE,
+	                     maxLoops=100,
+	                     unipvalue=0.05,
+	                     verbose=FALSE,
 	                     ...)
 
 	
@@ -31,14 +36,14 @@
 	\item{Outcome}{
 	The target outcome for supervised basis
 	}
-	\item{baseFeatures}{
+	\item{drivingFeatures}{
 	A vector of features to be used as basis vectors. 
 	}
 	\item{unipvalue}{
 	Maximum p-value for correlation significance
 	}
 	\item{useDeCorr}{
-	 if TRUE, the transformation matrix (GDSTM) will be computed
+	 if TRUE, the transformation matrix (UPSTM) will be computed
 	}
 	\item{maxLoops}{
 	the maxumum number of iteration loops
@@ -49,14 +54,17 @@
 	\item{method}{
 	if not set to "fast" the method will be pased to the \code{cor()} function.
 	}
-	\item{skipRelaxed}{
-	is set to FALSE it will use relaxed convergence
+	\item{relaxed}{
+	is set to TRUE it will use relaxed convergence
+	}
+	\item{corRank}{
+	is set to TRUE it will correlation matrix to break ties.
 	}
 	\item{...}{
 	parameters passed to the \code{featureAdjustment} function.
 	}
 	\item{decorrelatedobject}{
-	The returned dataframe of the \code{GDSTMDecorrelation} function
+	The returned dataframe of the \code{IDeA} function
 	}
 	\item{testData}{
 	the new dataframe to be decorrelated
@@ -68,39 +76,36 @@
  is larger than the user supplied threshold will be decorrelated. 
  Basis feature selection may be based on Outcome association or by an unsupervised method. 
  The default options will run the decorrelation using fast matrix operations using \code{Rfast};
- hence, Pearson correlation will be used to estimate the GDSTM. 
+ hence, Pearson correlation will be used to estimate the unit-preserving spatial transformation matrix (UPSTM). 
 }
 
 \value{
 	\item{decorrelatedDataframe}{
 	The decorrelated data frame with the follwing attributes 
 	}
-	\item{attr:topFeatures)}{
-		Attribute of adjustedFrame: The list of features that were decorrelated
-	}
-	\item{attr:TotalAdjustments}{
-		Attribute of adjustedFrame: The count of how many iteration were required
-	}
-	\item{attr:GDSTM}{
-		Attribute of adjustedFrame: The Decorrelation matrix with the beta coefficients
-	}
-	\item{attr:varincluded}{
-		Attribute of adjustedFrame: The list of input variables used in GDSTM
-	}
-	\item{attr:baseFeatures}{
-		Attribute of adjustedFrame: The list of features used as base features for supervised basis
-	}
-	\item{attr:useDeCorr}{
-		Attribute of adjustedFrame: If TRUE the estimated GDSTM is used for decorrelation
-	}
-	\item{attr:correlatedToBase}{
-		Attribute of adjustedFrame: List of correlated features to the base features 
-	}
-	\item{attr:AbaseFeatures}{
-		Attribute of adjustedFrame: List of unsupervised basis features
+	\item{attr:UPSTM}{
+		Attribute of decorrelatedDataframe: The Decorrelation matrix with the beta coefficients
 	}
 	\item{attr:fscore}{
-		Attribute of adjustedFrame: The score of each feature.
+		Attribute of decorrelatedDataframe: The score of each feature.
+	}
+	\item{attr:TotalAdjustments}{
+		Attribute of decorrelatedDataframe: The count of how many iteration were required
+	}
+	\item{attr:drivingFeatures}{
+		Attribute of decorrelatedDataframe: The list of features used as base features for supervised basis
+	}
+	\item{attr:unaltered}{
+		Attribute of decorrelatedDataframe: List of correlated features that were left unaltered
+	}
+	\item{attr:LatentVariables}{
+		Attribute of decorrelatedDataframe: List the names of parent latent features 
+	}
+	\item{attr:useDeCorr}{
+		Attribute of decorrelatedDataframe: If TRUE the estimated UPSTM is used for decorrelation
+	}
+	\item{attr:unipvalue}{
+		The p-value used to check for fit significance
 	}
 }
 
@@ -119,17 +124,17 @@
 	classcolor <- colors[iris$Species]
 
 	#Decorrelating with usupervised basis and correlation goal set to 0.25
-	system.time(irisDecor <- GDSTMDecorrelation(iris,thr=0.25))
+	system.time(irisDecor <- IDeA(iris,thr=0.25))
 	
-	## The transformation matrix is stored at "GDSTM" attribute
-	GDSTM <- attr(irisDecor,"GDSTM")
-	print(GDSTM)
+	## The transformation matrix is stored at "UPSTM" attribute
+	UPSTM <- attr(irisDecor,"UPSTM")
+	print(UPSTM)
 
 	#Decorrelating with supervised basis and correlation goal set to 0.25
-	system.time(irisDecorOutcome <- GDSTMDecorrelation(iris,Outcome="Species",thr=0.25))
-	## The transformation matrix is stored at "GDSTM" attribute
-	GDSTM <- attr(irisDecorOutcome,"GDSTM")
-	print(GDSTM)
+	system.time(irisDecorOutcome <- IDeA(iris,Outcome="Species",thr=0.25))
+	## The transformation matrix is stored at "UPSTM" attribute
+	UPSTM <- attr(irisDecorOutcome,"UPSTM")
+	print(UPSTM)
 
 	## Compute PCA 
 	features <- colnames(iris[,sapply(iris,is,"numeric")])
@@ -143,11 +148,11 @@
 	plot(as.data.frame(irisPCA$x),col=classcolor,main="PCA IRIS")
 
 	featuresDecor <- colnames(irisDecor[,sapply(irisDecor,is,"numeric")])
-	plot(irisDecor[,featuresDecor],col=classcolor,main="Unsupervised FCA IRIS")
+	plot(irisDecor[,featuresDecor],col=classcolor,main="Outcome-Blind IDeA IRIS")
 
 
 	featuresDecor <- colnames(irisDecorOutcome[,sapply(irisDecorOutcome,is,"numeric")])
-	plot(irisDecorOutcome[,featuresDecor],col=classcolor,main="Supervised FCA IRIS")
+	plot(irisDecorOutcome[,featuresDecor],col=classcolor,main="Outcome-Driven IDeA IRIS")
 }
 
 \seealso{\code{featureAdjustment}}

@@ -98,24 +98,59 @@ correlated_RemoveToLimit <- function(data,unitPvalues,limit=0,thr=0.975,maxLoops
 
 univariate_Logit <- function(data=NULL, Outcome=NULL, pvalue=0.2, adjustMethod="BH", uniTest=c("zIDI","zNRI"),limit=0,...,n = 0)
 {
-	varlist <-colnames(data);
-#    if (inherits(data[,Outcome],"factor")) data[,Outcome] <- as.numeric(as.character(data[,Outcome]));
-	varlist <- varlist[Outcome != varlist];
-	nvar <- length(varlist);
-	varlist <- cbind(varlist,varlist);
-	uniTest <- match.arg(uniTest);
-	outcomes <- data[,Outcome];
-	outlist <- unique(outcomes)
-	pvalue <- pvalue/sqrt(length(outlist) - 1.0)
-	unitPvalues <- rep(1.0,nvar);
-	for (oft in outlist[-1])
+	varlist <- colnames(data);
+	if (inherits(Outcome,"formula")) ## We assume that it is Survival Object
 	{
-		datat <- rbind(subset(data,outcomes == oft),subset(data,outcomes != oft))
-		datat[,Outcome] <- 1*(datat[,Outcome] == oft);
-		univ <- ForwardSelection.Model.Bin(nrow(varlist),1.0,0.0,1,"1",Outcome,varlist,datat,1,type="LOGIT",selectionType=uniTest);
-		pval <- 2.0*(1.0 - pnorm(univ$base.Zvalues));
-		pval[pval > 1.0] <- 1.0;
-		unitPvalues <- pmin(unitPvalues,pval);
+		  baseformula <- as.character(Outcome);
+		  baseformula[3] <- str_replace_all(baseformula[3],"[.]","1");
+		  baseformula <- paste(baseformula[2],"~",baseformula[3]);
+		  Outcome <- formula(baseformula);
+		  olist <- attr(terms(Outcome),"variables")
+		  dependent <- as.character(olist[[2]])
+		  
+		  if (length(dependent)==3)
+		  {
+
+			  timeOutcome = dependent[2];
+			  status = dependent[3];
+	#		  print(c(status,timeOutcome));
+
+			  varlist <- varlist[!varlist %in% c(timeOutcome,status)];
+			  varlist <- cbind(varlist,varlist);
+			  univ <- ForwardSelection.Model.Bin(nrow(varlist),1.0,0.0,1,"1",status,varlist,data,1,type="COX",selectionType=uniTest,timeOutcome=timeOutcome);
+			  unitPvalues <- 2.0*(1.0 - pnorm(univ$base.Zvalues));
+			  unitPvalues[unitPvalues > 1.0] <- 1.0;
+		  }
+		  else
+		  {
+			status = dependent[1];
+ 		    varlist <- varlist[status != varlist]
+		    varlist <- cbind(varlist,varlist);
+			univ <- ForwardSelection.Model.Bin(nrow(varlist),1.0,0.0,1,"1",status,varlist,data,1,type="LOGIT",selectionType=uniTest);
+			unitPvalues <- 2.0*(1.0 - pnorm(univ$base.Zvalues));
+			unitPvalues[unitPvalues > 1.0] <- 1.0;
+		  }
+	}
+	else
+	{ ## It is a standard binary outcome
+	#    if (inherits(data[,Outcome],"factor")) data[,Outcome] <- as.numeric(as.character(data[,Outcome]));
+		varlist <- varlist[Outcome != varlist];
+		nvar <- length(varlist);
+		varlist <- cbind(varlist,varlist);
+		uniTest <- match.arg(uniTest);
+		outcomes <- data[,Outcome];
+		outlist <- unique(outcomes)
+		pvalue <- pvalue/sqrt(length(outlist) - 1.0)
+		unitPvalues <- rep(1.0,nvar);
+		for (oft in outlist[-1])
+		{
+			datat <- rbind(subset(data,outcomes == oft),subset(data,outcomes != oft))
+			datat[,Outcome] <- 1*(datat[,Outcome] == oft);
+			univ <- ForwardSelection.Model.Bin(nrow(varlist),1.0,0.0,1,"1",Outcome,varlist,datat,1,type="LOGIT",selectionType=uniTest);
+			pval <- 2.0*(1.0 - pnorm(univ$base.Zvalues));
+			pval[pval > 1.0] <- 1.0;
+			unitPvalues <- pmin(unitPvalues,pval);
+		}
 	}
 
 	names(unitPvalues) <-  varlist[,1];
@@ -143,6 +178,18 @@ univariate_Logit <- function(data=NULL, Outcome=NULL, pvalue=0.2, adjustMethod="
 
 univariate_residual <- function(data=NULL, Outcome=NULL, pvalue=0.2, adjustMethod="BH",uniTest=c("Ftest","Binomial","Wilcox","tStudent"),type=c("LM","LOGIT"),limit=0,...,n = 0)
 {
+
+	if (inherits(Outcome,"formula")) ## We assume that it is Survival Object
+	{
+		dependent <- all.vars(Outcome)
+		Outcome = dependent[1];
+		if (length(dependent) == 3)
+		{
+			Outcome = dependent[2];
+		}
+	}
+
+
 	varlist <- colnames(data);
 #    if (inherits(data[,Outcome],"factor")) data[,Outcome] <- as.numeric(as.character(data[,Outcome]));
 	varlist <- varlist[Outcome != varlist];
@@ -196,6 +243,16 @@ if (!requireNamespace("twosamples", quietly = TRUE)) {
 	 install.packages("twosamples", dependencies = TRUE)
 } 
 
+	if (inherits(Outcome,"formula")) ## We assume that it is Survival Object
+	{
+		dependent <- all.vars(Outcome)
+		Outcome = dependent[1];
+		if (length(dependent) == 3)
+		{
+			Outcome = dependent[2];
+		}
+	}
+
 	varlist <-colnames(data);
     if (inherits(data[,Outcome], "factor")) data[,Outcome] <- as.numeric(as.character(data[,Outcome]));
 	case <- subset(data,get(Outcome) == 1);
@@ -246,6 +303,18 @@ if (!requireNamespace("twosamples", quietly = TRUE)) {
 
 univariate_filter <- function(data=NULL, Outcome=NULL, pvalue=0.2,pvalueMethod=wilcox.test, adjustMethod="BH",limit=0,...,n = 0)
 {
+
+	if (inherits(Outcome,"formula")) ## We assume that it is Survival Object
+	{
+		dependent <- all.vars(Outcome)
+		Outcome = dependent[1];
+		if (length(dependent) == 3)
+		{
+			Outcome = dependent[2];
+		}
+	}
+
+
 	varlist <-colnames(data);
 	varlist <- varlist[Outcome != varlist];
 	unitPvalues <- rep(1.0,length(varlist));
@@ -347,6 +416,15 @@ univariate_tstudent <- function(data=NULL, Outcome=NULL, pvalue=0.2, adjustMetho
 univariate_correlation <- function(data=NULL, Outcome=NULL, pvalue=0.2, adjustMethod="BH", method = "kendall",limit=0,...,n = 0)
 {
 
+	if (inherits(Outcome,"formula")) ## We assume that it is Survival Object
+	{
+		dependent <- all.vars(Outcome)
+		Outcome = dependent[1];
+		if (length(dependent) == 3)
+		{
+			Outcome = dependent[2];
+		}
+	}
 	varlist <- colnames(data);
 	varlist <- varlist[Outcome != varlist];
 	unitPvalues <- rep(1.0,length(varlist));
@@ -407,6 +485,17 @@ mRMR.classic_FRESA <- function(data=NULL, Outcome=NULL,feature_count=0,...)
 	   install.packages("mRMRe", dependencies = TRUE)
 	} 
 
+	if (inherits(Outcome,"formula")) ## We assume that it is Survival Object
+	{
+		dependent <- all.vars(Outcome)
+		Outcome = dependent[1];
+		if (length(dependent) == 3)
+		{
+			Outcome = dependent[2];
+		}
+	}
+
+
     if (inherits(data[,Outcome], "factor")) data[,Outcome] <- as.numeric(as.character(data[,Outcome]));
 	if (feature_count == 0)
 	{
@@ -456,6 +545,17 @@ univariate_BinEnsemble <- function(data,Outcome,pvalue=0.2,limit=0,adjustMethod=
   names(rankVar) <- colnames(data);
 
 #  if (inherits(data[,Outcome], "factor")) data[,Outcome] <- as.numeric(as.character(data[,Outcome]));
+
+	if (inherits(Outcome,"formula")) ## We assume that it is Survival Object
+	{
+		dependent <- all.vars(Outcome)
+		Outcome = dependent[1];
+		if (length(dependent) == 3)
+		{
+			Outcome = dependent[2];
+		}
+	}
+
   
   data <- data[,c(Outcome,correlated_Remove(data,colnames(data)[!(colnames(data) %in% Outcome)]))]
 
