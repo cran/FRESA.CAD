@@ -1,5 +1,5 @@
 plotModels.ROC <-
-function(modelPredictions,number.of.models=0,specificities=c(0.975,0.95,0.90,0.80,0.70,0.60,0.50,0.40,0.30,0.20,0.10,0.05),theCVfolds=1,predictor="Prediction",cex=1.0,...) 
+function(modelPredictions,number.of.models=0,specificities=c(0.975,0.95,0.90,0.80,0.70,0.60,0.50,0.40,0.30,0.20,0.10,0.05),theCVfolds=1,predictor="Prediction",cex=1.0,thr=NULL,...) 
 {
 
 #	op <- par(no.readonly=TRUE);
@@ -57,11 +57,18 @@ function(modelPredictions,number.of.models=0,specificities=c(0.975,0.95,0.90,0.8
 		ensemblePrediction <- cbind(outcomesta$stats[3,],psta$stats[3,]);
 		rownames(ensemblePrediction) <- psta$names
 		colnames(ensemblePrediction) <- c("Outcome",predictor);
-		thres = 0.5
-		if (min(psta$stats[3,])<0) 
+		if (is.null(thr))
 		{
-			thres = 0;
-		}				
+			thres <- 0.5
+			if (min(psta$stats[3,])<0) 
+			{
+				thres <- 0;
+			}				
+		}
+		else
+		{
+			thres <- thr
+		}
 		dtable <- table(psta$stats[3,]<thres,1-outcomesta$stats[3,])
 		ley.names <- c(paste("Coherence (",sprintf("%.3f",auc1),")"));
 		ley.colors <- c("darkblue");
@@ -116,11 +123,18 @@ function(modelPredictions,number.of.models=0,specificities=c(0.975,0.95,0.90,0.8
 			ensemblePrediction <- cbind(outcomesta,psta);
 			rownames(ensemblePrediction) <- rownames(modelPredictions);
 			colnames(ensemblePrediction) <- c("Outcome",predictor);
-			thres = 0.5
-			if (min(psta)<0) 
+			if (is.null(thr))
 			{
-				thres = 0;
-			}				
+				thres <- 0.5
+				if (min(psta$stats[3,])<0) 
+				{
+					thres <- 0;
+				}				
+			}
+			else
+			{
+				thres <- thr
+			}
 			dtable <- table(psta<thres,1-outcomesta);
 			ley.names <- c(paste("Coherence (",sprintf("%.3f",auc1),")"));
 			ley.colors <- c("darkblue");
@@ -133,7 +147,7 @@ function(modelPredictions,number.of.models=0,specificities=c(0.975,0.95,0.90,0.8
 		{
 			rout <- pROC::roc(as.vector(modelPredictions[,1]),modelPredictions[,2],direction="<",quiet = TRUE);
 			specificities=seq(0, 1, .05);	
-			if (nrow(modelPredictions) < 2000)
+			if (nrow(modelPredictions) < 5000)
 			{
 				ci.sp.obj <- pROC::ci.sp(rout , sensitivities=seq(0, 1, .05), boot.n=100,progress= 'none',quiet = TRUE)
 				blindSen <- pROC::ci.se(rout , specificities=seq(0, 1, .05), boot.n=100,progress= 'none',quiet = TRUE)
@@ -146,11 +160,18 @@ function(modelPredictions,number.of.models=0,specificities=c(0.975,0.95,0.90,0.8
 				pROC::plot.roc(rout,grid=c(0.1, 0.1),grid.col=c("gray", "gray"),print.auc=FALSE,quiet = TRUE,...) 
 			}
 			auclist <- rout$auc;
-			thres = 0.5
-			if (min(modelPredictions[,2])<0) 
+			if (is.null(thr))
 			{
-				thres = 0;
-			}				
+				thres <- 0.5
+				if (min(modelPredictions[,2])<0) 
+				{
+					thres = 0;
+				}				
+			}
+			else
+			{
+				thres <- thr
+			}
 			dtable <- table(modelPredictions[,2]<thres,1-modelPredictions[,1]);
 			ley.names <- c(paste("AUC: ",sprintf("%.3f",rout$auc)));
 			ley.colors <- c("black");
@@ -187,9 +208,11 @@ function(modelPredictions,number.of.models=0,specificities=c(0.975,0.95,0.90,0.8
 		ley.lty <- append(ley.lty,c(4,2));
 	}
 
+	op= par(no.readonly = TRUE)
 
 	if (nrow(dtable)==ncol(dtable) & (ncol(dtable)>1))
 	{
+
 		colnames(dtable) <- c("O(+)","O(-)")
 		rownames(dtable) <- c("T(+)","T(-)")
 		Sen=dtable[1,1]/(dtable[1,1]+dtable[2,1])
@@ -197,8 +220,9 @@ function(modelPredictions,number.of.models=0,specificities=c(0.975,0.95,0.90,0.8
 		enauc = 0.5*(Sen+Spe)	
 
 		lines(c(1,Spe,0),c(0,Sen,1),col="green",lwd=1.0,lty=1);
+		points(Spe,Sen,col="red",pch=1,cex=1.5*cex,lwd=2.0);
 	
-		ley.names <- append(ley.names,paste("Class AUC (",sprintf("%.3f",enauc),")"));
+		ley.names <- append(ley.names,paste("BACC (",sprintf("%.3f",enauc),")"));
 		ley.colors <- append(ley.colors,"green");
 		ley.lty <- append(ley.lty,1);
 
@@ -207,9 +231,11 @@ function(modelPredictions,number.of.models=0,specificities=c(0.975,0.95,0.90,0.8
 		F1=(2*dtable[1,1])/(2*dtable[1,1]+dtable[1,2]+dtable[2,1])
 		x=1.025
 		y=1.025
-		text(x,y,paste("(TPR=",sprintf("%.3f",Sen),",TNR=",sprintf("%.3f",Spe),",ACC=",sprintf("%.3f",Acc),",F1=",sprintf("%.3f",F1),",AUC=",sprintf("%.3f",enauc),")"),adj = c(0,1),cex=0.7*cex,col="dark green")
+		points(x,y-0.01,col="red",pch=1,cex=1.25*cex,lwd=2.0);
+		text(x - 0.025,y,paste("(TPR=",sprintf("%.3f",Sen),",TNR=",sprintf("%.3f",Spe),",ACC=",sprintf("%.3f",Acc),",F1=",sprintf("%.3f",F1),",BER=",sprintf("%.3f",1.0-enauc),")"),adj = c(0,1),cex=0.7*cex,col="dark green")
 		par(new=TRUE,plt=c(0.6,0.8,0.37,0.57),pty='s',cex=0.8*cex)
 		plot(t(dtable),main="Confusion Matrix",ylab="Test",xlab="Outcome",cex=0.8*cex)
+		par(op)
 	}
 	else
 	{
@@ -239,7 +265,8 @@ function(modelPredictions,number.of.models=0,specificities=c(0.975,0.95,0.90,0.8
 	ensemble.auc=ensemble.auc,
 	clasification.auc=enauc,
 	roc.predictor=rout,
-	F1=F1
+	F1=F1,
+	op=op
 	)
 	return (result)
 }
