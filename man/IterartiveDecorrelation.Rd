@@ -1,5 +1,6 @@
 \name{IDeA}
 \alias{IDeA}
+\alias{ILAA}
 \alias{predictDecorrelate}
 \title{Decorrelation of data frames}
 \description{
@@ -7,6 +8,16 @@
 }
 
 \usage{
+  ILAA(data=NULL,
+                thr=0.80,
+                method=c("pearson","spearman"),
+                Outcome=NULL,
+                drivingFeatures=NULL,
+                maxLoops=100,
+                verbose=FALSE,
+                bootstrap=0
+                )
+                
   IDeA(data=NULL,thr=0.80,
                        method=c("fast","pearson","spearman","kendall"),
                        Outcome=NULL,
@@ -14,7 +25,7 @@
                        drivingFeatures=NULL,
                        useDeCorr=TRUE,
                        relaxed=TRUE,
-                       corRank=FALSE,
+                       corRank=TRUE,
                        maxLoops=100,
                        unipvalue=0.05,
                        verbose=FALSE,
@@ -43,7 +54,7 @@
   Maximum p-value for correlation significance
   }
   \item{useDeCorr}{
-   if TRUE, the transformation matrix (UPSTM) will be computed
+   if TRUE, the transformation matrix (UPLTM) will be computed
   }
   \item{maxLoops}{
   the maxumum number of iteration loops
@@ -67,7 +78,10 @@
   The returned dataframe of the \code{IDeA} function
   }
   \item{testData}{
-  the new dataframe to be decorrelated
+  The new dataframe to be decorrelated
+  }
+  \item{bootstrap}{
+   If greater than 1 the number of boostrapping loops
   }
 }
 
@@ -76,14 +90,15 @@
  is larger than the user supplied threshold will be decorrelated. 
  Basis feature selection may be based on Outcome association or by an unsupervised method. 
  The default options will run the decorrelation using fast matrix operations using \code{Rfast};
- hence, Pearson correlation will be used to estimate the unit-preserving spatial transformation matrix (UPSTM). 
+ hence, Pearson correlation will be used to estimate the unit-preserving spatial transformation matrix (UPLTM).
+ ILAA is a wrapper of the more comprensive IDeA method. It estimates linear transforms and allows for boosted transform estimations 
 }
 
 \value{
   \item{decorrelatedDataframe}{
   The decorrelated data frame with the follwing attributes 
   }
-  \item{attr:UPSTM}{
+  \item{attr:UPLTM}{
   Attribute of decorrelatedDataframe: The Decorrelation matrix with the beta coefficients
   }
   \item{attr:fscore}{
@@ -102,10 +117,19 @@
   Attribute of decorrelatedDataframe: List the names of parent latent features 
   }
   \item{attr:useDeCorr}{
-  Attribute of decorrelatedDataframe: If TRUE the estimated UPSTM is used for decorrelation
+  Attribute of decorrelatedDataframe: If TRUE the estimated UPLTM is used for decorrelation
   }
   \item{attr:unipvalue}{
-  The p-value used to check for fit significance
+  Attribute of decorrelatedDataframe: The p-value used to check for fit significance
+  }
+  \item{attr:R.critical}{
+  Attribute of decorrelatedDataframe: The pearson correlation critical value
+  }
+  \item{attr:IDeAEvolution}{
+  Attribute of decorrelatedDataframe: The R measure history and the sparcity
+  }
+  \item{attr:VarRatio}{
+  Attribute of decorrelatedDataframe: The variance ratio between the output latent variable and the observed 
   }
 }
 
@@ -126,15 +150,15 @@
   #Decorrelating with usupervised basis and correlation goal set to 0.25
   system.time(irisDecor <- IDeA(iris,thr=0.25))
   
-  ## The transformation matrix is stored at "UPSTM" attribute
-  UPSTM <- attr(irisDecor,"UPSTM")
-  print(UPSTM)
+  ## The transformation matrix is stored at "UPLTM" attribute
+  UPLTM <- attr(irisDecor,"UPLTM")
+  print(UPLTM)
 
   #Decorrelating with supervised basis and correlation goal set to 0.25
   system.time(irisDecorOutcome <- IDeA(iris,Outcome="Species",thr=0.25))
-  ## The transformation matrix is stored at "UPSTM" attribute
-  UPSTM <- attr(irisDecorOutcome,"UPSTM")
-  print(UPSTM)
+  ## The transformation matrix is stored at "UPLTM" attribute
+  UPLTM <- attr(irisDecorOutcome,"UPLTM")
+  print(UPLTM)
 
   ## Compute PCA 
   features <- colnames(iris[,sapply(iris,is,"numeric")])
