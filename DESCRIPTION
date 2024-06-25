@@ -1,8 +1,8 @@
 Package: FRESA.CAD
 Type: Package
 Title: Feature Selection Algorithms for Computer Aided Diagnosis
-Version: 3.4.7
-Date: 2023-11-23
+Version: 3.4.8
+Date: 2024-06-25
 Author: Jose Gerardo Tamez-Pena, Antonio Martinez-Torteya, Israel Alanis and Jorge Orozco
 Maintainer: Jose Gerardo Tamez-Pena <jose.tamezpena@tec.mx>
 Description: Contains a set of utilities for building and testing statistical models (linear, logistic,ordinal or COX) for Computer Aided Diagnosis/Prognosis applications. Utilities include data adjustment, univariate analysis, model building, model-validation, longitudinal analysis, reporting and visualization.
@@ -13,7 +13,7 @@ Suggests:
         nlme,rpart,gplots,RColorBrewer,class,cvTools,glmnet,randomForest,survival,
         e1071,MASS,naivebayes,mRMRe,epiR,DescTools,
         irr,survminer,BeSS,ggplot2,robustbase,mda,twosamples,Rfast,whitening,corrplot
-Packaged: 2023-11-24 15:52:26 UTC; jtame
+Packaged: 2024-06-25 21:10:19 UTC; jtame
 NeedsCompilation: yes
 Repository: CRAN
-Date/Publication: 2023-11-24 17:50:05 UTC
+Date/Publication: 2024-06-25 21:40:02 UTC
